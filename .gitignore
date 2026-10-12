@@ -1,0 +1,34 @@
+# --- Game-derived material is local-only, except the organized per-class export ---
+# Extracted/generated game material lives in data/, gen/ and docs/generated/ (all local-only).
+# The one exception is data/identified_organized/ (decompiled functions, one .c per class), which is tracked.
+data/*
+!data/identified_organized/
+gen/
+docs/generated/
+# Ghidra project (local database)
+Commons/
+*.gpr
+*.rep/
+*.lock
+*.lock~
+# Build output
+build/
+out/
+.vs/
+.run/
+__pycache__/
+# Binaries
+*.exe
+*.dll
+*.pdb
+*.obj
+*.lib
+*.bin
+*.flm
+*.whl
+# Logs / scratch
+scratch_*
+*.err.txt
+*.out.txt
+events.jsonl
+tools/run_coverage.*.txt
