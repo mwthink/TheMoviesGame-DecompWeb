@@ -143,6 +143,41 @@ Outputs (gitignored, they hold game-derived names): `docs/generated/class_attrib
 `class_attribution_names.csv` (address, `<Class>_sub_<addr>` for the tier A functions that are still `FUN_*`) for the Ghidra
 ApplyNames script. Tier B is not turned into names; review it or add evidence first.
 
+## Running the game on the Windows test box (what it took, and what the traces gave)
+
+Tools: `tools/winbox/` (setup script, `run_interactive.ps1`, jobs in `tools/winbox/jobs/`). SSH logons have no desktop, so every job that
+needs the game or the screen runs through a scheduled task in the logged-in console session. `launch_game.ps1` starts `MoviesSE.exe` with
+`TheMoviesDebugger.dll` injected (`-Coverage` adds the first-call tracer and the this-class log), `new_game.ps1` clicks Game > Quick
+Start > accept, `hotkey.ps1` presses the tracer hotkeys, `analyze_this_log.py` and `steady_state.py` turn the logs into class evidence
+and the steady-state function set.
+
+What stops the game from starting on a modern machine without a GPU (all found by running it):
+- **Stale flags in `HKCU\Software\Lionhead Studios Ltd\TheMovies`.** The game writes `Game running:` = Yes at start and `OpenDx` = Yes
+  just before opening Direct3D, and clears them on a clean exit / after Direct3D opened. A stale value shows the "did not shut down
+  properly" prompt (Cancel/No continues) or the "old version of DirectX" dialog. The launch scripts delete both values first.
+- **Fullscreen fails** when the display has a single mode (the Basic Render Driver: 1280x800 only): CreateDevice rejects 800x600 and
+  1024x768 fullscreen. Setting the registry value `Fullscreen` to `0` gives a window, which works under WARP (software Direct3D).
+- **OpenAL32.dll** must be installed (Creative's `oalinst.exe`, signed).
+- **Large-address-aware flag** on `MoviesSE.exe` (`tools/winbox/jobs/patch_laa.ps1`, `editbin /LARGEADDRESSAWARE`): without it the
+  game crashed with an access violation in a `rep movsl` copy right after a new studio finished loading (PCGamingWiki documents this
+  crash). Only four header bytes change (flag and checksum); the original is kept as `MoviesSE.exe.orig`, SHA-256 `48f909d7...566a`.
+- **Mouse**: the game reads the mouse through DirectInput. Absolute cursor positioning is ignored, only relative motion counts (about
+  1.5 screen pixels per unit), and the cursor is clamped to the window, so a scripted click first parks the cursor in a corner. The
+  compatibility flags "disable fullscreen optimizations" and the high-DPI override are needed for it to work at all.
+- The "first time you are running" notice appears at every start (OK only); the helper presses it.
+
+What the traces showed (new-game Quick Start, then 2 game years: 1960.0 to 1962.04, no crash):
+- 12,789 of the 35,039 listed functions were reached. 5,672 during boot, menus and loading, 2,994 in the first game month, then very
+  few: 146, 63, ... After a re-arm (F8) the next month lists 3,034 functions and the following ten months add 783 more: the
+  **steady-state set of about 3,800 functions** the game runs while it manages a studio (`tools/steady_state.py`).
+- The calendar year boundary (January 1961 and 1962) added one to three functions: nothing runs only at new year. The Stunts &
+  Effects content unlock (April 1961) added about 70 functions around the research system and a further 20 for the alert.
+- **Class of `this`** (`coverage_this.csv`): for every method that ran, ECX's vtable pointer. 3,673 functions have an observed class.
+  Against functions whose class was already known: single-class observations are right 80% of the time exactly and 84% within the
+  inheritance family; several different classes give 44% / 71% (the closest-common-base guess is weak). The static attributions are
+  confirmed independently: tier A 90% consistent with the dynamic class, tier B 88%.
+- Start-up facts: the game clock starts at 1960.0 for a Quick Start; `MONTH_n` markers are whole months since year 0 of the clock.
+
 ## What this does not do yet
 
 - No object code is produced or linked (`/Zs` only); calling-convention rewriting at call sites (`__thiscall`) is not done.

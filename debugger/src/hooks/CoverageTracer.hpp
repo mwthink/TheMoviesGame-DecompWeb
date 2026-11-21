@@ -12,6 +12,10 @@
 //   F8  re-arm every function (so the next phase records its *complete* function set) and start a new phase
 //   F9  write a marker line (start a new phase without re-arming: the next phase lists newly reached functions)
 //   F10 write coverage_summary.txt (functions reached per phase)
+// This-class mode: if "coverage_this.txt" exists next to the exe (line 1: distinct vtables per function, default 6; line 2: traps
+// per function, default 64) the trap stays armed for a few calls of each function (single-step re-arm) and
+// "coverage_this.csv" (rva,thread,phase,vtable_rva) records the vtable pointer found behind ECX. For a __thiscall method that is the
+// real class of `this`; filter against the RTTI vtable list offline (tools/attribute_classes.py).
 // Automatic markers are written when the game clock starts (a game was loaded) and at every game month.
 namespace CoverageTracer
 {
