@@ -1,5 +1,7 @@
 # Reimplementation layout and workflow
 
+State, commands and next steps for a new contributor: `docs/HANDOVER.md`.
+
 Goal: a readable C++ reimplementation, organised by subsystem and class, not by original address or per function.
 
 ## Layout (under `src/` (new, in this repo), headers beside sources)

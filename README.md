@@ -28,12 +28,14 @@ Write-up is being redone from scratch — check back soon.
 docs/          findings and format write-ups (MOVIE_*.md, STUNT_SYSTEM.md, FLM_FORMAT.md, REIMPLEMENTATION.md, DECOMP_PIPELINE.md)
 FINDINGS.md    older findings notes (being rewritten)
 renames.csv    proposed function names, library_map.csv, fable_matches.csv
-tools/         analysis and generator scripts (Python/PowerShell); tools/ghidra_names.csv = live Ghidra names
+tools/         analysis and generator scripts (Python/PowerShell); tools/ghidra_names.csv = live Ghidra names;
+               tools/winbox/ = scripts for the Windows test box (build, launch, trace, drive the game)
 ghidra/        Ghidra scripts (the Ghidra project itself is local: *.gpr / *.rep, gitignored)
 debugger/      TheMoviesDebugger: injected DLL + injector (CMake), used to verify findings at runtime
-src/           the readable reimplementation (portable C++17; started with game/movie/MovieQuality)
-data/          LOCAL ONLY, gitignored: ExportDecompiled/, extracted game files, dumps
+src/           the readable reimplementation (portable C++17): core/, game/movie, game/staff, apps/ (otm_movie_calc), tests/
+data/          LOCAL ONLY, gitignored: ExportDecompiled/, game_data/ (extracted ini/csv), runtime/ (traces from the test box)
 gen/, docs/generated/   LOCAL ONLY, gitignored: generated sources and reports
 ```
 
-The game install (`The Movies/`) is kept outside the repo, next to it. See `docs/REIMPLEMENTATION.md` for the module layout and workflow.
+The game install (`The Movies/`) is kept outside the repo, next to it. **Start with `docs/HANDOVER.md`** (state, commands, next steps);
+see `docs/REIMPLEMENTATION.md` for the module layout and workflow.

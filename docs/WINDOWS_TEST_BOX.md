@@ -1,5 +1,12 @@
 # Windows test box: what to set up for runtime testing
 
+**Status (2026-11-21): the box exists and works.** What was actually built differs from the plan below in these ways: one administrator
+account (the same one runs SSH and the console desktop), key login with the user's own SSH key, Windows 11 Pro 24H2 (build 26100), no
+GPU at all (the Basic Render Driver; the game runs windowed under software Direct3D), the game's install has the large-address-aware
+flag set, and several game-side fixes were needed (stale registry flags, windowed mode, OpenAL, mouse input). All of that, the helper
+scripts and the session workflow are in `docs/HANDOVER.md` and `docs/DECOMP_PIPELINE.md` ("Running the game on the Windows test box").
+The text below is the original plan; keep it as the checklist for building another box.
+
 The reimplementation (`src/`) is checked against the real game wherever a measurement from the running game can settle a question
 (see "verified" in `docs/REIMPLEMENTATION.md`). That needs `MoviesSE.exe` running on Windows with `debugger/` injected. This page
 describes a machine I can work on directly, so a test is a few minutes of my work instead of a round trip through you.
