@@ -167,9 +167,11 @@ What stops the game from starting on a modern machine without a GPU (all found b
 - The "first time you are running" notice appears at every start (OK only); the helper presses it.
 
 What the traces showed (new-game Quick Start, then 2 game years: 1960.0 to 1962.04, no crash):
-- 12,789 of the 35,039 listed functions were reached. 5,672 during boot, menus and loading, 2,994 in the first game month, then very
-  few: 146, 63, ... After a re-arm (F8) the next month lists 3,034 functions and the following ten months add 783 more: the
-  **steady-state set of about 3,800 functions** the game runs while it manages a studio (`tools/steady_state.py`).
+- **9,458 distinct functions (27% of the 35,039 listed) were reached** (the log has 12,789 lines because a re-arm with F8 logs the
+  functions again): 5,672 during boot, menus and loading, 2,994 in the first game month, then very few: 146, 63, ... After a re-arm
+  (F8) the next month lists 3,034 functions and the following months add 783 more: the **steady-state set of about 3,800
+  functions** the game runs while it manages a studio (`tools/steady_state.py`). Of the 30,775 unnamed functions, 8,094 (26%) are now
+  known to run.
 - The calendar year boundary (January 1961 and 1962) added one to three functions: nothing runs only at new year. The Stunts &
   Effects content unlock (April 1961) added about 70 functions around the research system and a further 20 for the alert.
 - **Class of `this`** (`coverage_this.csv`): for every method that ran, ECX's vtable pointer. 3,673 functions have an observed class.
