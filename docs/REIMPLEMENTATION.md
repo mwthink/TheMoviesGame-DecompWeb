@@ -13,6 +13,8 @@ src/
   ui/          TM::W* windows, bubbles, HUD (WWindow, WInterface, WAdvMovieMaker...)
   game/
     studio/    CLot, TMRoom, TMFloorPlan, TMFixedAsset, builders
+    ai/        AI studio decisions (when a studio releases a movie)
+    studio/    the studio rating and decayed reputation
     staff/     CStaff, jobs, traits, experience   
     movie/     scripts, scenes, quality, success, stunts (see FINDINGS.md)
     economy/   finances, awards, decades
@@ -68,6 +70,10 @@ Status (all under `game/movie/`, each with a test in `src/tests/`):
   in a `LoadReport`. Checked against the installed game's files: every default in the headers equals the shipped value
   (`max_from_ideal` is 0.5).
 
+- `game/ai/AiStudio`: the AI studio's release decision (desire from the group's mean/RMS success difference, the 0.5-2 year ramp, the 0.5
+  threshold). **Verified** against 211 logged decisions (`tools/check_ai_decide.py`, `tests/AiStudioTest.cpp`).
+- `game/studio/StudioRating`: the studio rating (five weighted components with a clamp after each) and the decayed reputation.
+  **Verified** against 27 logged studio rows (`tests/StudioRatingTest.cpp`); the money and star-power components are not yet.
 - `game/staff/Traits`: the trait map with the diminishing-returns gain, the experience table, and the genre experience a take gives.
   `game/staff/Stunts`: the stunt roll (success chance, the game's random generator), injuries, stunt XP and stunt-school training.
   `game/staff/StarRating`: how a star's nine components combine, and how films feed the movies and performance components.

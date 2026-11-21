@@ -16,6 +16,8 @@ add_library(otm_game
     game/movie/ActorPerformance.cpp
     game/movie/TuningLoader.cpp
     game/movie/MovieEstimate.cpp
+    game/ai/AiStudio.cpp
+    game/studio/StudioRating.cpp
     game/staff/Traits.cpp
     game/staff/Stunts.cpp
     game/staff/StarRating.cpp
@@ -35,6 +37,14 @@ add_test(NAME movie_success COMMAND movie_success_test)
 add_executable(actor_performance_test tests/ActorPerformanceTest.cpp)
 target_link_libraries(actor_performance_test PRIVATE otm_game)
 add_test(NAME actor_performance COMMAND actor_performance_test)
+
+add_executable(ai_studio_test tests/AiStudioTest.cpp)
+target_link_libraries(ai_studio_test PRIVATE otm_game)
+add_test(NAME ai_studio COMMAND ai_studio_test)
+
+add_executable(studio_rating_test tests/StudioRatingTest.cpp)
+target_link_libraries(studio_rating_test PRIVATE otm_game)
+add_test(NAME studio_rating COMMAND studio_rating_test)
 
 add_executable(core_test tests/CoreTest.cpp)
 target_link_libraries(core_test PRIVATE otm_game)

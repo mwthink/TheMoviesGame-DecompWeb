@@ -40,12 +40,15 @@ namespace
     constexpr uintptr_t RVA_StudioMgrPtr      = 0x00b88fa8; // DAT_00f88fa8: manager whose list (+0x98, sentinel +0xa4) the studio award factories walk
     constexpr uintptr_t RVA_GetMoneyComp      = 0x0010cfe0; // CStudio_GetMoneyRatingComponent  (thiscall, this, float* out) ret 4
     constexpr uintptr_t RVA_GetAwardsComp     = 0x0010d8e0; // CStudio_GetAwardsRatingComponent (thiscall, this, float* out) ret 4
+    constexpr uintptr_t RVA_GetStarPowerComp  = 0x0010fc90; // CStudio_GetStarPowerRatingComponent (thiscall, this, float* out) ret 4
     constexpr uintptr_t RVA_GetDecayedRep     = 0x0010a860; // CStudio_GetDecayedReputation     (thiscall, this, float* out) ret 4
     constexpr uintptr_t RVA_MeanStuntTake     = 0x001b8a00; // CProject_GetMeanStuntTakeScore   (thiscall, this) -> ST0
     constexpr uintptr_t RVA_MeanStarRelBar    = 0x001b8760; // CProject_GetMeanStarRelationshipBar (thiscall, this, float* out) ret 4
     constexpr uintptr_t RVA_MeanSetRepairBar  = 0x001b8840; // CProject_GetMeanSetRepairBar     (thiscall, this, float* out) ret 4
     constexpr uintptr_t RVA_MeanCrewExpBar    = 0x001b8920; // CProject_GetMeanCrewExperienceBar(thiscall, this, float* out) ret 4
     constexpr uintptr_t RVA_AIMakeMovie       = 0x00115290; // CStudioAI_MakeMovie            (thiscall, this, char)
+    constexpr uintptr_t RVA_AIMeanSuccessDiff = 0x001148d0; // CStudioAI_MeanSuccessDifference (cdecl, no args, result in st0)
+    constexpr uintptr_t RVA_AIRmsSuccessDiff  = 0x00114950; // CStudioAI_RmsSuccessDifference  (cdecl, no args, result in st0)
     constexpr uintptr_t RVA_AIDecideRelease   = 0x001154a0; // CStudioAI_DecideAndReleaseMovie (fastcall, this)
     constexpr uintptr_t RVA_SalaryPayment     = 0x000fd9a0; // CStarContract_GetSalaryPayment (thiscall, this, int64* out) ret 4 -> out
     constexpr uintptr_t RVA_StuntRoll         = 0x000ea1d0; // ShootController_RollStuntOutcome (fastcall, this)
@@ -495,10 +498,11 @@ namespace
             node = RdOr<uintptr_t>(node + 4, 0);
             if (!st) continue;
             Line("ev=STUDIO_COMPONENTS,why=%s,studio=%p,isPlayer=%d,rating=%.4f,decayedRep=%.4f,repBase=%.4f,money=%.4f,awards=%.4f,"
-                 "capitalOrBalance=%.2f,awardsOwned+0x128=%d",
+                 "capitalOrBalance=%.2f,awardsOwned+0x128=%d,appearance=%.4f,starPower=%.4f",
                  why, (void*)st, (int)(st == player), RdOr<float>(st + 0x130, -1.f), CallFloatOut(RVA_GetDecayedRep, st),
                  RdOr<float>(st + 0x138, -1.f), CallFloatOut(RVA_GetMoneyComp, st), CallFloatOut(RVA_GetAwardsComp, st),
-                 RdOr<long long>(st + 0x218, 0) / 8388608.0, RdOr<int>(st + 0x128, -1));
+                 RdOr<long long>(st + 0x218, 0) / 8388608.0, RdOr<int>(st + 0x128, -1),
+                 RdOr<float>(st + 0x12c, -1.f), CallFloatOut(RVA_GetStarPowerComp, st));
         }
     }
 
@@ -875,13 +879,31 @@ namespace
     AiDecideState g_aiDecide[48];
     typedef void*(__fastcall* AIDecide_t)(void*);
     AIDecide_t Orig_AIDecide = nullptr;
+    // CStudioAI_MeanSuccessDifference / RmsSuccessDifference: no arguments, result in st0 (float10), computed over every
+    // CStudioAI in the studio list (not only the ones that decide).
+    typedef double(__cdecl* AIStat_t)();
+    double CallAIStat(uintptr_t rva)
+    {
+        double v = -999.0;
+        __try { v = ((AIStat_t)(g_base + rva))(); } __except (EXCEPTION_EXECUTE_HANDLER) { v = -998.0; }
+        return v;
+    }
+
     void* __fastcall Det_AIDecide(void* self)
     {
-        void* r = Orig_AIDecide(self);
-        if (!g_enabled) return r;
         uintptr_t st = reinterpret_cast<uintptr_t>(self);
+        // inputs of the decision, read before the original runs (it may release a movie and change them)
+        const bool on = g_enabled && st;
+        float sdBefore = on ? RdOr<float>(st + 0x298, -1.f) : 0.f;
+        float lastBefore = on ? RdOr<float>(st + 0x168, 0.f) : 0.f;
+        double mean = on ? CallAIStat(RVA_AIMeanSuccessDiff) : 0.0, rms = on ? CallAIStat(RVA_AIRmsSuccessDiff) : 0.0;
+        float acc = on ? RdOr<float>(g_base + (0x0104bd70 - 0x400000), -1.f) : 0.f;
+        void* r = Orig_AIDecide(self);
+        if (!on) return r;
+        float lastAfter = RdOr<float>(st + 0x168, 0.f);
+        bool released = lastAfter != lastBefore;
         long month = (long)(RdOr<float>(g_base + RVA_GameClock, 0.f) / 30.4375f);
-        bool doLog = false;
+        bool doLog = released;
         EnterCriticalSection(&g_cs);
         AiDecideState* slot = nullptr;
         for (auto& e : g_aiDecide) { if (e.studio == st) { slot = &e; break; } }
@@ -889,9 +911,10 @@ namespace
         if (slot && slot->month != month) { slot->month = month; doLog = true; }
         LeaveCriticalSection(&g_cs);
         if (doLog)
-            Line("ev=AI_DECIDE,studio=%p,successDiff=%.4f,lastReleaseYear=%.4f,sinceLastYears=%.3f,extraAccumulator=%.4f",
-                 self, RdOr<float>(st + 0x298, -1.f), RdOr<float>(st + 0x168, -1.f) / 365.0f,
-                 GameYear() - RdOr<float>(st + 0x168, 0.f) / 365.0f, RdOr<float>(g_base + (0x0104bd70 - 0x400000), -1.f));
+            Line("ev=AI_DECIDE,studio=%p,successDiff=%.4f,lastReleaseYear=%.4f,sinceLastYears=%.3f,extraAccumulator=%.4f,"
+                 "mean=%.6f,rms=%.6f,released=%d,sdAfter=%.4f",
+                 self, sdBefore, lastBefore / 365.0f, GameYear() - lastBefore / 365.0f, acc, mean, rms, (int)released,
+                 RdOr<float>(st + 0x298, -1.f));
         return r;
     }
 
