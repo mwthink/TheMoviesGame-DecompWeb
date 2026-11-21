@@ -91,8 +91,21 @@ def main():
         ff.write('\n'.join(sorted(prev | failed)) + '\n')
     json.dump(report, open(os.path.join(a.out, 'compile_report%s.json' % ('_arm64' if a.target == 'arm64' else '')), 'w'), indent=1)
     with open(os.path.join(a.out, 'compile_report%s.md' % ('_arm64' if a.target == 'arm64' else '')), 'w', encoding='utf-8') as f:
-        f.write('# Compile check of the generated sources (%s, C mode)' % ('cl /Zs' if toolchain.IS_WINDOWS else 'clang --target=i686-w64-mingw32 -fsyntax-only') + '\n\n')
+        if a.target == 'arm64':
+            front = 'clang --target=arm64-apple-macos -fsyntax-only'
+        else:
+            front = 'cl /Zs' if toolchain.IS_WINDOWS else 'clang --target=i686-w64-mingw32 -fsyntax-only'
+        f.write('# Compile check of the generated sources (%s, C mode)' % front + '\n\n')
         f.write('Functions with no reported error: **%d of %d** (%.1f%%) across %d files\n\n' % (ok, total, 100.0 * ok / max(total, 1), len(files)))
+        stubbed = prev | failed
+        if stubbed:
+            # failed_functions*.txt is the accumulated set of functions that failed in some run. A build that stubs them
+            # (build_arm64.py) re-checks sources whose failing bodies are traps, so the figure above is ~100% by construction.
+            # The honest pass rate is the share that never needed a stub.
+            clean = total - len(stubbed & {fu['name'] for f_ in files for fu in by_file[f_]})
+            f.write('Functions that **never failed** (not in %s, i.e. not stubbed): **%d of %d** (%.1f%%). '
+                    'If the figure above is near 100%%, the failing functions were replaced by stubs before this check and it says nothing about them.\n\n'
+                    % (os.path.basename(fpath), clean, total, 100.0 * clean / max(total, 1)))
         f.write('## Error codes\n\n')
         for c, n in codes.most_common(25):
             f.write('- %s: %d\n' % (c, n))

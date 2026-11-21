@@ -36,3 +36,20 @@ python tools/progress.py
 ```
 Writes `docs/generated/progress.csv` (address, name, class, status) and `progress.md` (per-class counts).
 Status: `unnamed` -> `named` -> `reimplemented` -> `verified`, derived from names in `ghidra_names.csv` and the `orig:` tags in `src/`.
+
+## Building and testing `src/`
+
+Portable C++17, no external dependencies (the injected debugger in `debugger/` is the only Windows/32-bit part).
+
+```
+cmake -S src -B build/src && cmake --build build/src && ctest --test-dir build/src --output-on-failure
+```
+
+A module takes already-gathered numbers (cast performance, script quality, ...), not game objects, so its formulas can be tested
+on their own; reading those numbers out of the game's classes comes with the class that owns the data. Tests check the worked
+examples and measured values in `docs/` (see `src/tests/MovieQualityTest.cpp`). Add a source file to `src/CMakeLists.txt` with each module.
+Put `verified` on a function only when a measurement from the running game reproduces its result, and say in a comment what was measured.
+
+Status: `game/movie/MovieQuality` (`CQualityRating_Compute`, `CProject_ComputeFinalQuality` and the factor mappings) is the first module;
+`CProject_ComputeFinalQuality` is verified against two measured movies, the rest is `reimplemented`.
+

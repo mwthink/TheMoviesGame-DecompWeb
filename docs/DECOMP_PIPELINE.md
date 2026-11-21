@@ -93,6 +93,9 @@ compiles all 344 sources to Mach-O arm64 objects in `build/arm64/` and archives 
 macOS has no `windows.h` and MinGW's `long` is 32-bit, so `tools/win32_slice.py` cuts the Win32/CRT declarations the sources
 actually use out of the i686 MinGW headers into `gen/win32_compat.h`, with `long` rewritten to `int` and `#pragma pack` kept.
 
+Reading the reports: `compile_report_arm64.md` re-checks sources whose failing functions were already replaced by stubs, so its
+headline is ~100% by construction. The line below it ("never failed") is the real pass rate (about 92%, the same as the i686 check).
+
 Current result: **34,487 functions defined, 2,762 of them stubbed (8.0%)**, 19.2 MB library. 15,157 symbols are still undefined:
 mostly data/code labels (`DAT_`, `PTR_`, `LAB_`: the globals have no storage yet), Win32/DirectX imports and CRT functions.
 This is a build of the code, not a runnable game: pointers are 64-bit while the code keeps them in 32-bit `int`s, `this` is not

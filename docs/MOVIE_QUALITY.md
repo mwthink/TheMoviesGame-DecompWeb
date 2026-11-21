@@ -26,7 +26,7 @@ x = ( (P - 1) - 2 * (S - 0.4) * 0.1 ) * 0.8            // quality_overall_shifte
 Q = clamp01( S + g(x) )
 ```
 Meaning: **script quality is the base**; production factors above 1 add a *capped* bonus (+0.4 maximum on top of the script quality, with each further 0.1 of excess worth 20% less than the previous), production factors below 1 subtract linearly and without a cap. The `-2*(S-0.4)*0.1` shift lowers the bonus slightly for already-good scripts.
-Worked examples (S = 0.6, i.e. a 3-star script): all factors 1.0 -> x = -0.032 -> **Q = 0.568**; P = 1.2 -> x = 0.128 -> g = 0.1*0.8 + 0.028*0.64 = 0.098 -> **Q = 0.698**; P = 0.8 -> x = -0.192 -> **Q = 0.408**; P = 2.0 -> x = 0.768 -> g = 0.1*(0.8+0.64+0.512+0.4096+0.3277+0.2621+0.2097) + 0.068*0.1678 = 0.316 + 0.011 = 0.327 -> **Q = 0.927**.
+Worked examples (S = 0.6, i.e. a 3-star script): all factors 1.0 -> x = -0.032 -> **Q = 0.568**; P = 1.2 -> x = 0.128 -> g = 0.1*0.8 + 0.028*0.64 = 0.098 -> **Q = 0.698**; P = 0.8 -> x = -0.192 -> **Q = 0.408**; P = 2.0 -> x = 0.768 -> g = 0.1*(0.8+0.64+0.512+0.4096+0.3277+0.2621+0.2097) + 0.068*0.1678 = 0.3161 + 0.0114 = 0.3275 -> **Q = 0.9275**.
 Script-quality star bands from the ini: 1 star 0.2, 2 stars 0.4, 3 stars 0.6, 4 stars 0.8, 5 stars 1.0.
 
 ## 3. Per-actor performance **[code + data]**

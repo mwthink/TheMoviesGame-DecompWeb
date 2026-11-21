@@ -31,7 +31,7 @@ renames.csv    proposed function names, library_map.csv, fable_matches.csv
 tools/         analysis and generator scripts (Python/PowerShell); tools/ghidra_names.csv = live Ghidra names
 ghidra/        Ghidra scripts (the Ghidra project itself is local: *.gpr / *.rep, gitignored)
 debugger/      TheMoviesDebugger: injected DLL + injector (CMake), used to verify findings at runtime
-src/           the readable reimplementation (to come)
+src/           the readable reimplementation (portable C++17; started with game/movie/MovieQuality)
 data/          LOCAL ONLY, gitignored: ExportDecompiled/, extracted game files, dumps
 gen/, docs/generated/   LOCAL ONLY, gitignored: generated sources and reports
 ```
