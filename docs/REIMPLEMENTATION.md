@@ -48,6 +48,8 @@ cmake -S src -B build/src && cmake --build build/src && ctest --test-dir build/s
 A module takes already-gathered numbers (cast performance, script quality, ...), not game objects, so its formulas can be tested
 on their own; reading those numbers out of the game's classes comes with the class that owns the data. Tests check the worked
 examples and measured values in `docs/` (see `src/tests/MovieQualityTest.cpp`). Add a source file to `src/CMakeLists.txt` with each module.
+`tuning_loader` also checks against the real game files when `data/game_data` holds the extracted files (`tools/pak_extract.py`, below); without
+them it runs only its inline checks and ctest reports it as skipped. Set `OTM_GAME_DATA` to another directory to use files from elsewhere.
 Put `verified` on a function only when a measurement from the running game reproduces its result, and say in a comment what was measured.
 
 Status (all under `game/movie/`, each with a test in `src/tests/`):
@@ -59,8 +61,17 @@ Status (all under `game/movie/`, each with a test in `src/tests/`):
 - `ActorPerformance`: the actor record (`QualityCalc_ActorPerformance`), mood and genre-fit factors, star chemistry, likeness and the stunt
   performance factors. Nothing there is verified (no measurement isolates it); it follows the decompiled code.
 
-Still to do for the quality/success chain: reading the inputs out of the game's classes (traits, cast list, boredom objects), the genre-fit
-score inputs and `max_from_ideal`, the stunt take score and the take-by-take records, and loading the ini files into the tuning structs.
+- `TuningLoader`: fills `QualityTuning`, `SuccessTuning`, `ActorTuning`, `AwardBonusTuning` and the audience-taste genre events from
+  `releasing_movies.ini`, `global.ini`, `stunts.ini`, `awardsbonuses.ini` and `timeline.csv`. Missing keys keep the default and are listed
+  in a `LoadReport`. Checked against the installed game's files: every default in the headers equals the shipped value
+  (`max_from_ideal` is 0.5).
+
+`core/` holds new helpers for the reimplementation, not ports of the game's own `MV::` / `LH::` / `PKStrings` classes: `Strings`, `File`,
+`Ini` (the game's .ini dialect: sections, `key = value`, `#` comments, keys before the first section, trailing `;`) and `Csv`.
+
+Still to do for the quality/success chain: reading the inputs out of the game's classes (traits, cast list, boredom objects), the
+genre-fit score inputs (an actor's difference from the genre's ideal), the stunt take score and the take-by-take records, and the
+`[pr]` hype adders (`CProject_AddStarPressHype` / `AddMoviePRHype`).
 
 ## Extracting game data (macOS/Linux, no Windows tools)
 

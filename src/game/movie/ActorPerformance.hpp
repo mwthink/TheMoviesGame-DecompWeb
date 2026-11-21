@@ -22,6 +22,7 @@ struct ActorTuning {
     float starMoodStep = 0.25f;               // star_mood_step: width of the outer mood bands
     float genreFitMin = 0.9f;                 // stars' genre fit min
     float genreFitMax = 1.1f;                 // stars' genre fit max
+    float genreFitMaxFromIdeal = 0.5f;        // [genre_fit] max_from_ideal: GenreFitScore's k is 1 / this
     float stuntSkillMin = 0.9f;               // stuntskillminimum
     float stuntSkillMax = 1.1f;               // stuntskillmaximum
     float healthMin = 0.9f;                   // healthminimum
