@@ -61,3 +61,15 @@ Status (all under `game/movie/`, each with a test in `src/tests/`):
 
 Still to do for the quality/success chain: reading the inputs out of the game's classes (traits, cast list, boredom objects), the genre-fit
 score inputs and `max_from_ideal`, the stunt take score and the take-by-take records, and loading the ini files into the tuning structs.
+
+## Extracting game data (macOS/Linux, no Windows tools)
+
+`tools/pak_extract.py` lists and extracts files from the `.pak` archives (format notes in its docstring; versions 5 and 6, not the
+older version-4 `premium_costumes` archive). Extracted files are game assets, so put them under `data/` (gitignored):
+
+```
+python3 tools/pak_extract.py extract "<game>/Data/pak" data/game_data releasing_movies.ini stunts.ini global.ini
+```
+
+The `Addon_2704_*` archives (the 2006 patch) override `MISC0000`, so the extractor takes the newest archive for each name.
+
