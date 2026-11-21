@@ -99,7 +99,8 @@ Set-Service sshd -StartupType Automatic; Start-Service sshd
   try the Windows XP SP3 compatibility mode and "disable fullscreen optimizations" on `MoviesSE.exe`, and tell me what you changed.
 - **Saved games** from several stages, copied into the user's game save folder: an early 1920s studio, a 1930s studio with a few stars
   (genre saturation and technology bonuses active), a 1960s+ studio with stunts unlocked, and one with a movie about to be released.
-  Name them so I can tell them apart. You already have some in `~/SaveGames/0`.
+  Name them so I can tell them apart. (If you have saves from an earlier Windows run, use those; there are none for The Movies in
+  `~/SaveGames` on the Mac, which holds another game's saves.)
 
 ## Ready check
 
