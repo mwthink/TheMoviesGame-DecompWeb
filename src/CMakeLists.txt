@@ -8,6 +8,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(otm_game
     game/movie/MovieQuality.cpp
+    game/movie/MovieSuccess.cpp
+    game/movie/ActorPerformance.cpp
 )
 target_include_directories(otm_game PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -15,3 +17,11 @@ enable_testing()
 add_executable(movie_quality_test tests/MovieQualityTest.cpp)
 target_link_libraries(movie_quality_test PRIVATE otm_game)
 add_test(NAME movie_quality COMMAND movie_quality_test)
+
+add_executable(movie_success_test tests/MovieSuccessTest.cpp)
+target_link_libraries(movie_success_test PRIVATE otm_game)
+add_test(NAME movie_success COMMAND movie_success_test)
+
+add_executable(actor_performance_test tests/ActorPerformanceTest.cpp)
+target_link_libraries(actor_performance_test PRIVATE otm_game)
+add_test(NAME actor_performance COMMAND actor_performance_test)

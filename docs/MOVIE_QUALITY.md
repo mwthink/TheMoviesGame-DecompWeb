@@ -30,10 +30,10 @@ Worked examples (S = 0.6, i.e. a 3-star script): all factors 1.0 -> x = -0.032 -
 Script-quality star bands from the ini: 1 star 0.2, 2 stars 0.4, 3 stars 0.6, 4 stars 0.8, 5 stars 1.0.
 
 ## 3. Per-actor performance **[code + data]**
-`QualityCalc_ActorPerformance` (`FUN_005db140`) builds a record (0x90 bytes) for an actor and returns `genreExp * relationship * mood`:
+`QualityCalc_ActorPerformance` (`FUN_005db140`) builds a record (0x90 bytes) for an actor and returns `genreExp * genreFit * mood`:
 * **genre experience factor** `QualityCalc_GenreExperienceFactor` (`FUN_005d9390`): `g` = the actor's trait named after the movie's **genre** (`Trait[genre]`); `o` = the mean of the actor's *other* genre traits, capped at `(1-g)*0.5`; `factor = 0.8 + (1.2-0.8)*(g + o)` (`star_genre_experience_min/max`). So genre skill matters most, other genres help a little.
-* **relationship factor** (`FUN_005d7b90` / `FUN_005d7cb0`): the actor's relationship with the rest of the cast (see section 4), range 0.8..1.2.
-* **mood factor**: for stars `CStar_GetMoodPerformanceFactor` (`FUN_005d79a0`, `star_mood_min/max` 0.8..1.2); for non-stars the fixed `star_mood_min` (0.8).
+* **genre fit factor** (`FUN_005d7b90` / `FUN_005d7cb0`; stored at +0x80): **not** the relationship with the cast (an earlier version of this note said so). It maps the actor's fit to the movie's genre (`ComputeFitScoreWithPerfectFit_A` for stars, `_B` for extras: the mean of three terms `1 - |difference from the genre's ideal| * k`, times Perfect Fit (award bonus 7) when active, clamped 0..1) onto `stars' genre fit` 0.9..1.1: `factor = 0.9 + 0.2 * fit`. The director always gets 1.0. The cast relationship enters only through `R` (section 4).
+* **mood factor**: for stars `CStar_GetMoodPerformanceFactor` (`FUN_005d79a0`, `star_mood_min/max` 0.8..1.2); for non-stars the fixed `star_mood_min` (0.8). The curve is three linear bands that do not join up: below the lower mood threshold `f` runs 0..1/6, between the thresholds 5/12..7/12, above the upper threshold 5/6..1 (shipped `star_mood_step` 0.25; `factor = 0.8 + 0.4 f`). `MoodPerformanceFactor` in `src/game/movie/ActorPerformance.cpp` follows the decompile; it is not measured.
 * For **stunt roles** (`stuntrisk > 0`) the actor's performance is instead `QualityCalc_StuntPerformance` (see `TRAITS_AND_EXPERIENCE.md` section 3).
 The three components are also stored in the record (+0x7C genre, +0x80 relationship, +0x8C mood, +0x84 star rating) for the post-release breakdown screen, and the normalised value `QualityCalc_NormalizePerformance` (`FUN_005d75f0`) = `clamp01((v-0.75)/0.75)`.
 
@@ -47,6 +47,8 @@ So friends in the cast raise quality by up to +20% (relative production factor),
 
 ## 5. Crew factor `C` **[code + data]**
 `CQualityRating_CrewFactor` (`FUN_005d9130`): mean of the **`Movies` trait** of the crew members listed in the project (four crew lists, `FUN_005b25c0`) -> `C = 0.9 + 0.2 * meanMovies` (`crew_min/max` 0.9..1.1); if there is no crew record it falls back to `FUN_005d8e10`. Since crew gain `MOVIES_CREWPERSHOT = 0.02` of headroom per shot (diminishing), experienced crews are worth up to +10%.
+
+The formulas of sections 2-7 are reimplemented in `src/game/movie/MovieQuality` and `ActorPerformance` (with tests).
 
 ## 6. What is NOT here yet
 * The **success/box-office** calculator and the factors named in `[min_max]` that are not used by quality (`public_interest 1.0-1.4`, `era_fit 0.8-1.0`, `technology 0.7-1.0`, `genre_popularity 0.9-1.2`, `star_ratings_of_cast`, `success_overall_*`), `boredom` bounds, `genre_fit max_from_ideal`, `pre_production`.

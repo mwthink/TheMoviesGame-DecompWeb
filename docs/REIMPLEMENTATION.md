@@ -50,6 +50,14 @@ on their own; reading those numbers out of the game's classes comes with the cla
 examples and measured values in `docs/` (see `src/tests/MovieQualityTest.cpp`). Add a source file to `src/CMakeLists.txt` with each module.
 Put `verified` on a function only when a measurement from the running game reproduces its result, and say in a comment what was measured.
 
-Status: `game/movie/MovieQuality` (`CQualityRating_Compute`, `CProject_ComputeFinalQuality` and the factor mappings) is the first module;
-`CProject_ComputeFinalQuality` is verified against two measured movies, the rest is `reimplemented`.
+Status (all under `game/movie/`, each with a test in `src/tests/`):
+- `MovieQuality`: `CQualityRating_Compute`, `CProject_ComputeFinalQuality`, the crew / set / star-relationship / genre-experience mappings.
+  `ComputeFinalQuality` is verified against two measured movies.
+- `MovieSuccess`: `CProjectSuccess_Recompute`, public interest and marketing, cast star ratings, genre popularity, boredom, the movie star
+  rating, `CProjectIncome` creation and payout, genre trend and the saturation decay value. The functions reproduced by logged game values
+  (success, rating, income, AI and player public interest, marketing D, genre popularity and trend, boredom factor) are `verified`.
+- `ActorPerformance`: the actor record (`QualityCalc_ActorPerformance`), mood and genre-fit factors, star chemistry, likeness and the stunt
+  performance factors. Nothing there is verified (no measurement isolates it); it follows the decompiled code.
 
+Still to do for the quality/success chain: reading the inputs out of the game's classes (traits, cast list, boredom objects), the genre-fit
+score inputs and `max_from_ideal`, the stunt take score and the take-by-take records, and loading the ini files into the tuning structs.
