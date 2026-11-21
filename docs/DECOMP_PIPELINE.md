@@ -101,6 +101,48 @@ mostly data/code labels (`DAT_`, `PTR_`, `LAB_`: the globals have no storage yet
 This is a build of the code, not a runnable game: pointers are 64-bit while the code keeps them in 32-bit `int`s, `this` is not
 passed in ECX, and there is no data segment. Next: storage for the globals, import/CRT shims, then a 32-bit address-space strategy.
 
+## Class attribution (`tools/attribute_classes.py`)
+
+About 30,000 functions are still `FUN_*` and most of the rest are named without a class, so nothing can be grouped into modules or
+used for class layout recovery. The tool attributes functions to classes from several kinds of evidence and measures how reliable
+each combination is by hiding known labels and trying to recover them.
+
+```
+python3 tools/attribute_classes.py --exe "<game>/MoviesSE.exe"      # about 20 seconds; needs objdump (macOS: Xcode tools)
+```
+
+Evidence: the function's own name or vtable reference; RTTI virtual slots and constructor candidates; machine code that stores a
+class's vtable pointer into `this` (97% right); address adjacency (the linker keeps one source file's functions together: 88-96% right
+when the nearest labelled functions on both sides agree and are close, only 50% when just one side is known); and callers that pass
+ECX = `this`. `objdump` disassembles the PE directly; each function is scanned once for `this` aliases, calls that forward `this`,
+vtable stores and touched field offsets. A method cannot touch a field beyond the class size when RTTI knows it exactly.
+What did **not** work as evidence (each measured by hiding known labels, so it is not used): string literals and constants (23-45%
+right once vtable addresses are excluded), global variables (28-50%), call-graph callees and callee-set similarity (31-35%),
+field-offset profiles (about 70% but only a few dozen functions), function-pointer tables other than vtables (63-77%, few functions),
+functions whose address is taken by code (33%), members passed as `this + offset` (almost no cases), and `this` passed as a
+stack argument to static helpers (10%). Shared strings, ini keys and constants are used by unrelated classes, and most unattributed
+methods have no unique link to their class that static analysis can see.
+
+Where the exact class is wrong it is mostly a base or derived class: 93 of the 126 misses for the best adjacency evidence in one test
+were inheritance-related (for example `CSITTCondition` versus `CSITTConditionIsClass`, whose methods sit in the same source file).
+So each combination of evidence is also calibrated for "the class or a base/derived class". Functions that reach 85% only at that
+level get tier FA (70% tier FB): good enough to group functions into modules, not to name the class.
+
+Result on the current project (30,775 `FUN_*` functions): 6,478 get their class from names/RTTI/vtable stores, **1,185 more are
+attributed with at least 85% measured precision (tier A), 2,744 with 70-85% (tier B), and 463 more at family level (tier FA/FB)**;
+1,338 look like template or library code and 18,567 have no reliable evidence. Checked out of sample with fresh random hidden
+labels: tier A 85-93% exactly right (90-94% right or related), tier B 75-77% (86-89%), tier FA 91-96% right or related (33-38%
+exactly right, as expected). The labelled functions used for the test are mostly virtual methods and constructors, so the
+precision on plain helper functions may differ. Of the 15,664 unattributed functions in game code, about 10,100 are `__thiscall`
+methods and 6,000 are static or free functions (many of which may belong to no class).
+
+The strongest evidence that is still missing is dynamic: logging the vtable pointer behind ECX each time a method runs gives the
+real class of `this` (and, across calls, the declaring base class) for every executed method. The coverage tracer already stops at
+every function entry; adding that read needs the Windows test box.
+Outputs (gitignored, they hold game-derived names): `docs/generated/class_attribution.csv` / `.md`, and
+`class_attribution_names.csv` (address, `<Class>_sub_<addr>` for the tier A functions that are still `FUN_*`) for the Ghidra
+ApplyNames script. Tier B is not turned into names; review it or add evidence first.
+
 ## What this does not do yet
 
 - No object code is produced or linked (`/Zs` only); calling-convention rewriting at call sites (`__thiscall`) is not done.
