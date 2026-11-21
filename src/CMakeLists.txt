@@ -15,6 +15,11 @@ add_library(otm_game
     game/movie/MovieSuccess.cpp
     game/movie/ActorPerformance.cpp
     game/movie/TuningLoader.cpp
+    game/movie/MovieEstimate.cpp
+    game/staff/Traits.cpp
+    game/staff/Stunts.cpp
+    game/staff/StarRating.cpp
+    game/staff/StaffTuningLoader.cpp
 )
 target_include_directories(otm_game PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -43,3 +48,18 @@ add_test(NAME tuning_loader COMMAND tuning_loader_test)
 set_tests_properties(tuning_loader PROPERTIES
     ENVIRONMENT "OTM_GAME_DATA=${CMAKE_CURRENT_SOURCE_DIR}/../data/game_data"
     SKIP_RETURN_CODE 77)
+
+add_executable(staff_test tests/StaffTest.cpp)
+target_link_libraries(staff_test PRIVATE otm_game)
+add_test(NAME staff COMMAND staff_test)
+set_tests_properties(staff PROPERTIES
+    ENVIRONMENT "OTM_GAME_DATA=${CMAKE_CURRENT_SOURCE_DIR}/../data/game_data"
+    SKIP_RETURN_CODE 77)
+
+# otm_movie_calc: estimate a movie's quality, success and box office, and compare marketing levels.
+add_executable(otm_movie_calc apps/MovieCalc.cpp)
+target_link_libraries(otm_movie_calc PRIVATE otm_game)
+
+add_executable(estimate_test tests/EstimateTest.cpp)
+target_link_libraries(estimate_test PRIVATE otm_game)
+add_test(NAME estimate COMMAND estimate_test)

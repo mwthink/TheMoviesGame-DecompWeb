@@ -7,6 +7,7 @@
 //   global.ini            [project] (star rating weights), [genre] (saturation boost and half-life)
 //   stunts.ini            likeness weights and health threshold (before the first section), [performance]
 //   awardsbonuses.ini     award bonus values (before the first section)
+//   misc_costs.ini        [project] marketing_spend_* (what each marketing level costs)
 //   timeline.csv          [constants] halflife and the dated genre events of the audience taste
 // A value that is missing or unreadable keeps the default and is listed in LoadReport::problems; the loader never fails.
 #pragma once
@@ -48,6 +49,7 @@ struct TuningSources {
     core::IniFile global;
     core::IniFile stunts;
     core::IniFile awardsBonuses;
+    core::IniFile miscCosts;
     std::vector<core::CsvRow> timeline;
 };
 
@@ -59,7 +61,7 @@ struct LoadReport {
 // Builds the tuning from already-parsed sources (no file access: usable in tests).
 MovieTuning BuildMovieTuning(const TuningSources& sources, LoadReport& report);
 
-// Reads the five files from a directory. A file that cannot be read is reported and its values keep their defaults.
+// Reads the six files from a directory. A file that cannot be read is reported and its values keep their defaults.
 MovieTuning LoadMovieTuning(const std::string& dataDir, LoadReport& report);
 
 // The dated genre events of timeline.csv, by genre.

@@ -48,6 +48,8 @@ struct SuccessTuning {
     float genreBoredomBoost = 0.15f;         // global.ini [genre] boredomboost
     float genreBoredomHalfLife = 2.0f;       // [genre] boredomhalflife, years
     float trendHalfLife = 4.0f;              // timeline.csv [constants] halflife, years
+    // misc_costs.ini [project]: what a marketing level costs at release, indexed by level 0..5 (level 0 has no entry: free)
+    float marketingSpendCost[6] = {0.0f, 0.0f, 50000.0f, 100000.0f, 150000.0f, 200000.0f};
 };
 
 // The five market factors of a released movie (CProjectSuccess +0x94 .. +0xA4).
@@ -67,6 +69,11 @@ struct BoredomResult {
 
 // ---- Public interest ----
 
+// MarketingSpend_GetCost: the price of a marketing level (0..5), charged once at release. Levels 0 and 1 are free and give no
+// benefit; anything outside 0..5 costs nothing.
+// orig: 0x005C8B90
+float MarketingSpendCost(int marketingLevel, const SuccessTuning& t = {});
+
 // CProject_GetCappedHype: hype only counts up to half the movie's quality.
 // orig: 0x005B2BD0
 float CappedHype(float hype, float qm);
@@ -78,8 +85,11 @@ float MarketingPublicInterest(float cappedHype, float qm, int marketingLevel, bo
 
 // CProjectSuccess_ComputePublicInterestFactor: F in 0..1, how well hype and marketing cover the movie's quality.
 // The decompiler's parameter order is unreliable; the mapping (hype, D, Qm) is the one that reproduces the logged values.
+// The imbalance term of the code is one-sided (see below). symmetricImbalance = true uses |hype - D| instead, which is how the
+// older notes (and the table in MOVIE_SUCCESS.md 3w) read it; the two only differ when hype exceeds D, which no logged release had.
 // orig: 0x005DCFD0 verified
-float PublicInterestCoverage(float cappedHype, float marketingD, float qm, const SuccessTuning& t = {});
+float PublicInterestCoverage(float cappedHype, float marketingD, float qm, const SuccessTuning& t = {},
+                             bool symmetricImbalance = false);
 
 // Player movie: PI = min + (max - min) * F.
 float PublicInterestFactor(float coverage, const SuccessTuning& t = {});

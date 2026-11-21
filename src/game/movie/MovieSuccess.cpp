@@ -6,6 +6,12 @@
 
 namespace otm::movie {
 
+// orig: 0x005C8B90
+float MarketingSpendCost(int marketingLevel, const SuccessTuning& t) {
+    if (marketingLevel < 0 || marketingLevel > 5) return 0.0f;
+    return t.marketingSpendCost[marketingLevel];
+}
+
 // orig: 0x005B2BD0
 float CappedHype(float hype, float qm) {
     const float cap = Clamp01(qm * 0.5f);
@@ -35,7 +41,7 @@ float MarketingPublicInterest(float cappedHype, float qm, int marketingLevel, bo
 }
 
 // orig: 0x005DCFD0 verified
-float PublicInterestCoverage(float cappedHype, float marketingD, float qm, const SuccessTuning& t) {
+float PublicInterestCoverage(float cappedHype, float marketingD, float qm, const SuccessTuning& t, bool symmetricImbalance) {
     float hype = cappedHype;
     const float halfQuality = Clamp01(qm * 0.5f);
     if (halfQuality < hype) hype = halfQuality;
@@ -58,7 +64,8 @@ float PublicInterestCoverage(float cappedHype, float marketingD, float qm, const
     // counted as imbalance (every measured release had D > hype, so that side is not covered by the logs).
     float imbalance = 0.0f;
     if (rawSum > 0.0f) {
-        imbalance = std::fabs(Clamp01(marketingD - hype)) / Clamp01(marketingD + hype);
+        const float gap = symmetricImbalance ? std::fabs(marketingD - hype) : std::fabs(Clamp01(marketingD - hype));
+        imbalance = gap / Clamp01(marketingD + hype);
     }
     return (1.0f - t.publicInterestRatio * imbalance) * cover;
 }

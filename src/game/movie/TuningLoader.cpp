@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include "core/IniRead.hpp"
 #include "core/Strings.hpp"
 
 namespace otm::movie {
@@ -10,14 +11,8 @@ namespace {
 
 using core::IniFile;
 
-// Reads a float into dst; keeps dst and reports a problem if the key is missing or not a number.
 void Read(const IniFile& ini, const char* file, const char* section, const char* key, float& dst, LoadReport& report) {
-    const auto v = ini.GetDouble(section, key);
-    if (!v) {
-        report.problems.push_back(std::string(file) + " [" + section + "] " + key + ": " + (ini.Has(section, key) ? "not a number" : "missing"));
-        return;
-    }
-    dst = static_cast<float>(*v);
+    core::ReadFloat(ini, file, section, key, dst, report.problems);
 }
 
 }  // namespace
@@ -108,6 +103,12 @@ MovieTuning BuildMovieTuning(const TuningSources& s, LoadReport& report) {
     Read(s.global, "global.ini", "genre", "boredomboost", u.genreBoredomBoost, report);
     Read(s.global, "global.ini", "genre", "boredomhalflife", u.genreBoredomHalfLife, report);
 
+    Read(s.miscCosts, "misc_costs.ini", "project", "marketing_spend_lowest", u.marketingSpendCost[1], report);
+    Read(s.miscCosts, "misc_costs.ini", "project", "marketing_spend_low", u.marketingSpendCost[2], report);
+    Read(s.miscCosts, "misc_costs.ini", "project", "marketing_spend_medium", u.marketingSpendCost[3], report);
+    Read(s.miscCosts, "misc_costs.ini", "project", "marketing_spend_high", u.marketingSpendCost[4], report);
+    Read(s.miscCosts, "misc_costs.ini", "project", "marketing_spend_highest", u.marketingSpendCost[5], report);
+
     ActorTuning& a = t.actor;
     Read(rm, F, "min_max", "star_mood_min", a.starMoodMin, report);
     Read(rm, F, "min_max", "star_mood_max", a.starMoodMax, report);
@@ -178,6 +179,7 @@ MovieTuning LoadMovieTuning(const std::string& dataDir, LoadReport& report) {
     ini("global.ini", s.global);
     ini("stunts.ini", s.stunts);
     ini("awardsbonuses.ini", s.awardsBonuses);
+    ini("misc_costs.ini", s.miscCosts);
     if (!core::LoadCsv(dir + "timeline.csv", s.timeline)) report.problems.push_back("timeline.csv: cannot be read");
     return BuildMovieTuning(s, report);
 }

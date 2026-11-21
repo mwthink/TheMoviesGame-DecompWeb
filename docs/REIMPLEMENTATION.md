@@ -66,6 +66,20 @@ Status (all under `game/movie/`, each with a test in `src/tests/`):
   in a `LoadReport`. Checked against the installed game's files: every default in the headers equals the shipped value
   (`max_from_ideal` is 0.5).
 
+- `game/staff/Traits`: the trait map with the diminishing-returns gain, the experience table, and the genre experience a take gives.
+  `game/staff/Stunts`: the stunt roll (success chance, the game's random generator), injuries, stunt XP and stunt-school training.
+  `game/staff/StarRating`: how a star's nine components combine, and how films feed the movies and performance components.
+  `game/staff/StaffTuningLoader` fills their tuning from `experience.ini`, `stunts.ini`, `global.ini` and `awardsbonuses.ini`. These follow
+  the decompiled code and the documented numbers (`docs/STUNT_SYSTEM.md`, `docs/MOVIE_SUCCESS.md` 3aa-3ac) but nothing is verified against
+  the running game; the stunt roll, for example, has only been observed as "a failure sets `ai_stunt_fail`".
+- `game/movie/MovieEstimate` and the command line tool `otm_movie_calc` chain quality, success and revenue from plain inputs and compare
+  marketing levels. It reproduces the marketing table of `docs/MOVIE_SUCCESS.md` 3w exactly (with the symmetric imbalance reading, see there):
+
+```
+build/src/otm_movie_calc --quality 0.62 --hype 0.31 --tech --stars 0.7 --compare-marketing
+build/src/otm_movie_calc --script 0.6 --stars 0.7,0.5 --hype 0.3 --marketing 3     # one movie, every intermediate value
+```
+
 `core/` holds new helpers for the reimplementation, not ports of the game's own `MV::` / `LH::` / `PKStrings` classes: `Strings`, `File`,
 `Ini` (the game's .ini dialect: sections, `key = value`, `#` comments, keys before the first section, trailing `;`) and `Csv`.
 
