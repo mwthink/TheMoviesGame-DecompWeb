@@ -17,31 +17,12 @@ import re
 import subprocess
 import sys
 
-VCVARS = r'C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars32.bat'
-ERR = re.compile(r'^(?P<file>[^()\r\n]+)\((?P<line>\d+)(?:,\d+)?\)\s*:\s*(?P<kind>fatal error|error|warning)\s+(?P<code>C\d+)\s*:\s*(?P<msg>.*)$')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import toolchain
 
 
-def msvc_env():
-    import tempfile
-    bat = os.path.join(tempfile.gettempdir(), 'tm_vcvars_env.bat')
-    with open(bat, 'w') as f:
-        f.write('@echo off' + chr(13) + chr(10) + 'call "' + VCVARS + '" > nul' + chr(13) + chr(10) + 'set' + chr(13) + chr(10))
-    out = subprocess.run(['cmd', '/c', bat], capture_output=True, text=True).stdout
-    env = {}
-    for line in out.splitlines():
-        if '=' in line:
-            k, v = line.split('=', 1)
-            env[k] = v
-    return env
-
-
-def check(env, gen, fname):
-    src = os.path.join(gen, 'src', fname)
-    import shutil
-    cl = shutil.which('cl', path=env.get('PATH') or env.get('Path')) or 'cl'
-    r = subprocess.run([cl, '/nologo', '/TC', '/Zs', '/W0', '/wd4244', '/wd4047', '/wd4024', '/wd4013', '/wd4133', '/wd4101',
-                        '/Fo:NUL', src], capture_output=True, text=True, env=env, cwd=gen)
-    return fname, r.stdout + r.stderr
+def check(env, gen, fname, target=None):
+    return fname, toolchain.run_check(os.path.join(gen, 'src', fname), gen, env, target=target)
 
 
 def main():
@@ -50,6 +31,9 @@ def main():
     ap.add_argument('--out', default=os.path.join(REPO_ROOT, 'docs', 'generated'))
     ap.add_argument('--jobs', type=int, default=8)
     ap.add_argument('--limit', type=int, default=0)
+    ap.add_argument('--fresh', action='store_true', help='forget the accumulated failed_functions list')
+    ap.add_argument('--target', choices=['default', 'arm64'], default='default',
+                    help='default: cl on Windows, clang i686 MinGW elsewhere; arm64: native Apple Silicon front end')
     a = ap.parse_args()
     funcs = json.load(open(os.path.join(a.gen, 'functions.json')))
     by_file = collections.defaultdict(list)
@@ -58,27 +42,27 @@ def main():
     files = sorted(by_file)
     if a.limit:
         files = files[:a.limit]
-    env = msvc_env()
+    env = toolchain.get_env()
     codes = collections.Counter()
     undecl = collections.Counter()
     failed = set()
     header_errors = collections.Counter()
     fatal_files = []
     with concurrent.futures.ThreadPoolExecutor(a.jobs) as ex:
-        for fname, text in ex.map(lambda f: check(env, a.gen, f), files):
+        for fname, text in ex.map(lambda f: check(env, a.gen, f, None if a.target == 'default' else a.target), files):
             ranges = by_file[fname]
             starts = [r['first'] for r in ranges]
             nerr = 0
-            for line in text.splitlines():
-                m = ERR.match(line.strip())
-                if not m or m.group('kind') == 'warning':
+            for ffile, ln, kind, code, msg in toolchain.parse_errors(text):
+                if kind == 'warning':
                     continue
-                if not m.group('file').endswith(fname):
-                    header_errors[(os.path.basename(m.group('file')), m.group('code'))] += 1
+                if kind == 'fatal error':
+                    fatal_files.append((fname, msg))
+                if not os.path.basename(ffile) == fname:
+                    header_errors[(os.path.basename(ffile), code)] += 1
                     continue          # error inside a shared header
                 nerr += 1
-                codes[m.group('code')] += 1
-                ln = int(m.group('line'))
+                codes[code] += 1
                 lo, hi = 0, len(ranges)
                 while lo < hi:
                     mid = (lo + hi) // 2
@@ -88,11 +72,9 @@ def main():
                         hi = mid
                 if lo > 0 and ranges[lo - 1]['first'] <= ln <= ranges[lo - 1]['last']:
                     failed.add(ranges[lo - 1]['name'])
-                mm = re.search(r"'([^']+)'\s*:\s*undeclared identifier", m.group('msg'))
-                if mm:
-                    undecl[mm.group(1)] += 1
-                if m.group('kind') == 'fatal error':
-                    fatal_files.append((fname, m.group('msg')))
+                nm = toolchain.undeclared_name(msg)
+                if nm:
+                    undecl[nm] += 1
             print('%s: %d errors' % (fname, nerr), flush=True)
 
     total = sum(len(by_file[f]) for f in files)
@@ -100,9 +82,16 @@ def main():
     report = {'all_undeclared': dict(undecl), 'files': len(files), 'functions': total, 'functions_without_error': ok,
               'error_codes': codes.most_common(40), 'top_undeclared': undecl.most_common(60), 'fatal': fatal_files[:10]}
     os.makedirs(a.out, exist_ok=True)
-    json.dump(report, open(os.path.join(a.out, 'compile_report.json'), 'w'), indent=1)
-    with open(os.path.join(a.out, 'compile_report.md'), 'w', encoding='utf-8') as f:
-        f.write('# Compile check of the generated sources (cl /Zs, C mode)\n\n')
+    suffix = '_arm64' if a.target == 'arm64' else ''
+    # failed functions accumulate across runs (a regeneration that stubs them would otherwise forget what it stubbed); --fresh resets
+    fpath = os.path.join(a.out, 'failed_functions%s.txt' % suffix)
+    prev = set(open(fpath).read().split()) if os.path.exists(fpath) and not a.fresh else set()
+    print('new failing functions: %d' % len(failed - prev))
+    with open(fpath, 'w') as ff:
+        ff.write('\n'.join(sorted(prev | failed)) + '\n')
+    json.dump(report, open(os.path.join(a.out, 'compile_report%s.json' % ('_arm64' if a.target == 'arm64' else '')), 'w'), indent=1)
+    with open(os.path.join(a.out, 'compile_report%s.md' % ('_arm64' if a.target == 'arm64' else '')), 'w', encoding='utf-8') as f:
+        f.write('# Compile check of the generated sources (%s, C mode)' % ('cl /Zs' if toolchain.IS_WINDOWS else 'clang --target=i686-w64-mingw32 -fsyntax-only') + '\n\n')
         f.write('Functions with no reported error: **%d of %d** (%.1f%%) across %d files\n\n' % (ok, total, 100.0 * ok / max(total, 1), len(files)))
         f.write('## Error codes\n\n')
         for c, n in codes.most_common(25):

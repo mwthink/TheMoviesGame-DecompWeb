@@ -24,7 +24,7 @@ import shutil
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import msvc_env
+import toolchain
 
 HDR = re.compile(r'^//// FUNCTION (.+?) @ ([0-9a-fA-F]+) ////$')
 ARR_RET = re.compile(r'\b(undefined\d?|byte|uchar|char)\s+\[(\d+)\]')
@@ -63,6 +63,63 @@ def strip_templates(text):
         prev = text
         text = TEMPLATE.sub(lambda m: m.group(1), text)
     return text
+
+NARROW = re.compile(r'\b(float|char|short|bool|byte|uchar|ushort|undefined1|undefined2|int8_t|uint8_t|int16_t|uint16_t|bool8|_Bool|'
+                    r'WORD|BYTE|BOOLEAN|CHAR|SHORT|FLOAT|wchar_t|WCHAR|ATOM)\b')
+
+
+def loose_decl(sig_text):
+    """Prototype for decl_all.h. MSVC only warns when a call passes a different number of arguments than the function's
+    (Ghidra-inferred) signature has; clang errors. Where the parameters survive default argument promotion, declare the
+    function unprototyped, `T f();`, so the definition below still checks against it but call sites are not counted."""
+    if re.search(r'__(cdecl|stdcall|fastcall|thiscall)', sig_text):
+        return sig_text       # clang does not allow a calling convention on an unprototyped declaration
+    i = sig_text.find('(')
+    while i > 0 and sig_text[:i].rstrip().endswith('operator'):
+        i = sig_text.find('(', i + 2)
+    # the parameter list is the first parenthesised group whose name part is a plain identifier (skip `(*name)(...)` returns)
+    j = i
+    depth = 0
+    for j in range(i, len(sig_text)):
+        depth += sig_text[j] == '('
+        depth -= sig_text[j] == ')'
+        if depth == 0:
+            break
+    params = sig_text[i + 1:j]
+    if i < 0 or sig_text[j + 1:].strip() or '(' in params or '...' in params:
+        return sig_text
+    for p in params.split(','):
+        if NARROW.search(p) and '*' not in p:
+            return sig_text
+    return sig_text[:i] + '()'
+
+CALL = re.compile(r'(?<![\w.>])([A-Za-z_]\w*)\s*\(')
+FN_PTR_CALL = re.compile(r'\(\*((?:DAT|PTR)_\w+)\)\s*\(')
+
+
+def scan_calls(src_dir):
+    """Identifiers used as callees (so an unknown one must be declared as a function), and DAT_/PTR_ globals that are called
+    through `(*DAT_x)(...)` (import address table slots and function pointer variables)."""
+    called, fn_ptrs = set(), set()
+    for fn in os.listdir(src_dir):
+        text = open(os.path.join(src_dir, fn), encoding='utf-8', errors='ignore').read()
+        called.update(CALL.findall(text))
+        fn_ptrs.update(FN_PTR_CALL.findall(text))
+    return called, fn_ptrs
+
+
+def retype_fn_pointers(globals_h, names):
+    """globals.h types these slots by a vote over casts (`uint32_t *`); a call through them needs a function pointer."""
+    if not names or not os.path.exists(globals_h):
+        return
+    out = []
+    rx = re.compile(r'^extern\s+[^;(]*?\b(\w+)(?:\[\d*\])?;(.*)$')
+    for line in open(globals_h, encoding='utf-8', errors='ignore').read().split('\n'):
+        m = rx.match(line)
+        if m and m.group(1) in names:
+            line = 'extern code *%s;%s' % (m.group(1), m.group(2))
+        out.append(line)
+    open(globals_h, 'w', encoding='utf-8', newline='\n').write('\n'.join(out))
 
 
 def type_clean(text):
@@ -124,6 +181,8 @@ def main():
     ap.add_argument('--tools', default=os.path.join(REPO_ROOT, 'tools'))
     ap.add_argument('--globals', default=os.path.join(REPO_ROOT, 'docs', 'generated', 'globals.h'))
     ap.add_argument('--no-renames', action='store_true')
+    ap.add_argument('--stub-from', help='file with one function name per line (compile_check\'s failed_functions*.txt): '
+                    'their bodies are replaced by GHIDRA_STUB() so every source compiles to object code')
     a = ap.parse_args()
 
     exp = os.path.join(a.repo, 'data', 'ExportDecompiled')
@@ -132,9 +191,13 @@ def main():
     shutil.copy(os.path.join(a.tools, 'ghidra_shim.h'), os.path.join(a.out, 'ghidra_shim.h'))
     if os.path.exists(a.globals):
         shutil.copy(a.globals, os.path.join(a.out, 'globals.h'))
+    stubs = set(open(a.stub_from).read().split()) if a.stub_from else set()
+    stubbed = []
+    emitted = set()
     renames = {} if a.no_renames else apply_renames(a.repo)
     rename_re = re.compile(r'\b(' + '|'.join(re.escape(k) for k in sorted(renames, key=len, reverse=True)) + r')\b') if renames else None
-    defined = msvc_env.header_words(a.out)
+    defined = toolchain.header_words(a.out)
+    defined -= {'locale'}     # appears in system headers only as a parameter name; Ghidra means std::locale
 
     # ---- pass 1: function names, type names referenced
     library = []
@@ -225,6 +288,9 @@ def main():
                 continue
             nm = renames.get(name, name)
             cname = func_names.get(nm, nm)
+            if cname in emitted:
+                cname = '%s_%s' % (cname, addr)      # the export holds two functions with this name (e.g. CAsset_OnPlaced)
+            emitted.add(cname)
             sig_text = fix(' '.join(sig))
             # replace the name the signature prints by the safe identifier
             mcc = re.search(r'(__cdecl|__stdcall|__fastcall|__thiscall)\s+', sig_text)
@@ -242,14 +308,18 @@ def main():
             # Ghidra often types functions as void although callers use the value left in EAX: widen every plain
             # `void` return to a 32-bit value (harmless for true void functions).
             sig_text = re.sub(r'^void(?!\s*\*)', 'undefined4', sig_text)
-            decls.append(sig_text.rstrip() + ';')
+            decls.append((sig_text.rstrip() if toolchain.IS_WINDOWS else loose_decl(sig_text.rstrip())) + ';')
             start = len(lines_out) + 1
             lines_out.append(sig_text)
             has_seh = any('ExceptionList' in l for l in body[k:k + 40])
-            for l in body[k:]:
-                if has_seh and SEH_STATE.match(l):
-                    continue          # try-level bookkeeping of the compiler-generated SEH frame
-                lines_out.append(fix(l))
+            if cname in stubs:
+                lines_out.extend(['{', '  GHIDRA_STUB();', '}'])
+                stubbed.append((addr, cname))
+            else:
+                for l in body[k:]:
+                    if has_seh and SEH_STATE.match(l):
+                        continue          # try-level bookkeeping of the compiler-generated SEH frame
+                    lines_out.append(fix(l))
             funcs.append({'name': cname, 'addr': addr, 'file': '%s_%02d.c' % (fn[:-2], part), 'first': start, 'last': len(lines_out)})
             lines_out.append('')
             in_part += 1
@@ -265,7 +335,10 @@ def main():
         for base, n in sorted(arr_types):
             f.write('typedef struct { uint8_t b[%s]; } ghidra_arr_%s_%s;\n' % (n, base, n))
         for t in sorted(unknown_types):
-            f.write('typedef struct %s %s;\n' % (t, t))
+            if re.fullmatch(r'(?:LP|P)[A-Z][A-Z0-9_]+', t):
+                f.write('typedef void *%s;\n' % t)          # Win32 pointer typedef (LPUNKNOWN, PIMAGE_...): by-value use must be complete
+            else:
+                f.write('typedef struct %s %s;\n' % (t, t))
     with open(os.path.join(a.out, 'decl_all.h'), 'w', encoding='utf-8', newline='\n') as f:
         f.write('/* generated: prototypes of every exported function */\n#pragma once\n#include "ghidra_shim.h"\n#include "types_gen.h"\n\n')
         seen = set()
@@ -273,12 +346,18 @@ def main():
             if d not in seen:
                 seen.add(d)
                 f.write(d + '\n')
+    with open(os.path.join(a.out, 'stubbed_functions.csv'), 'w', encoding='utf-8', newline='') as f:
+        w = csv.writer(f)
+        w.writerow(['address', 'name'])
+        w.writerows(sorted(stubbed))
     with open(os.path.join(a.out, 'library_functions.csv'), 'w', encoding='utf-8', newline='') as f:
         w = csv.writer(f)
         w.writerow(['address', 'name'])
         w.writerows(sorted(library))
     # Identifiers the previous compile check could not resolve (renamed data labels, RTTI descriptors, code labels) are
     # declared here as externs; the type is a guess by name shape. Run compile_check.py, then this script again.
+    shim_macros = set(re.findall(r'^#\s*define\s+(\w+)', open(os.path.join(a.out, 'ghidra_shim.h')).read(), re.M))
+    called, fn_ptr_globals = scan_calls(os.path.join(a.out, 'src'))
     extra = {}
     gen_dir = os.path.dirname(os.path.abspath(a.globals))
     known_path = os.path.join(gen_dir, 'extra_externs.json')
@@ -294,17 +373,23 @@ def main():
         for nm in sorted(extra):
             if nm.startswith(('stack0x', 'param_', 'local_', 'unaff_', 'extraout_', 'in_')) or not IDENT.fullmatch(nm):
                 continue
-            if nm in func_names.values():
+            if nm in func_names.values() or nm in defined or nm in shim_macros:
                 continue
             if nm.startswith('LAB_'):
                 f.write('extern void %s(void);\n' % nm)
+            elif nm in called:
+                f.write('extern uint32_t %s();\n' % nm)       # CRT / thunk name that is called but has no export entry
             elif 'RTTI' in nm or nm.startswith(('lpCaption_', 'lpType_', 'DAT_', 'PTR_', 's_', 'u_')):
                 f.write('extern uint8_t %s[];\n' % nm)
             else:
                 f.write('extern uint32_t %s;\n' % nm)
+    retype_fn_pointers(os.path.join(a.out, 'globals.h'), fn_ptr_globals)
     with open(os.path.join(a.out, 'functions.json'), 'w', encoding='utf-8') as f:
         json.dump(funcs, f)
     print('source files: %d, functions emitted: %d, array types: %d' % (len(files), len(funcs), len(arr_types)))
+    if not toolchain.IS_WINDOWS:
+        import win32_slice
+        win32_slice.main(['--gen', a.out])      # gen/win32_compat.h for the arm64 build
 
 
 if __name__ == '__main__':

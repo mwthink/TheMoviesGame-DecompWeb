@@ -60,6 +60,44 @@ Typical loop: `generate_sources.py` -> `compile_check.py` -> `generate_sources.p
 from guessed global types (C2440), float `%` (C2296), pointer arithmetic on unknown-size types and a few hundred
 decompiler artifacts. A passing function is *syntactically valid C*, not a behaviourally verified one.
 
+## Running the pipeline on macOS (Apple Silicon)
+
+`tools/toolchain.py` replaces the old MSVC-only helper. On Windows it still drives `cl /Zs`; elsewhere it runs
+`clang --target=i686-w64-mingw32 -fsyntax-only` against the MinGW Win32 headers (`brew install mingw-w64`). The target is
+32-bit x86 on purpose: the pseudo-C stores pointers in `int`, so an arm64 build would change every cast. Nothing is linked or run.
+
+```
+python3 tools/generate_sources.py          # data/ExportDecompiled -> gen/
+python3 tools/header_diag.py gen           # must print "errors shown: 0"
+python3 tools/compile_check.py --jobs 8    # ~1 minute; writes docs/generated/compile_report.md
+```
+
+Differences from the MSVC run, all handled in the tools: clang errors where MSVC warns about argument-count mismatches,
+so promotion-safe functions get an unprototyped declaration (`T f();`) in `decl_all.h`; `-Wno-return-mismatch` and the
+pointer/int conversion warnings are switched off; called-but-undeclared CRT names (`_free`, `_malloc`, thunks) are declared
+as functions; `(*DAT_x)(...)` import slots are retyped as `code *`. Error "codes" are clang's `-W` flag or a slug of the message.
+
+**Result on macOS (i686 syntax check): 31,730 of 34,487 functions (92.0%) pass.** The rest are mostly globals typed as byte arrays but used as
+`float`/`double`, calls whose argument count disagrees with the inferred signature of a function with `float`/narrow
+parameters, and pointer/float casts. Next milestone (arm64 object code) needs a 64-bit-clean pointer strategy.
+
+### Native arm64 object code
+
+```
+python3 tools/build_arm64.py [--fresh]     # ~2 minutes; --fresh forgets earlier stubs and re-derives them
+```
+
+Generates `gen/`, syntax-checks it with `clang --target=arm64-apple-macos`, replaces every function that still fails with a
+`GHIDRA_STUB()` trap (name list: `docs/generated/failed_functions_arm64.txt`, with addresses in `gen/stubbed_functions.csv`),
+compiles all 344 sources to Mach-O arm64 objects in `build/arm64/` and archives them as `libthemovies.a`.
+macOS has no `windows.h` and MinGW's `long` is 32-bit, so `tools/win32_slice.py` cuts the Win32/CRT declarations the sources
+actually use out of the i686 MinGW headers into `gen/win32_compat.h`, with `long` rewritten to `int` and `#pragma pack` kept.
+
+Current result: **34,487 functions defined, 2,762 of them stubbed (8.0%)**, 19.2 MB library. 15,157 symbols are still undefined:
+mostly data/code labels (`DAT_`, `PTR_`, `LAB_`: the globals have no storage yet), Win32/DirectX imports and CRT functions.
+This is a build of the code, not a runnable game: pointers are 64-bit while the code keeps them in 32-bit `int`s, `this` is not
+passed in ECX, and there is no data segment. Next: storage for the globals, import/CRT shims, then a 32-bit address-space strategy.
+
 ## What this does not do yet
 
 - No object code is produced or linked (`/Zs` only); calling-convention rewriting at call sites (`__thiscall`) is not done.

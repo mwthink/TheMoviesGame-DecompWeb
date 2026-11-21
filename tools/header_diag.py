@@ -7,22 +7,20 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import msvc_env
+import toolchain
 
 gen = sys.argv[1] if len(sys.argv) > 1 else os.path.join(REPO_ROOT, 'gen')
 limit = int(sys.argv[2]) if len(sys.argv) > 2 else 40
-env = msvc_env.msvc_env()
-cl = msvc_env.cl_path(env)
+env = toolchain.get_env()
 with open(os.path.join(gen, 'probe.c'), 'w') as f:
-    f.write('#include "types_gen.h"\r\n#include "decl_all.h"\r\n#include "globals.h"\r\n')
-r = subprocess.run([cl, '/nologo', '/TC', '/Zs', '/W0', 'probe.c'], capture_output=True, text=True, env=env, cwd=gen)
+    f.write('#include "types_gen.h"\n#include "decl_all.h"\n#include "globals.h"\n')
+text = toolchain.run_check('probe.c', gen, env)
 files = {}
 n = 0
-for l in (r.stdout + r.stderr).splitlines():
-    m = re.search(r'([A-Za-z_]+\.h)\((\d+)\): (?:fatal )?error (C\d+): (.*)', l)
-    if not m:
+for path, ln, kind, code, msg in toolchain.parse_errors(text):
+    fn = os.path.basename(path)
+    if kind == 'warning' or not fn.endswith('.h'):
         continue
-    fn, ln, code, msg = m.group(1), int(m.group(2)), m.group(3), m.group(4)
     if fn not in files:
         files[fn] = open(os.path.join(gen, fn), encoding='utf-8', errors='ignore').read().split('\n')
     src = files[fn][ln - 1] if ln - 1 < len(files[fn]) else ''
