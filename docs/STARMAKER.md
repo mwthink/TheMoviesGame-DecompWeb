@@ -88,15 +88,17 @@ The editor's load function `FUN_004043eb` (StarMaker `0x4043eb`; `param_1` is th
 | 0x88 | char[32] | hair mesh (`hair_20s_m5.msh`) |
 | 0xa8 | f32 | head shape blend slider (0 = first head, default 0.5) **[read, matches the screenshot: 0]** |
 | 0xac | f32 | skin tone blend slider (default 0.5; DaveJohn 1.0) **[read]** |
-| 0xb0 | u32 | passed to `FUN_00428280` (`this+0x6c`, applied to the hair object `this+0x14`): hair colour index **[guess]** |
+| 0xb0 | u32 | **eye colour index** (the 8 swatches, 0 first; the "EyeColor" save has 6). Goes to `FUN_00428280` (`this+0x6c`, applied to the head object `this+0x14`) **[read, checked by a save]** |
 | 0xb4 | f32 | age slider; **age in years = slider x 47 + 18** (`FUN_00427130`), so 18 to 65. DaveJohn 0.48 = 41 **[read]** |
-| 0xb8 | u32 | passed to `FUN_00428200` (`this+0x70`): eye colour index (8 choices) **[guess]** |
+| 0xb8 | u32 | **hair colour index** (the 6 swatches; the "HairColor" save has 3). Goes to `FUN_00428200` (`this+0x70`) **[read, checked by a save]** |
 | 0xbc, 0xc0, 0xc4, 0xc8, 0xcc | 5 x u32 | makeup choices, one list each, in the on-screen order Eyebrows, Eye Makeup, Color, Facial Hair, Lipstick. The slider position is `(index + 0.5) / list size` (the colour one uses `index - 1`). DaveJohn 30, 7, 10, 4, 0 (eyebrows at the right end, makeup in the middle, colour 0.75, facial hair 0.2, lipstick 0) **[read]**; Baseline 1, 0, 1, 0, 0 |
 | 0xd0 | 43 x f32 | the advanced face sliders (0.5 = neutral) in the order of `starmaker.ini` **[guess for the order]** |
 | 0x17c | u32 | 0 |
 | 0x180 | UTF-16 | the star name, NUL terminated (the file ends there: 402 = 0x180 + 2 x (length + 1)) |
 
 `star.hd` is a normal `.hd` file (0x94 + 3 x 996 x 24 = 71,860 bytes), the finished head. For the all-default Baseline it is *not* a copy of `head_m_white_joe.hd`: the header words differ, and the vertex arrays differ by 1.4 mm (A), 8.5 mm (B) and 9.3 mm (C) on average with a few vertices 0.6 to 0.8 off, so something is applied even at default settings (the 0.5 sliders may not be neutral, or the age 18 or the head mix are baked in). Not explained yet. With head blend 0, the DaveJohn head is close to its first head as expected.
+
+Saves "HairColor" and "EyeColor" differ from Baseline only in those two fields (and the file size, which follows the name length).
 
 Not checked: how the 43 slider values and the makeup choices turn into geometry and textures (`FUN_00428500` applies the makeup choices; the slider code `0x4154a0` is still unread), and the hash at `0x08`.
 
