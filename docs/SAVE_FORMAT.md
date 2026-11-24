@@ -291,6 +291,22 @@ room (`room_wood`, `room_1_carpet`, `room_1_sand`, `room_earth`, `room_1_tile`, 
 (in-game labels "Create Extra", "Create Actor", "Create Director", "Reject" and the striped star-maker pad, confirmed from a screenshot), the gatehouse (staff_fire, hire_janitor, hire_builder),
 wardrobe (hall, custom, auto), pre-production (hall, actors, activate, extras, crew, shootit, director), research (fac, fire, set, cos, mov, hall), custom script (create, canit, blank, hall),
 script offices (hall, office, fire and horror/comedy/scifi/romdrama/action), bar (mainbar, vipbar), sell, crew, production (review, archive, postproduction, release, finance), catering (vip, main), detox, trailers.
-The save also holds a `TMRoom` family per room (`CHireRoom`, `CFireRoom`, `CCastRoom`, `CReleaseRoom`, `CArchiveRoom`, ...), not yet matched to those polygons.
+### Rooms in the save matched to the mesh polygons
+
+Every room is an object of the `TMRoom` family (`TMRoom` itself for plain rooms, `CHireRoom`, `CFireRoom`, `CScriptRoom`, `CResearchRoom`, `CCastRoom`, `CReleaseRoom` ... 25 classes, 104 objects in the Quick Start save).
+Fields: `RoomName`, `PParentAsset` (object id of the placed facility or set), `MyIndex`, `BIsEnabled`, `SoftObjectLimit` / `MediumObjectLimit` / `HardObjectLimit`, `TheActivity` / `LastActivity`, `PFloorPlan`,
+`ObjectsIn`, `BUseIndividualScenes`, `DesireName` (`inroom`). Joined to the mesh (`jad_dump.room_objects`, `match_rooms`, drawn by `--rooms`):
+
+* **By name, exactly:** all 98 rooms of the 19 placed facilities match a mesh part by `RoomName` (equal counts, no leftover polygon, no duplicate names per facility). The six sets each have one generic room `room_set` and
+  one polygon (`room_1_carpet`, ...), paired by being the only leftover on each side.
+* `MyIndex` is **not** the mesh part order (stage school: index 4 is `room_ss_extras`, which is part 0 in the mesh): match by name.
+* `BIsEnabled` is 0 for hallways (`room_*_hall`, `room_hall`), windows (`room_window`, `room_sell_window`), the bar and VIP bar rooms, `room_cso_blank` and the unnamed whole-floor `room_` part: those are plain `TMRoom`s with no
+  behaviour class. The working rooms are enabled and have their own class (`CHireRoom` for `room_staff_hire_*` and `room_cf_hire`, `CFireRoom` for every "fire/reject" room, `CStarMakerRoom`, `CCastRoom` for `room_preprod_extras`, ...).
+* `HardObjectLimit` is the capacity: 5 for the stage-school create rooms and the gatehouse hire rooms, 10 for the wardrobe's custom room and pre-production's activate and shoot-it rooms, 4 for each research room, 3 for the auto
+  wardrobe, 1 for the custom-script, sell and archive rooms, 5 for each script office. Soft and medium limits were 0.
+* `TheActivity` names the **AI scene script** run in the room (`ai_room_so_horror`, `ai_room_staff_hire02`, `ai_assigntrailer2.flm`, `rehearsal_set_single001.flm`): these are the `.flm` scene files of `docs/FLM_FORMAT.md`
+  (not looked up here). The gatehouse's janitor room runs `ai_room_staff_hire02` and the builder room `..._hire01`. Script offices' `room_so_office` runs the hall script.
+* `ObjectsIn` is empty (count 0) in all 104 rooms: nothing is placed in any room in this save.
+
 
 `tools/fetch_assets.py <save> "<game>/Data/pak"` extracts everything a save needs for rendering (inis, meshes, textures, ground textures; about 2 minutes for this save).

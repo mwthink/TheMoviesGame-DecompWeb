@@ -348,12 +348,45 @@ ROOM_COLOURS = [(230, 25, 75), (60, 180, 75), (255, 225, 25), (0, 130, 200), (24
                 (240, 50, 230), (210, 245, 60), (250, 190, 212), (0, 128, 128), (170, 110, 40)]
 
 
+def room_objects(p):
+    """{parent asset object id: [room dict]} from every object with a RoomName (TMRoom and its subclasses: CHireRoom, CFireRoom, CScriptRoom ...).
+    RoomName is the mesh part name (`room_ss_actors`), PParentAsset the placed facility/set's object id (all 104 rooms of the Quick Start save resolve), MyIndex an order
+    that is NOT the mesh part order, BIsEnabled 0 for hallways/windows/the whole-floor `room_` part, TheActivity the AI scene script run there. ObjectsIn was empty everywhere."""
+    t = {n: struct.pack("<I", tag_hash(n)).hex() for n in ("RoomName", "PParentAsset", "MyIndex", "BIsEnabled", "HardObjectLimit", "TheActivity")}
+
+    def string(v):
+        return v[4:4 + struct.unpack_from("<I", v)[0]].split(b"\0")[0].decode("latin1") if len(v) > 4 else ""
+    out = defaultdict(list)
+    for o in p["objects"]:
+        f = {}
+        for tag, v in o["fields"]:
+            f.setdefault(tag, v)
+        if t["RoomName"] in f and t["PParentAsset"] in f:
+            out[struct.unpack_from("<I", f[t["PParentAsset"]])[0]].append({
+                "cls": o["class"], "id": o["id"], "name": string(f[t["RoomName"]]), "index": struct.unpack_from("<I", f[t["MyIndex"]])[0],
+                "enabled": bool(f[t["BIsEnabled"]][0]) if t["BIsEnabled"] in f else None,
+                "limit": struct.unpack_from("<I", f[t["HardObjectLimit"]])[0] if t["HardObjectLimit"] in f else 0,
+                "activity": string(f[t["TheActivity"]]) if t["TheActivity"] in f else ""})
+    return out
+
+
+def match_rooms(rooms, parts):
+    """[(room dict or None, part index)] for a mesh's parts: by name; if exactly one room and one part are left over (a set's generic `room_set`), pair them."""
+    names = {r["name"]: r for r in rooms}
+    pairs = [(names.get(n), i) for i, (n, _c) in enumerate(parts)]
+    left_rooms = [r for r in rooms if r["name"] not in {n for n, _c in parts}]
+    left_parts = [i for i, (r, _i) in enumerate(pairs) if r is None]
+    if len(left_rooms) == 1 and len(left_parts) == 1:
+        pairs[left_parts[0]] = (left_rooms[0], left_parts[0])
+    return pairs
+
+
 # What the game prints on the floor of these rooms (seen in game, stage school with the star-maker room in the middle); other rooms: not checked yet.
 ROOM_LABELS = {"room_ss_extras": "Create Extra", "room_ss_actors": "Create Actor", "room_ss_directors": "Create Director",
                "room_ss_fire": "Reject", "room_ss_starmaker": "(striped star-maker pad)"}
 
 
-def draw_rooms(put, tri, line, to_px, items, meshes, k):
+def draw_rooms(put, tri, line, to_px, items, meshes, k, room_data=None):
     """Fill each named room floor polygon (mesh parts called room_*) in its own colour at the asset's placement and label it with a number; the unnamed
     `room_` part (the whole walkable floor) is skipped. Prints a legend: number = room name per mesh."""
     import math
@@ -365,12 +398,14 @@ def draw_rooms(put, tri, line, to_px, items, meshes, k):
         ca, sa = math.cos(ang), math.sin(ang)
         place = lambda v: to_px(x + v[0] * ca - v[1] * sa, y + v[0] * sa + v[1] * ca)
         legend = []
+        pairs = match_rooms((room_data or {}).get(_i, []), m["parts"])
         for n, (name, ch) in enumerate(m["parts"]):
             pts = [place(v) for v in ch["verts"]]
+            room = pairs[n][0]
             if name == "room_":      # the whole walkable floor, already a union of the rooms: not drawn
                 continue
-            col = ROOM_COLOURS[len(legend) % len(ROOM_COLOURS)]
-            legend.append(name)
+            col = (150, 150, 150) if room and room["enabled"] is False else ROOM_COLOURS[len(legend) % len(ROOM_COLOURS)]
+            legend.append((name, room))
             for t in ch["tris"]:
                 tri(pts[t[0]], pts[t[1]], pts[t[2]], col, 0.55)
             if pts:
@@ -387,7 +422,10 @@ def draw_rooms(put, tri, line, to_px, items, meshes, k):
                                         put(cx + (ci * 4 + gx) * sc + dx - len(lab) * 2 * sc, cy + gy * sc + dy - 2 * sc, (0, 0, 0))
         if apath not in seen:
             seen.add(apath)
-            print(f"  rooms in {apath}: " + ", ".join(f"{i + 1}={n}" + (f' ("{ROOM_LABELS[n]}" in game)' if n in ROOM_LABELS else "") for i, n in enumerate(legend)))
+            print(f"  rooms in {apath}:")
+            for i, (n, r) in enumerate(legend):
+                info = f"{r['cls']}, {'enabled' if r['enabled'] else 'disabled'}" + (f", limit {r['limit']}" if r["limit"] else "") + (f", runs {r['activity']}" if r["activity"] else "") if r else "no room object"
+                print(f"    {i + 1} = {n}" + (f' ("{ROOM_LABELS[n]}" in game)' if n in ROOM_LABELS else "") + f"  [{info}]")
 
 
 def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None, roofs=None, outlines=True, markers=True, ground=None, tile=12.0, lightmaps=True, cutaway=None, rooms=False):
@@ -494,7 +532,7 @@ def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None,
     if roofs and meshes:
         render_roofs(px, W, H, k, x0, y1, items, meshes, roofs, lightmaps, cutaway)
     if rooms:
-        draw_rooms(put, tri, line, to_px, items, meshes, k)
+        draw_rooms(put, tri, line, to_px, items, meshes, k, room_objects(p))
     for _c, _i, apath, (x, y, _z), ang in items:
         m = meshes.get(apath)
         if m and outlines:
