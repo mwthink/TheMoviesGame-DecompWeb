@@ -5,7 +5,7 @@
     python3 tools/jad_dump.py save.jad --class CFinance   # every field of the objects of one class
     python3 tools/jad_dump.py save.jad --lists            # the 24 global object registries from [STATICS]
     python3 tools/jad_dump.py save.jad --map [--svg out.svg]  # placed assets (SourcePath + POSITION + MyAngle), grid analysis, ASCII plan
-    python3 tools/jad_dump.py save.jad --terrain out.png [--occupancy] [--footprints DIR] [--roofs TEXDIR [--outlines] [--markers]] [--crop x0,y0,x1,y1]
+    python3 tools/jad_dump.py save.jad --terrain out.png [--occupancy] [--footprints DIR] [--roofs TEXDIR [--outlines] [--markers]] [--ground LANDTEXDIR [--tile UNITS]] [--crop x0,y0,x1,y1]
                                                        # ground paint + assets as a PNG (x right, y up); DIR holds ini + msh files
     python3 tools/jad_dump.py a.jad b.jad              # field-level diff (statics + objects matched by id)
 
@@ -331,7 +331,7 @@ def render_roofs(px, W, H, k, x0, y1, items, meshes, texdir):
                             px[o:o + 3] = bytes((r, g, bl))
 
 
-def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None, roofs=None, outlines=True, markers=True):
+def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None, roofs=None, outlines=True, markers=True, ground=None, tile=12.0):
     """Top-down PNG: ground paint (cell g = round((world + 256) / 2), centred on even world coordinates), optionally the occupancy bits,
     the placed assets (red = facility, blue = ornament) and, with a directory of ini + msh files, each asset's mesh polygons rotated by
     MyAngle and moved to POSITION: b15_02 footprint = orange fill, b16_01 = yellow outline, facility room floors = cyan outline."""
@@ -345,6 +345,7 @@ def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None,
         k = name.lower().replace("land_", "")
         return next((c for key, c in LAND_COLORS.items() if k.startswith(key[:5])), (255, 0, 255))
     palette = [color(n) for n in names]
+    import math
     x0, y0, x1, y1 = crop or (-256, -256, 256, 256)
     k = ppu or (2 if crop is None else max(2, min(16, int(1000 / max(x1 - x0, y1 - y0)))))
     W, H = int((x1 - x0) * k), int((y1 - y0) * k)
@@ -354,10 +355,48 @@ def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None,
         if 0 <= x < W and 0 <= y < H:
             o = (y * W + x) * 3
             px[o:o + 3] = bytes(int(px[o + j] * (1 - a) + col[j] * a) for j in range(3))
+    gtex = {}
+    if ground:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import dds
+        for i, n in enumerate(names):
+            f = os.path.join(ground, n.lower() + ".dds")
+            if os.path.exists(f):
+                gtex[i] = dds.load(f)
+
+    def vertex_colour(gx, gy, samples):
+        """Composite one terrain vertex: layer 0 opaque, layers 1/2 painted over with alpha (bits 4-5 + 1) * 0.25."""
+        if not (0 <= gx < 256 and 0 <= gy < 256):
+            return (255, 0, 255)
+        col = None
+        for n, lay in enumerate(cells[gx][gy]):
+            t = lay & 15
+            if t not in samples:
+                continue
+            c, a = samples[t], ((lay >> 4 & 3) + 1) * 0.25 if n else 1.0
+            col = c if col is None else tuple(col[j] * (1 - a) + c[j] * a for j in range(3))
+        return col or (255, 0, 255)
     for yy in range(H):
         wy = y1 - (yy + 0.5) / k
         gy = round((wy + 256) / 2)
         for xx in range(W):
+            if gtex:
+                wx = x0 + (xx + 0.5) / k
+                fx, fy = (wx + 256) / 2, (wy + 256) / 2
+                ix, iy = math.floor(fx), math.floor(fy)
+                tx, ty = fx - ix, fy - iy
+                samples = {}
+                for i, (tw, th, tpx) in gtex.items():
+                    samples[i] = tpx[(int(wy / tile * th) % th) * tw + int(wx / tile * tw) % tw][:3]
+                c00, c10 = vertex_colour(ix, iy, samples), vertex_colour(ix + 1, iy, samples)
+                c01, c11 = vertex_colour(ix, iy + 1, samples), vertex_colour(ix + 1, iy + 1, samples)
+                col = tuple(int((c00[j] * (1 - tx) + c10[j] * tx) * (1 - ty) + (c01[j] * (1 - tx) + c11[j] * tx) * ty) for j in range(3))
+                gx = round(fx)
+                if occupancy and 0 <= gx < 256 and 0 <= gy < 256 and occ[(gx * 256 + gy) >> 3] >> ((gx * 256 + gy) & 7) & 1:
+                    col = tuple(int(c * 0.4 + t * 0.6) for c, t in zip(col, (230, 40, 40)))
+                o = (yy * W + xx) * 3
+                px[o:o + 3] = bytes(col)
+                continue
             gx = round((x0 + (xx + 0.5) / k + 256) / 2)
             col = (255, 0, 255)
             if 0 <= gx < 256 and 0 <= gy < 256:
@@ -503,11 +542,18 @@ def main(argv):
     roofs = argv[argv.index("--roofs") + 1] if "--roofs" in argv else None
     if roofs:
         args.remove(roofs)
+    ground = argv[argv.index("--ground") + 1] if "--ground" in argv else None
+    if ground:
+        args.remove(ground)
+    tile = argv[argv.index("--tile") + 1] if "--tile" in argv else "12"
+    if "--tile" in argv:
+        args.remove(tile)
     if len(args) == 1:
         p = parse(args[0])
         if png:
             show_terrain(p, png, "--occupancy" in argv, fp, tuple(float(v) for v in crop.split(",")) if crop else None,
-                         roofs=roofs, outlines=not roofs or "--outlines" in argv, markers=not roofs or "--markers" in argv)
+                         roofs=roofs, outlines=not roofs or "--outlines" in argv, markers=not roofs or "--markers" in argv,
+                         ground=ground, tile=float(tile))
         elif "--map" in argv:
             show_map(p, svg)
         elif "--lists" in argv:

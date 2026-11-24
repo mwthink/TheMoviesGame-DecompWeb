@@ -85,3 +85,10 @@ Chunk slots on the loaded mesh object (set by `LH_LoadMeshBinary`): `+0x50` = `f
    per-asset footprints are registered on the fine grid at runtime and are not in the save.
 
 Not traced: the exact meaning of each flag bit in the cell grid's word, and the code that registers each placed asset's footprint on the grid.
+
+## Ground textures in the render
+
+`jad_dump.py ... --ground <dir with land_*.dds>` draws the terrain with the real textures instead of flat colours. The 257 x 257 cells are **vertices** (256 quads + the
+edge column), so each pixel bilinearly blends the four surrounding vertices; a vertex is its layers composited (layer 0 opaque, layers 1 and 2 with alpha `(bits 4-5 + 1) * 0.25`).
+The texture scale is **assumed**: one tile per 12 world units (`--tile`), from the `0.0833` (1/12) texture-matrix constant in `FUN_009e56f0`; it looks right but is not confirmed.
+`land_alpha.dds` (a blend mask) is not used.
