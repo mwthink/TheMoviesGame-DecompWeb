@@ -213,7 +213,7 @@ the cash drop) but which building the 3,000.00 is, is not recorded in the spent 
   (126 each), `Gardens`, `MyPeople`, `MyDesireMap.Values` have no known layout.
 * Ornament/facility `GUID` (8 bytes) semantics, `StateOfRepair` / `BuildWorkDone` units, `SL_CamRot`/`SL_CamZoo` units.
 * How a `CFacility`'s `SubFacilities` value (16 bytes: count + pointers + hash) is laid out beyond "count then entries".
-* Terrain: the heightmap/mesh is not in the save (only the paint layers and occupancy bits below). The 8-bit-hi blend meaning is from the code (`FUN_009e23b0`), not checked in game. The ~17 KB after the occupancy bitmap is not decoded.
+* Terrain: the heightmap/mesh is not in the save (only the paint layers and occupancy bits below). The blend-weight meaning of bits 4-5 is from the code (`FUN_009e23b0`), not checked in game. The ~17 KB after the occupancy bitmap is not decoded.
 * Whether a set bit in the occupancy bitmap means "blocked" or "occupied by a placed item" (it is set over the city road and neighbouring blocks, and in thin footprints around lot buildings), and why the first 24 columns of the bitmap look striped.
 * Whether the 2-unit grid applies to player-placed props and sets (only prebuilt tutorial ornaments have been seen).
 * The meaning of the room/object `ObjectsIn` field (`TMRoom`) and `TMFloorPlan`'s repeated `?239a5558` (4 entries pointing to ids 1305-1308: probably its rooms).
