@@ -34,11 +34,11 @@ class Face:
         self.bind = [(b["rot"], list(b["pos"])) for b in self.bones]
         self.inv = [mat_inv(b) for b in self.bind]
         self.verts, self.skin, self.tris = [], [], []
-        for p in self.msh["nodes"][0]["prims"]:
+        for j, p in enumerate(self.msh["nodes"][0]["prims"]):       # prim 0 = face (head texture), 1 = eyes, 2 = mouth interior (eyes.dds)
             base = len(self.verts)
             self.verts += p["verts"]
             self.skin += p["skin"]
-            self.tris += [(base + a, base + b, base + c) for a, b, c in p["tris"]]
+            self.tris += [(base + a, base + b, base + c, min(j, 1)) for a, b, c in p["tris"]]
         self.first = len(self.bones) - self.anm["n_channels"]      # the animated bones are the last ones (the 35 fa_* bones)
 
     def matrices(self, frame):
@@ -63,7 +63,6 @@ class Face:
         return out
 
 def render(face, pos, tex, size, box):
-    tw, th, px = tex
     img = [30] * (size * size * 3)
     zb = [-1e9] * (size * size)
     (x0, x1, z0, z1) = box
@@ -71,7 +70,8 @@ def render(face, pos, tex, size, box):
     def proj(p):                # look at the face from the front (+x): image right = -y, up = +z
         return ((-p[1] - x0) * sc, size - (p[2] - z0) * sc)
     light = (0.4, 0.2, 0.9)
-    for a, b, c in face.tris:
+    for a, b, c, texi in face.tris:
+        tw, th, px = tex[texi]
         P = [pos[i] for i in (a, b, c)]
         S = [proj(p) for p in P]
         minx, maxx = int(max(0, min(s[0] for s in S))), int(min(size - 1, max(s[0] for s in S)))
@@ -113,7 +113,7 @@ if __name__ == "__main__":
     d, tex_path, out = sys.argv[1:4]
     head = tex_path.split("head_")[-1].split(".")[0]
     face = Face(d, "fe_" + head + ".anm")
-    tex = dds.load(tex_path)
+    tex = [dds.load(tex_path), dds.load(d + "/eyes.dds")]
     specs = [(int(a.split(":")[0]), float(a.split(":")[1]) if ":" in a else 1.0) for a in sys.argv[4:]]
     size = 360
     base = face.pose(0, 0.0)
