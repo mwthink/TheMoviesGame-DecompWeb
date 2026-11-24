@@ -1,7 +1,7 @@
 # Running the game under Wine (CrossOver on an Apple-silicon Mac)
 
-Status (2026-11-23): **works.** `MoviesSE.exe` (patch 1.2) starts, shows the menu, Quick Start loads a studio, the game plays, sound and mouse
-work. Loading is slow (see "Performance"). The debugger DLL (`debugger/`) has **not** been tried under Wine yet. The Windows test box
+Status (2026-11-24): **works.** `MoviesSE.exe` (patch 1.2) starts, shows the menu, Quick Start loads a studio, the game plays, sound and mouse
+work. Loading is slow (see "Performance"). The debugger DLL (`debugger/`) loads and its hooks and first-call coverage work (section "The debugger DLL under Wine"); the `this`-class mode crashes. The Windows test box
 (`WINDOWS_TEST_BOX.md`) stays the reference for anything that gets tagged `verified`.
 
 Tested with: CrossOver (the copy in `/Applications/CrossOver.app`), a MacBook Air with an M1, macOS 26. Wine runs as x86-64 under Rosetta 2;
@@ -70,7 +70,34 @@ Gameplay is reasonable; **loading is very slow**. Measured (Quick Start, startup
   help; only a faster x86 execution layer can. `WINEMSYNC=1` was set for that run and showed no visible effect.
 - Not tried: Windows 11 ARM in a VM (its own x86 emulator may handle x87 better), Wine builds on other emulators.
 
+## The debugger DLL under Wine
+
+Tried 2026-11-24 with the DLL and injector built on the Windows box (`TheMoviesDebugger.dll`, `minhook.x32.dll`, `TheMoviesInjector.exe`; copy them
+from `C:\dev\OpenTheMoviesGame\debugger\build\RelWithDebInfo` with `scp`, e.g. into `~/wine_test/dbg/`, then into the bottle's game folder; nothing built here).
+Run it like the box does, with the injector's `--launch` mode (starts the game suspended, parks the main thread, loads the DLL, releases it):
+
+```
+$CX/wine --bottle tmovies --workdir 'C:\Games\TheMovies' 'C:\Games\TheMovies\TheMoviesInjector.exe' --launch 'C:\Games\TheMovies\MoviesSE.exe' 'C:\Games\TheMovies\TheMoviesDebugger.dll'
+```
+Output lands in the game folder inside the bottle (`.../drive_c/Games/TheMovies/`): `sessions/session_*/` (`debug.log`, `events.jsonl`, `strings.jsonl`), `decade_log.csv`,
+`coverage_*.csv/txt`. For coverage, put `tools/coverage_functions.txt` next to the exe first.
+
+| Feature | Under Wine/Rosetta |
+|---|---|
+| Injection (`--launch`) | works |
+| All 50 `GameHooks`/`DecadeTracker` hooks | install without failure; events, state changes and `Scene_LoadFlm` names are logged |
+| First-call coverage (`coverage_functions.txt` only) | works: 34,906 of 35,039 functions armed (133 skipped as MinHook-detoured, as designed), game runs normally |
+| Hotkeys F9 (marker) and F10 (summary) | work (macOS may need Fn held); F8 (re-arm) and F11 (session export) not tested |
+| `this`-class mode (`coverage_this.txt` present) | **crashes the game in its start-up code**: null call, EIP 0, return address `0x00ad2531` (the CRT entry at `0x00ad2451`, right after `call 0xada01f`) |
+
+Why `this`-class mode fails (probable, not proven): `CoverageTracer.cpp` keeps a function armed by setting the CPU trap flag (`EFlags |= 0x100`) to single-step
+one instruction after restoring the entry byte, then re-arming from the single-step handler. Rosetta 2 does not implement the x86 trap flag. The same DLL and
+function list run fine without `coverage_this.txt` (no single-stepping). A fix would replace the single-step with another re-arm (a delayed re-arm from a helper
+thread, or inline trampolines for the functions of interest); it needs the box to re-test afterwards. Not done.
+
+Limits of what was measured: one Wine run reached 5,760 distinct functions (start-up, menu and a short load: phase 1 = 5,349, phase 2 after F9 = 411). That cannot be compared with the
+box's 9,458 over two game years; a comparable run (Quick Start, F9 per step, same game time) on both has not been made. Until it is, keep `verified` tags for box measurements.
+
 ## What this does and does not give the project
 
-See "Next steps" in `HANDOVER.md`. Short version: a free local way to run, play and create save games; probably also a way to run the tracer
-(untested). It does not replace the Windows box for verification: Wine's timing and threading differ, and the box has native x86 speed.
+See "Next steps" in `HANDOVER.md`. Short version: a free local way to run, play and create save games; a way to run the debugger's hooks and first-call coverage tracer (not the `this`-class mode). It does not replace the Windows box for verification: Wine's timing and threading differ, and the box has native x86 speed.
