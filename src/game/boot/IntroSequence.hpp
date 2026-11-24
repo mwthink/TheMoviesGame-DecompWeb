@@ -91,10 +91,19 @@ enum class PumpAction { Dispatch, Drop, Quit };
 PumpAction ClassifyPumpMessage(std::uint32_t message);
 
 enum class BootPath {
-    IntroThenGameLoop,   // LH_MasterGameLoop() runs first, then Game_MainLoop() (see docs/BOOT.md for the unread return value)
+    IntroThenGameLoop,   // LH_MasterGameLoop() runs first; AfterIntro() then decides
     GameLoopOnly,        // ShouldSkipFrontEnd(): straight to Game_MainLoop()
 };
 // WinMain: the "Skip Front End" config int (default 0) selects the path.
 BootPath ChooseBootPath(int skipFrontEndSetting);
+
+// How LH_MasterGameLoop ended.
+enum class IntroOutcome { Finished, WindowClosed };
+enum class AfterIntro { GameLoop, Shutdown };
+// WinMain tests `LH_MasterGameLoop() == 0` to decide whether to run Game_MainLoop. Ghidra's return value is unreadable, but two
+// runs show it: finishing the intro goes on to Game_MainLoop (boot1), and closing the window mid-intro goes straight to
+// WinMain's shutdown tail with Game_MainLoop never called (close1). So Finished returns 0 and WindowClosed returns nonzero.
+// (Closing at the first splash, in the logo-animation or movie variants, or with the window already closed, is unobserved.)
+AfterIntro NextAfterIntro(IntroOutcome outcome);
 
 }  // namespace otm::boot

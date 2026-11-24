@@ -1,6 +1,16 @@
 # StarMaker.exe (the character editor)
 
-Status: first pass, started 2026-11-24. The binary is imported and auto-analysed in its own Ghidra project, compared function by function with `MoviesSE.exe`, and a handful of functions are read.
+Status (end of the 2026-11-24 session): the editor's star format, face sliders, facial expressions and makeup / hair / iris handling are decoded, reproduced and tested; see the index below. Sections 1 to 5 are the first pass and keep their original wording where later sections correct them (section 5's list is superseded by the "still open" paragraph at the end of section 10; the `0x4154a0` guess in section 5 was wrong, it is renderer code).
+
+| Question | Where | Tool / code |
+|---|---|---|
+| What is StarMaker, how it was compared with the game | sections 1 to 3 | `ghidra/scripts/FunctionHashes.java`, `tools/match_binaries.py` |
+| The star file `info.sm`, `star.hd`, `thumb.dds` | sections 6, 10 | `src/game/character/StarFile`, `HeadFile` |
+| The 43 face sliders | section 7 | `tools/starmaker_sliders.py`, `src/game/character/FaceRig` |
+| Facial expressions (`.fan`, `fclexp`) | section 8 | `tools/render_expression.py`, `render_expression_gif.py`, `FaceRig` |
+| Makeup, hair, iris, age, blends, weight; all function names | sections 9, 10 | `tools/render_star.py`, `render_star_sheet.py`, `src/game/character/Appearance`, `tools/starmaker_names.csv` |
+| Finding code from a string | `docs/DECOMP_PIPELINE.md` | `ghidra/scripts/FindRefs.java` |
+
 Items are marked **[read]** (read in the decompiled code or disassembly), **[data]** (seen in the game's data files or the binary's strings) or **[guess]**.
 
 ## 1. What it is

@@ -104,6 +104,9 @@ int main() {
     Check("skip front end", ChooseBootPath(1) == BootPath::GameLoopOnly);
     Check("default boot", ChooseBootPath(0) == BootPath::IntroThenGameLoop);
 
+    Check("finished intro runs the game loop", NextAfterIntro(IntroOutcome::Finished) == AfterIntro::GameLoop);
+    Check("closing the window mid-intro shuts down", NextAfterIntro(IntroOutcome::WindowClosed) == AfterIntro::Shutdown);
+
     if (g_failures == 0) std::printf("intro_sequence_test: OK\n");
     return g_failures == 0 ? 0 : 1;
 }

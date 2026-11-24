@@ -108,4 +108,8 @@ BootPath ChooseBootPath(int skipFrontEndSetting) {
     return skipFrontEndSetting != 0 ? BootPath::GameLoopOnly : BootPath::IntroThenGameLoop;
 }
 
+AfterIntro NextAfterIntro(IntroOutcome outcome) {
+    return outcome == IntroOutcome::Finished ? AfterIntro::GameLoop : AfterIntro::Shutdown;
+}
+
 }  // namespace otm::boot
