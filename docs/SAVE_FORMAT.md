@@ -113,6 +113,7 @@ Counts are for the fresh-studio save (the tutorial saves add the tutorial scaffo
 * `CProjectAI` (project), `CProjectSuccess` (`Overall`, `PublicInterest`, `CastStarRatings`, `EraFit`, the weighted/unweighted boredom components,
   `Technology`: the inputs of `docs/MOVIE_SUCCESS.md`), `CProjectIncome` (`InitialPool`, `DailyPercentage`, …), `CScript` (+ `PartDesc`/`ShotDesc`:
   the script's parts and shots, `Quality`, genre), `CCostume`, `CLogo` (studio logo file `logo_v00.dds`).
+  How a script, its shots, parts, roles and writers are linked, and how to recognise one still being written: [SCRIPTS.md](SCRIPTS.md) (`tools/script_dump.py`).
 
 ## Placement: coordinates, the 2-unit grid and the terrain
 
