@@ -438,6 +438,13 @@ def main():
             rows.append((x, n, c, tier, s, p, fam, ev))
         else:
             rows.append((x, n, '', 'none', '', 0.0, 0.0, ''))
+    # Statically linked Perforce P4API client (tools/p4api_map.py): third-party code, not a game class. Adjacency put some of it under
+    # `zlib` (its bundled zlib 1.0.4 sits between its objects), so set it aside here; names already known are left alone.
+    p4 = os.path.join(REPO, 'p4api_map.csv')
+    if os.path.exists(p4):
+        p4rows = {int(r['addr'], 16): r['sub'] for r in csv.DictReader(open(p4, encoding='utf-8'))}
+        rows = [(x, n, 'P4API', 'lib', 'p4api_map', 0.0, 0.0, '') if x in p4rows and p4rows[x] != 'zlib-1.0.4' and t != 'known'
+                else (x, n, c, t, s, p, fam, ev) for x, n, c, t, s, p, fam, ev in rows]
     with open(os.path.join(a.out, 'class_attribution.csv'), 'w', newline='', encoding='utf-8') as f:
         w = csv.writer(f)
         w.writerow(['address', 'name', 'class', 'tier', 'source', 'est_precision_exact', 'est_precision_family', 'evidence'])
