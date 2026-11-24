@@ -80,6 +80,17 @@ Status (all under `game/movie/`, each with a test in `src/tests/`):
   `game/staff/StaffTuningLoader` fills their tuning from `experience.ini`, `stunts.ini`, `global.ini` and `awardsbonuses.ini`. These follow
   the decompiled code and the documented numbers (`docs/STUNT_SYSTEM.md`, `docs/MOVIE_SUCCESS.md` 3aa-3ac) but nothing is verified against
   the running game; the stunt roll, for example, has only been observed as "a failure sets `ai_stunt_fail`".
+- `game/character/` (new): the character appearance code, from the StarMaker analysis (`docs/STARMAKER.md`): `core/Inflate` (zcmp / zlib),
+  `AnmFile` (v12 animations), `MshFile` (render primitives with the 4-weight skin records, the skeleton), `HeadFile` (`.hd` morph files and
+  `ApplyHdMorph`), `FaceRig` (the face skeleton posed from an animation and skinned onto the head: the 43 StarMaker face sliders, `a + 1.99 * v`,
+  and the facial expressions, `fe_<head>.anm` frame x intensity), `StarFile` (`info.sm` read and write, byte for byte), `Appearance` (makeup layer
+  file names, the layer draw order, hair colour suffixes, the age grey overlay, the iris atlas cell, the `.fan` reader). It produces plans and
+  geometry, no pixels (decoding and compositing the DDS layers is not ported; `tools/render_star.py` does it in Python). Tested in
+  `tests/CharacterTest.cpp`: the inline parts always run; the file parts need the extracted `sm_assets` and saved stars in `OTM_STAR_DIR`
+  (`~/Documents/The Movies/StarMaker`). **Checked against saved stars made in the real editor:** the nine-slider "CrazySliders" star is reproduced
+  vertex for vertex (457 of 457 vertices move, RMS error 0.05 mm on 4.2 mm of signal, maximum 0.23 mm), the all-default star from
+  `head_m_white_joe.hd` to 1.2 mm, and `info.sm` is rebuilt byte for byte. Not `verified` in the game sense (no run of the game's own functions);
+  the expression blend (linear towards the bind pose) is the port's choice, not read from the game.
 - `game/movie/MovieEstimate` and the command line tool `otm_movie_calc` chain quality, success and revenue from plain inputs and compare
   marketing levels. It reproduces the marketing table of `docs/MOVIE_SUCCESS.md` 3w exactly (with the symmetric imbalance reading, see there):
 

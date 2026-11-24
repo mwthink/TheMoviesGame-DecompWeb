@@ -11,6 +11,7 @@ add_library(otm_game
     core/File.cpp
     core/Ini.cpp
     core/Csv.cpp
+    core/Inflate.cpp
     game/movie/MovieQuality.cpp
     game/movie/MovieSuccess.cpp
     game/movie/ActorPerformance.cpp
@@ -23,6 +24,12 @@ add_library(otm_game
     game/staff/StarRating.cpp
     game/staff/StaffTuningLoader.cpp
     game/boot/IntroSequence.cpp
+    game/character/AnmFile.cpp
+    game/character/MshFile.cpp
+    game/character/HeadFile.cpp
+    game/character/FaceRig.cpp
+    game/character/StarFile.cpp
+    game/character/Appearance.cpp
 )
 target_include_directories(otm_game PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -79,3 +86,14 @@ add_test(NAME estimate COMMAND estimate_test)
 add_executable(intro_sequence_test tests/IntroSequenceTest.cpp)
 target_link_libraries(intro_sequence_test PRIVATE otm_game)
 add_test(NAME intro_sequence COMMAND intro_sequence_test)
+
+# The face rig, star file and appearance rules. Needs extracted game files for the rig parts (data/game_data/sm_assets, see CharacterTest.cpp)
+# and saved StarMaker stars in OTM_STAR_DIR; without them only the inline checks run.
+add_executable(character_test tests/CharacterTest.cpp)
+target_link_libraries(character_test PRIVATE otm_game)
+target_include_directories(character_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME character COMMAND character_test)
+set_tests_properties(character PROPERTIES
+    ENVIRONMENT "OTM_GAME_DATA=${CMAKE_CURRENT_SOURCE_DIR}/../data/game_data"
+    SKIP_RETURN_CODE 77)
+
