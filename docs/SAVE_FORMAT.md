@@ -143,6 +143,40 @@ has the same lot with different painting, and its own occupancy bits.
 The occupancy bitmap is the grid used by lot building code (`CLot_RefreshOccupancyGridForBounds`, `00465a50`). In the tutorial save 9,305 of 65,536
 cells are set; the lot's grass area is mostly clear.
 
+## From save names to game files
+
+Game archives live in `<game>/Data/pak` (`tools/pak_extract.py list|extract`, which prints which `.pak` holds each file; the `Addon_2704_*` archives
+are the patch layer and win over the base ones). Extracted copies go under `data/game_data/` (gitignored).
+
+**Placed assets.** A `SourcePath` such as `ornament/p_hedge` or `facility/facility_gatehouse` names an **`.ini`** (`MISC0000.pak` / `Addon_2704_0000.pak`;
+`pak_extract` does not resolve directories, so same-named inis from different folders come out as `name.ini`, `name.ini.2`, ...). The ini's `mesh = ...` line
+names the model, which lives in `meshscene0000.pak`. Textures are `.dds` files in `TEX_ALL0000/0001.pak` and the addon archive. The texture is **matched by
+file stem** (mesh `p_hedge.msh` goes with `p_hedge.dds`); that is a naming observation, not read from the mesh, which is zlib-style compressed (`zcmp`) and
+has not been parsed. Every name below was found in the archives:
+
+| `SourcePath` in the save | ini | mesh (`meshscene0000`) | texture (`TEX_ALL*`) |
+|---|---|---|---|
+| `facility/facility_gatehouse` | `facility_gatehouse.ini` | `fac_gatehouse.msh` (+ `.inf`, `.flm`) | `fac_gatehouse.dds` |
+| `facility/facility_stage` | `facility_stage.ini` | `fac_stageschool.msh` | `fac_stageschool.dds` (+ `fac_stageschoolwall/moulding`, `fac_stage_window`) |
+| `facility/trailer_2` | `trailer_2.ini` | `fac_trailer2.msh` | `fac_trailer2.dds` |
+| `facility/facility_catering1` | `facility_catering1.ini` | `fac_catering1.msh` | `fac_catering1.dds` |
+| `ornament/p_billboard` | `p_billboard.ini` | `outl_billboardt.msh` | not found by name |
+| `ornament/p_flowerbed_circle1`, `..._circle2` | same names | `p_flowerbed_circle1.msh`, `p_flowerbed_circle2.msh` | same stems |
+| `ornament/p_hedge`, `p_hedge2` | same names | `p_hedge.msh`, `p_hedge2.msh` | same stems |
+| `ornament/p_large_pot_plant4` | same name | `p_large_pot_plant4.msh` (+ `lp_...` low-poly) | same stem |
+| `ornament/p_palmtree`, `p_palm_tree02` | same names | same stems | same stems |
+| `ornament/p_parkbench` | same name | `p_parkbench.msh` (+ `lp_...`) | same stem |
+| `lot` (`CLot`) | `lot.ini` | the road/gate set: `lot_gate.msh`, `lot_road_mark.msh`, `lot_wall_*.msh` | `lot_quality.dds`, `lotsprites.dds` |
+
+The `.inf` next to a facility mesh holds its named locator points (door, staff spots, `_fp_*` points). The `_fp_` ones may be the footprint points the lot uses
+for the occupancy grid: unverified, not parsed. `lot.ini` lists three lot sizes (`192,128`, `256,192`, `300,224`); their unit is not established.
+
+**Ground textures.** The 7 names in `TMLandscape` are `.dds` files in `TEX_ALL0000.pak`, each added `land_` + the name in lower case:
+`land_sand00`, `land_grass00`, `land_grass02`, `land_grass01`, `land_earth00`, `land_tarmac00` (256x256 DXT1 with 9 mips) and `land_sidewalk02` (128x128).
+Decoded: sand and earth are tan/brown, `grass00`/`grass01` plain green, `grass02` dry grass, tarmac grey, sidewalk paving slabs. Also in the archive are
+`land_alpha.dds` (DXT3, the blend mask, probably what the cell blend weight indexes), `land_sidewalk00/01`, and `lm_land_forest_*` (lightmaps/forest
+textures). No saved cell has texture index 6 (sidewalk) in these saves.
+
 ## `CFinance` (decoded)
 
 `Capital`, `Daily` and `Previous` are money (x 2^23). `Capital` = the cash shown in the header; `Daily` equals it in all three saves (the start-of-day figure);
