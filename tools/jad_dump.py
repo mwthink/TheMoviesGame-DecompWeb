@@ -5,7 +5,8 @@
     python3 tools/jad_dump.py save.jad --class CFinance   # every field of the objects of one class
     python3 tools/jad_dump.py save.jad --lists            # the 24 global object registries from [STATICS]
     python3 tools/jad_dump.py save.jad --map [--svg out.svg]  # placed assets (SourcePath + POSITION + MyAngle), grid analysis, ASCII plan
-    python3 tools/jad_dump.py save.jad --terrain out.png [--occupancy]  # ground paint + placed assets as a PNG (x right, y up)
+    python3 tools/jad_dump.py save.jad --terrain out.png [--occupancy] [--footprints DIR] [--crop x0,y0,x1,y1]
+                                                       # ground paint + assets as a PNG (x right, y up); DIR holds ini + msh files
     python3 tools/jad_dump.py a.jad b.jad              # field-level diff (statics + objects matched by id)
 
 Container layout (observed from saves made under Wine; not yet checked against the loader code):
@@ -258,40 +259,121 @@ def write_png(path, w, h, rgb):
                            + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
 
 
-def show_terrain(p, path, occupancy=False, scale=4):
+def load_footprints(d, items):
+    """{SourcePath: parsed mesh} for assets whose `<stem>.ini*` (mesh = X.msh) and X.msh are in directory d (see docs/MSH_FORMAT.md)."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import msh_dump
+    out = {}
+    for path in {i[2] for i in items}:
+        stem = os.path.basename(path)
+        mesh = next((m.group(1) for f in sorted(glob.glob(os.path.join(d, stem + ".ini*")))
+                     for m in [re.search(r"mesh\s*=\s*(\S+)", open(f, errors="replace").read())] if m), None)
+        if mesh and os.path.exists(os.path.join(d, mesh)):
+            out[path] = msh_dump.parse(open(os.path.join(d, mesh), "rb").read())
+        else:
+            print(f"  no mesh for {path} (looked for {stem}.ini* + its mesh in {d})")
+    return out
+
+
+def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None):
+    """Top-down PNG: ground paint (cell g = round((world + 256) / 2), centred on even world coordinates), optionally the occupancy bits,
+    the placed assets (red = facility, blue = ornament) and, with a directory of ini + msh files, each asset's mesh polygons rotated by
+    MyAngle and moved to POSITION: b15_02 footprint = orange fill, b16_01 = yellow outline, facility room floors = cyan outline."""
     land = landscape(p)
     if not land:
         sys.exit("no TMLandscape data in this save")
     names, cells, occ = land
     print("textures:", ", ".join(f"{i}={n}" for i, n in enumerate(names)))
+
     def color(name):
         k = name.lower().replace("land_", "")
         return next((c for key, c in LAND_COLORS.items() if k.startswith(key[:5])), (255, 0, 255))
     palette = [color(n) for n in names]
-    W = 256 * scale
-    px = bytearray(W * W * 3)
-    for gx in range(256):
-        for gy in range(256):
+    x0, y0, x1, y1 = crop or (-256, -256, 256, 256)
+    k = ppu or (2 if crop is None else max(2, min(16, int(1000 / max(x1 - x0, y1 - y0)))))
+    W, H = int((x1 - x0) * k), int((y1 - y0) * k)
+    px = bytearray(W * H * 3)
+
+    def put(x, y, col, a=1.0):
+        if 0 <= x < W and 0 <= y < H:
+            o = (y * W + x) * 3
+            px[o:o + 3] = bytes(int(px[o + j] * (1 - a) + col[j] * a) for j in range(3))
+    for yy in range(H):
+        wy = y1 - (yy + 0.5) / k
+        gy = round((wy + 256) / 2)
+        for xx in range(W):
+            gx = round((x0 + (xx + 0.5) / k + 256) / 2)
             col = (255, 0, 255)
-            for lay in cells[gx][gy]:        # layer 0 is the base; layers 1 and 2 paint over it
-                if lay & 15 < len(palette):
-                    col = palette[lay & 15]
-            i = gx * 256 + gy
-            if occupancy and occ[i >> 3] >> (i & 7) & 1:
-                col = tuple(int(c * 0.4 + t * 0.6) for c, t in zip(col, (230, 40, 40)))
-            for dy in range(scale):
-                row = ((255 - gy) * scale + dy) * W + gx * scale
-                px[row * 3:(row + scale) * 3] = bytes(col) * scale
+            if 0 <= gx < 256 and 0 <= gy < 256:
+                for lay in cells[gx][gy]:        # layer 0 is the base; layers 1 and 2 paint over it
+                    if lay & 15 < len(palette):
+                        col = palette[lay & 15]
+                i = gx * 256 + gy
+                if occupancy and occ[i >> 3] >> (i & 7) & 1:
+                    col = tuple(int(c * 0.4 + t * 0.6) for c, t in zip(col, (230, 40, 40)))
+            o = (yy * W + xx) * 3
+            px[o:o + 3] = bytes(col)
     items = [a for a in placed_assets(p) if a[0] != "CLot"]
+    meshes = load_footprints(footprints, items) if footprints else {}
+
+    def to_px(wx, wy):
+        return (wx - x0) * k, (y1 - wy) * k
+
+    def line(a, b, col):
+        n = int(max(abs(b[0] - a[0]), abs(b[1] - a[1]))) + 1
+        for t in range(n + 1):
+            put(int(a[0] + (b[0] - a[0]) * t / n), int(a[1] + (b[1] - a[1]) * t / n), col)
+
+    def tri(a, b, c, col, alpha):
+        lo_x, hi_x = int(min(a[0], b[0], c[0])), int(max(a[0], b[0], c[0]))
+        lo_y, hi_y = int(min(a[1], b[1], c[1])), int(max(a[1], b[1], c[1]))
+        den = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
+        if abs(den) < 1e-9:
+            return
+        for yy in range(lo_y, hi_y + 1):
+            for xx in range(lo_x, hi_x + 1):
+                u = ((b[1] - c[1]) * (xx + .5 - c[0]) + (c[0] - b[0]) * (yy + .5 - c[1])) / den
+                v = ((c[1] - a[1]) * (xx + .5 - c[0]) + (a[0] - c[0]) * (yy + .5 - c[1])) / den
+                if u >= 0 and v >= 0 and u + v <= 1:
+                    put(xx, yy, col, alpha)
+    import math
+    for _c, _i, apath, (x, y, _z), ang in items:
+        m = meshes.get(apath)
+        if m:
+            ca, sa = math.cos(ang), math.sin(ang)
+            place = lambda v: to_px(x + v[0] * ca - v[1] * sa, y + v[0] * sa + v[1] * ca)
+            for name, col, fill in (("b16_01", (255, 230, 0), False), ("b15_02", (255, 140, 0), True)):
+                ch = m["chunks"].get(name)
+                if not ch:
+                    continue
+                pts = [place(v) for v in ch["verts"]]
+                for t in ch["tris"]:
+                    if fill:
+                        tri(pts[t[0]], pts[t[1]], pts[t[2]], col, 0.55)
+                    else:
+                        for e in ((0, 1), (1, 2), (2, 0)):
+                            line(pts[t[e[0]]], pts[t[e[1]]], col)
+            for _n, ch in m["parts"]:
+                pts = [place(v) for v in ch["verts"]]
+                for t in ch["tris"]:
+                    for e in ((0, 1), (1, 2), (2, 0)):
+                        line(pts[t[e[0]]], pts[t[e[1]]], (0, 220, 220))
     for _c, _i, apath, (x, y, _z), _a in items:
         fac = apath.startswith("facility")
-        r, col = (6, (220, 30, 30)) if fac else (3, (30, 30, 200))
-        cx, cy = int((x + 256) / 2 * scale), int(W - (y + 256) / 2 * scale)
-        for yy in range(max(0, cy - r), min(W, cy + r + 1)):
-            for xx in range(max(0, cx - r), min(W, cx + r + 1)):
-                px[(yy * W + xx) * 3:(yy * W + xx) * 3 + 3] = bytes(col)
-    write_png(path, W, W, px)
-    print(f"wrote {path} ({W}x{W}; {len(items)} assets; {sum(bin(b).count('1') for b in occ)} occupied cells)")
+        r, col = (max(2, k), (220, 30, 30)) if fac else (max(1, k // 2), (30, 30, 200))
+        cx, cy = to_px(x, y)
+        for yy in range(int(cy) - r, int(cy) + r + 1):
+            for xx in range(int(cx) - r, int(cx) + r + 1):
+                put(xx, yy, col)
+    # world grid ticks every 10 units along the borders for orientation
+    for wx in range(int(x0 // 10 * 10), int(x1) + 1, 10):
+        for t in range(6):
+            put(int((wx - x0) * k), t, (0, 0, 0))
+    for wy in range(int(y0 // 10 * 10), int(y1) + 1, 10):
+        for t in range(6):
+            put(t, int((y1 - wy) * k), (0, 0, 0))
+    write_png(path, W, H, px)
+    print(f"wrote {path} ({W}x{H}, {k} px per world unit; {len(items)} assets, {len(meshes)} meshes drawn)")
 
 
 def keyed(fields):
@@ -354,10 +436,16 @@ def main(argv):
     png = argv[argv.index("--terrain") + 1] if "--terrain" in argv else None
     if png:
         args.remove(png)
+    fp = argv[argv.index("--footprints") + 1] if "--footprints" in argv else None
+    if fp:
+        args.remove(fp)
+    crop = argv[argv.index("--crop") + 1] if "--crop" in argv else None
+    if crop:
+        args.remove(crop)
     if len(args) == 1:
         p = parse(args[0])
         if png:
-            show_terrain(p, png, "--occupancy" in argv)
+            show_terrain(p, png, "--occupancy" in argv, fp, tuple(float(v) for v in crop.split(",")) if crop else None)
         elif "--map" in argv:
             show_map(p, svg)
         elif "--lists" in argv:
