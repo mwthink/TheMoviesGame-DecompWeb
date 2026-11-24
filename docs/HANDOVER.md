@@ -1,7 +1,7 @@
 # Handover: where the project stands and how to continue
 
 Written 2026-11-21 for the next person or agent. Read this first, then the doc each section points to. Everything here was true at
-commit `165a811`.
+commit `165a811`. **Updated 2026-11-24** with the save-game, terrain/placement and model/texture work (rows and sections marked *(2026-11-24)*).
 
 ## What this is
 
@@ -20,7 +20,9 @@ portable C++ reimplementation, written from the decompiled code and the document
 | Runtime tracing | first-call coverage tracer + this-class log run on a Windows test box: 9,458 distinct functions (27%) seen over 2 game years; steady-state set about 3,800 functions; 3,673 functions with an observed `this` class |
 | Windows test box | set up, key login from the Mac, game runs windowed under software Direct3D (see `WINDOWS_TEST_BOX.md`, `DECOMP_PIPELINE.md`) |
 | Wine on the Mac | the game runs under CrossOver (menu, Quick Start, gameplay, sound); loads are very slow (Rosetta). Debugger DLL: hooks and first-call coverage work there, `this`-class mode crashes (trap flag under Rosetta). See `WINE_CROSSOVER.md` |
-| Not started | reading save games, struct/type recovery, library function identification, anything beyond the movie/staff economy in `src/`, any renderer/UI/engine work |
+| Saved games *(2026-11-24)* | `.jad` container parsed and field names resolved (`tools/jad_dump.py`, `docs/SAVE_FORMAT.md`), from three Wine saves. Terrain paint map, occupancy bitmap, placed-asset positions decoded. Python only: nothing in `src/` yet, nothing loaded back into the game |
+| Lot, placement, models *(2026-11-24)* | world-to-grid formula (2 units per cell, 256 x 256, origin at cell 128), the placement-footprint path in the code (`docs/MSH_FORMAT.md`), `.msh` header/materials/polygons/render geometry parsed (`tools/msh_dump.py`), DDS decoder (`tools/dds.py`), textured top-down render of a save (`jad_dump.py --terrain ... --ground --roofs`). Checked by eye against the running game: placement, rotation, ground blend, textures and lighting match |
+| Not started | struct/type recovery, library function identification, anything beyond the movie/staff economy in `src/`, any real renderer/UI/engine work (the render above is a one-off Python view), animation/skeleton/`.flm` playback, the simulation outside movies and staff |
 
 ## Documents
 
@@ -33,6 +35,8 @@ portable C++ reimplementation, written from the decompiled code and the document
 | `docs/WINDOWS_TEST_BOX.md` | what the test box is and how it was set up (the plan, plus what turned out to be needed) |
 | `docs/MOVIE_QUALITY.md`, `MOVIE_SUCCESS.md`, `STUNT_SYSTEM.md`, `TRAITS_AND_EXPERIENCE.md` | decoded formulas with data and measurements (MOVIE_SUCCESS.md also holds the star rating, AI studios, save format notes and much more: grep it) |
 | `docs/FLM_FORMAT.md` | the `.flm` scene format |
+| `docs/SAVE_FORMAT.md` *(2026-11-24)* | the `.jad` saved-game container, value encodings, what is in a save by class, terrain and the 2-unit grid, save names to ini/mesh/texture files, what is still unknown |
+| `docs/MSH_FORMAT.md` *(2026-11-24)* | `.msh` models checked against real files: header, textures, materials, polygon chunks, render geometry, lightmaps, and the code path from a mesh polygon to the placement footprint |
 | `FINDINGS.md` | older notes, partly superseded |
 
 ## Build, test, tools (Mac, Apple silicon; Python 3 standard library only)
@@ -106,8 +110,12 @@ Read only the last screenshot of a scripted sequence (the user asked for that); 
    then identify library code (`library_map.csv`, zlib/ogg/vorbis, PK* audio/disk, CRT/STL) so it is not reimplemented.
 5. **Struct/type recovery** for the classes the traces show (`CStar`, `TMCharacter`, `CStaff`, `CProject`, `TMRoom`, `WWindow`, `Scene`...):
    field offsets from the disassembly (`tools/attribute_classes.py` already scans `this` accesses), RTTI sizes, `docs/generated/classes.h`.
-6. **Save-game reader**: format notes in `MOVIE_SUCCESS.md` (3ai). Needs real saves from a played game (none exist on the Mac; the box can create
-   them: Documents\The Movies\Saved Games).
+6. **Save-game reader** *(started 2026-11-24)*: the container, terrain, placed assets and many classes are decoded in `docs/SAVE_FORMAT.md` /
+   `tools/jad_dump.py`. Next: port the reader into `src/` with tests that read saves (three exist: `~/Documents/The Movies/Saved Games` from the Wine run; the
+   fresh studio, a tutorial save and a tutorial save with a queued facility); make a save with player-built sets/props (where they are stored is unknown); check
+   whether the game accepts an edited save (lists of object ids and counts must stay consistent; untested); look at a save with released movies, a later decade and
+   the non-Wine game. Open details are listed at the end of `SAVE_FORMAT.md` (the ~17 KB after the terrain occupancy bitmap, the runtime cell-grid flag bits,
+   the meaning of the other mesh polygon chunks, ground tile scale 12 units and lightmap gain 2x which are assumed).
 7. **Open decisions for the user**: whether the decompiler export (`data/identified_organized`) stays tracked; the licence of `src/`;
    the overall strategy (replace the original's functions from the inside through the injected DLL, versus building a standalone engine); how far
    to automate function-by-function reimplementation with a differential harness.
@@ -115,6 +123,17 @@ Read only the last screenshot of a scripted sequence (the user asked for that); 
 8. **Use the Wine setup** (`WINE_CROSSOVER.md`): (a) the debugger DLL runs under Wine (copied from the box); now compare one identical run (Quick Start, F9 per step, same game time) against the box, to learn whether
    Wine runs can be trusted for tracing, and replace the trap-flag re-arm in `CoverageTracer.cpp` so `this`-class mode works there;
    (b) have the user play there to produce save games for the save-game reader (item 6); (c) keep `verified` tags for box measurements until (a) agrees.
+
+## Save, terrain and model tooling *(2026-11-24)*
+
+```
+python3 tools/jad_dump.py "<save>.jad"                                        # summary; --class CStar, --lists, --map [--svg f.svg], two saves = diff
+python3 tools/pak_extract.py extract "<game>/Data/pak" data/game_data/save_assets facility_gatehouse.ini ...   # inis, then the meshes and textures they name
+python3 tools/msh_dump.py data/game_data/meshes/*.msh                         # textures, materials, polygon chunks, room parts
+python3 tools/jad_dump.py "<save>.jad" --terrain out.png --footprints <ini+msh dir> --roofs <dds dir> --ground <land dds dir> --crop -64,-8,64,72
+```
+Everything extracted lives under gitignored `data/game_data/`; renders go to `docs/generated/` (gitignored). The firewall audit passed after this work. Assets
+needed per save are found from its `SourcePath` names (`docs/SAVE_FORMAT.md`, "From save names to game files"); a different save needs its own assets extracted.
 
 ## Known rough edges
 
