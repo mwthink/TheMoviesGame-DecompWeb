@@ -20,7 +20,7 @@ Answers: *which functions does the game actually run to reach the main menu, to 
   `TheMoviesDebugger.InitDone` event, restores the entry bytes and resumes. `tools/run_coverage.ps1` does the whole thing
   (copies the function list in, launches, removes the list again when the game exits).
 - The list file's presence is what enables the tracer, so normal injection sessions are unaffected.
-- **Status: built and wired in, not yet run against the game.** First run: use `run_coverage.ps1`, press F9 at the main menu,
+- **Status: run on the Windows test box** (see "Running the game on the Windows test box" below for the results: 9,458 distinct functions reached over two game years, a steady-state set of about 3,800). To repeat: use `run_coverage.ps1`, press F9 at the main menu,
   load a save, F8 once the game is running, play a month, quit.
 
 Suggested reading of the log: functions with phase 0 = boot + main menu; phase 1 = load a game; later phases = gameplay.

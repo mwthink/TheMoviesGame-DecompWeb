@@ -2,7 +2,7 @@
 
 Function names proposed so far are in `renames.csv`. `python3 tools/apply_renames.py` applies them to `ExportDecompiled/`.
 
-Rewrite in progress. Evidence comes from the Ghidra export in `ExportDecompiled/` (`index.csv` maps address → file). Addresses are for `MoviesSE.exe`.
+Older notes, kept as a reference: the topics below have not been rewritten into `docs/` (the formulas and formats there supersede anything that overlaps). Evidence comes from the Ghidra export in `ExportDecompiled/` (`index.csv` maps address → file). Addresses are for `MoviesSE.exe`.
 
 ## Genre popularity (`AudienceTaste`)
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Recompute a project's script quality from a saved game with the formula traced from MoviesSE.exe (FUN_004c3ae0), no tuning.
+"""Recompute a project's script quality from a saved game with the formula traced from MoviesSE.exe (Script_RecomputeQuality, 004c3ae0), no tuning.
 
     python3 tools/script_quality.py save.jad "<game>/Data/pak" [--project ID] [--cache DIR]
 

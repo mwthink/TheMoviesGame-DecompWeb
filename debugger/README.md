@@ -1,15 +1,17 @@
 # TheMoviesDebugger
 
 A runtime instrumentation DLL for `MoviesSE.exe` (The Movies, 2005), built to
-accelerate the Ghidra-based reverse-engineering project in
-`Decompiling-The-Movies-Game`. It hooks known functions (confirmed in Ghidra
+accelerate the Ghidra-based reverse-engineering project in this repository
+(OpenTheMoviesGame). It hooks known functions (confirmed in Ghidra
 first, never guessed), records caller addresses and timing, and exports the
 result as structured JSON you can hand back to Claude for analysis.
 
-This is a deliberately trimmed **Phase 1-3** milestone: one confirmed hook,
-caller-RVA capture, call timing, JSONL export. No ImGui overlay, no memory
-diffing, no DirectX tracing yet - see "Where this goes next" below for why,
-and what's likely worth adding once this is proven out.
+It started as a trimmed **Phase 1-3** milestone (one confirmed hook, caller-RVA
+capture, call timing, JSONL export) and has since grown a first-call
+**coverage tracer** (`src/hooks/CoverageTracer.*`, with a `this`-class mode) and the
+**DecadeTracker** (`src/hooks/DecadeTracker.*`, long-session `decade_log.csv`);
+both are described at the end of this file and in `docs/DECOMP_PIPELINE.md`. No ImGui
+overlay, no memory diffing and no DirectX tracing yet - see "Where this goes next".
 
 ## What it proves
 
@@ -167,6 +169,8 @@ src/
   hooks/
     HookManager.*        - thin MinHook wrapper (module base, RVA<->VA, register)
     GameHooks.*           - the actual per-function detours live here
+    CoverageTracer.*      - first-call coverage tracer (F8/F9/F10, see below)
+    DecadeTracker.*       - long-session event log (decade_log.csv, see below)
   telemetry/
     Event.hpp             - CallEvent POD
     EventQueue.*          - hot-path-safe queue + background JSONL writer
@@ -178,7 +182,8 @@ injector/
 ## Where this goes next
 
 Roughly in priority order, matching what's actually been a bottleneck in the
-Ghidra work so far rather than the full original wishlist:
+Ghidra work so far rather than the full original wishlist (the coverage tracer and
+DecadeTracker already exist; what remains is below):
 
 1. **More anchor hooks.** Every function this session has confirmed via
    RTTI/xref is a one-line addition to `Addresses.hpp` + a `Detour_*` in
@@ -218,6 +223,9 @@ contender is the player studio) and `AWARD_BONUSES` (the 12 active-bonus flags a
 
 
 ## Decompilation bring-up tools (coverage tracer, RTTI skeleton, source generator)
+
+Hotkeys while the coverage tracer runs: **F9** marker (a new phase listing only newly reached functions), **F8** re-arm everything plus a marker (the next phase
+lists its complete set), **F10** summary. Windows-test-box scripts that drive all this are in `tools/winbox/`.
 
 See `docs/DECOMP_PIPELINE.md`: first-call coverage tracing (`tools/run_coverage.ps1`, `TheMoviesInjector.exe --launch`),
 class / vtable / global skeletons from RTTI (`tools/rtti_dump.py`, `tools/globals_table.py`) and the Ghidra-export to

@@ -1,7 +1,8 @@
 # Handover: where the project stands and how to continue
 
-Written 2026-11-21 for the next person or agent. Read this first, then the doc each section points to. Everything here was true at
-commit `165a811`. **Updated 2026-11-24** with the save-game, terrain/placement and model/texture work (rows and sections marked *(2026-11-24)*).
+Written 2026-11-21 for the next person or agent. Read this first, then the doc each section points to. The 2026-11-21 sections were true at
+commit `165a811`. **Updated 2026-11-24** with the save-game, script, terrain/placement, model/texture, animation/character and function-naming
+work (rows and sections marked *(2026-11-24)*); counts below were refreshed at commit `aa8a60d`.
 
 ## What this is
 
@@ -14,15 +15,17 @@ portable C++ reimplementation, written from the decompiled code and the document
 
 | Area | State |
 |---|---|
-| Ghidra | 60,838 functions; 30,775 still `FUN_*`. Names live in `tools/ghidra_names.csv` (refresh from Ghidra, apply with `ghidra/ApplyNames.java`) |
-| `src/` | portable C++17, 7 test executables + `otm_movie_calc`; `tools/progress.py`: 44 functions reimplemented, 12 verified against logged game values |
-| Class attribution | `tools/attribute_classes.py`: 6,478 functions with a known class, +1,185 at >=85% (tier A), +2,744 at 70-85% (tier B), +463 family-level; 18,567 without evidence |
+| Ghidra | 60,838 functions; 30,700 still `FUN_*` after the 75 names added on 2026-11-24 (`renames.csv` has the evidence). Names live in `tools/ghidra_names.csv` (refresh from Ghidra, apply with `ghidra/ApplyNames.java`); **the live Ghidra project does not have the 2026-11-24 names yet: run `ApplyNames.java`** |
+| `src/` | portable C++17, 9 test executables + `otm_movie_calc` (game/movie, staff, studio, ai); `tools/progress.py`: 45 functions reimplemented, 15 verified against logged game values |
+| Class attribution (numbers from the run before the 2026-11-24 names; rerun to refresh) | `tools/attribute_classes.py`: 6,478 functions with a known class, +1,185 at >=85% (tier A), +2,744 at 70-85% (tier B), +463 family-level; 18,567 without evidence |
 | Runtime tracing | first-call coverage tracer + this-class log run on a Windows test box: 9,458 distinct functions (27%) seen over 2 game years; steady-state set about 3,800 functions; 3,673 functions with an observed `this` class |
 | Windows test box | set up, key login from the Mac, game runs windowed under software Direct3D (see `WINDOWS_TEST_BOX.md`, `DECOMP_PIPELINE.md`) |
 | Wine on the Mac | the game runs under CrossOver (menu, Quick Start, gameplay, sound); loads are very slow (Rosetta). Debugger DLL: hooks and first-call coverage work there, `this`-class mode crashes (trap flag under Rosetta). See `WINE_CROSSOVER.md` |
 | Saved games *(2026-11-24)* | `.jad` container parsed and field names resolved (`tools/jad_dump.py`, `docs/SAVE_FORMAT.md`), from three Wine saves. Terrain paint map, the path (pavement) bitmap, placed-asset positions decoded. Python only: nothing in `src/` yet, nothing loaded back into the game |
 | Lot, placement, models *(2026-11-24)* | world-to-grid formula (2 units per cell, 256 x 256, origin at cell 128), the placement-footprint path in the code (`docs/MSH_FORMAT.md`), `.msh` header/materials/polygons/render geometry parsed (`tools/msh_dump.py`), DDS decoder (`tools/dds.py`), textured top-down render of a save (`jad_dump.py --terrain ... --ground --roofs`). Checked by eye against the running game: placement, rotation, ground blend, textures and lighting match |
-| Not started | struct/type recovery, library function identification, anything beyond the movie/staff economy in `src/`, any real renderer/UI/engine work (the render above is a one-off Python view), animation/skeleton/`.flm` playback, the simulation outside movies and staff |
+| Scripts, characters, animation *(2026-11-24)* | script lifecycle in a save (writing, design, casting, rehearsal; `docs/SCRIPTS.md`, `tools/script_dump.py`, `tools/script_quality.py`), people and `.cos` costumes (`docs/CHARACTERS.md`, `tools/save_cast.py`, `tools/export_person.py`), `.anm` clips, skeletons and skinning (`docs/ANM_FORMAT.md`, `tools/anm_dump.py`), shown in the three.js viewer in `viewer/` (dev server `character-viewer` in `.claude/launch.json`) |
+| Function naming *(2026-11-24)* | 75 functions named from the decompiled code: movie cost accrual (`CProjectCosts_*`), quality/genre fit, AI star rating, terrain/path cells (`TMLandscape_*`), placement footprint (`LotGrid_*`, `Footprint_*`), FLM scene helpers, pak loading (`Pak*`), script quality. About 20 documented functions are still unnamed (`009fa970`, `009fe620`, `00a31bb0`, `00a44dd0`, `009db5f0`, `0051be40`, `00ab0150`, `00610190`, the `FINDINGS.md` loaders). Docs cite functions by name |
+| Not started | struct/type recovery, library function identification, anything beyond the movie/staff economy in `src/`, any real renderer/UI/engine work (the renders above are one-off Python/three.js views), `.flm` scene playback, the simulation outside movies and staff, building the generated C into a runnable binary (`DECOMP_PIPELINE.md`: only syntax checks and an arm64 library so far) |
 
 ## Documents
 
@@ -34,10 +37,12 @@ portable C++ reimplementation, written from the decompiled code and the document
 | `docs/WINE_CROSSOVER.md` | running the game under CrossOver/Wine on the Mac: what it needed (LAA, ASF writer via WMP11, OpenAL), steps, performance |
 | `docs/WINDOWS_TEST_BOX.md` | what the test box is and how it was set up (the plan, plus what turned out to be needed) |
 | `docs/MOVIE_QUALITY.md`, `MOVIE_SUCCESS.md`, `STUNT_SYSTEM.md`, `TRAITS_AND_EXPERIENCE.md` | decoded formulas with data and measurements (MOVIE_SUCCESS.md also holds the star rating, AI studios, save format notes and much more: grep it) |
+| `docs/SCRIPTS.md` *(2026-11-24)* | how a script is stored in a save and how script quality is computed |
+| `docs/CHARACTERS.md`, `docs/ANM_FORMAT.md` *(2026-11-24)* | people and costumes in a save; `.anm` animations, skeletons, skinning and the viewer |
 | `docs/FLM_FORMAT.md` | the `.flm` scene format |
 | `docs/SAVE_FORMAT.md` *(2026-11-24)* | the `.jad` saved-game container, value encodings, what is in a save by class, terrain and the 2-unit grid, save names to ini/mesh/texture files, what is still unknown |
 | `docs/MSH_FORMAT.md` *(2026-11-24)* | `.msh` models checked against real files: header, textures, materials, polygon chunks, render geometry, lightmaps, and the code path from a mesh polygon to the placement footprint |
-| `FINDINGS.md` | older notes, partly superseded |
+| `FINDINGS.md` | older notes (radio/news, genre trend, audio engine, `.lug` loader), partly superseded |
 
 ## Build, test, tools (Mac, Apple silicon; Python 3 standard library only)
 
@@ -110,17 +115,20 @@ Read only the last screenshot of a scripted sequence (the user asked for that); 
    then identify library code (`library_map.csv`, zlib/ogg/vorbis, PK* audio/disk, CRT/STL) so it is not reimplemented.
 5. **Struct/type recovery** for the classes the traces show (`CStar`, `TMCharacter`, `CStaff`, `CProject`, `TMRoom`, `WWindow`, `Scene`...):
    field offsets from the disassembly (`tools/attribute_classes.py` already scans `this` accesses), RTTI sizes, `docs/generated/classes.h`.
-6. **Save-game reader** *(started 2026-11-24)*: the container, terrain, placed assets and many classes are decoded in `docs/SAVE_FORMAT.md` /
-   `tools/jad_dump.py`. Next: port the reader into `src/` with tests that read saves (three exist: `~/Documents/The Movies/Saved Games` from the Wine run; the
+6. **Save-game reader** *(started 2026-11-24)*: the container, terrain, placed assets, scripts, people and many classes are decoded in `docs/SAVE_FORMAT.md` /
+   `docs/SCRIPTS.md` / `tools/jad_dump.py`. Next: port the reader into `src/` with tests that read saves (three exist: `~/Documents/The Movies/Saved Games` from the Wine run; the
    fresh studio, a tutorial save and a tutorial save with a queued facility); make a save with player-built sets/props (where they are stored is unknown); check
    whether the game accepts an edited save (lists of object ids and counts must stay consistent; untested); look at a save with released movies, a later decade and
    the non-Wine game. Open details are listed at the end of `SAVE_FORMAT.md` (the ~17 KB after the terrain path bitmap, the runtime cell-grid flag bits,
    the meaning of the other mesh polygon chunks, ground tile scale 12 units and lightmap gain 2x which are assumed).
-7. **Open decisions for the user**: whether the decompiler export (`data/identified_organized`) stays tracked; the licence of `src/`;
+7. **Apply the 2026-11-24 names in Ghidra** (`ghidra/ApplyNames.java` with `tools/ghidra_names.csv`), regenerate `gen/`, rerun `attribute_classes.py`, and name the ~20
+   documented functions still left (see the Function naming row). Port the movie cost accrual (`CProjectCosts_AccrueUpdate` and helpers) into `src/` and check it against
+   `PREPROD_COST` lines in `decade_log.csv`: that also settles whether pre-production wages are real cash out (`MOVIE_QUALITY.md`).
+8. **Open decisions for the user**: whether the decompiler export (`data/identified_organized`) stays tracked; the licence of `src/`;
    the overall strategy (replace the original's functions from the inside through the injected DLL, versus building a standalone engine); how far
    to automate function-by-function reimplementation with a differential harness.
 
-8. **Use the Wine setup** (`WINE_CROSSOVER.md`): (a) the debugger DLL runs under Wine (copied from the box); now compare one identical run (Quick Start, F9 per step, same game time) against the box, to learn whether
+9. **Use the Wine setup** (`WINE_CROSSOVER.md`): (a) the debugger DLL runs under Wine (copied from the box); now compare one identical run (Quick Start, F9 per step, same game time) against the box, to learn whether
    Wine runs can be trusted for tracing, and replace the trap-flag re-arm in `CoverageTracer.cpp` so `this`-class mode works there;
    (b) have the user play there to produce save games for the save-game reader (item 6); (c) keep `verified` tags for box measurements until (a) agrees.
 
@@ -134,6 +142,10 @@ python3 tools/msh_dump.py data/game_data/meshes/*.msh                         # 
 python3 tools/list_rooms.py "<game>/Data/pak" "<stringdatabase.lhts>"        # every room in the archives with the text the game draws on it
 python3 tools/lhts.py "<stringdatabase.lhts>" --grep ROOM_                      # the localisation table (UI text keys)
 python3 tools/jad_dump.py "<save>.jad" --terrain out.png --footprints <ini+msh dir> --roofs <dds dir> --ground <land dds dir> --crop -64,-8,64,72
+python3 tools/script_dump.py "<save>.jad" [--project ID]                      # scripts and their state in a save (docs/SCRIPTS.md)
+python3 tools/script_quality.py "<save>.jad" "<game>/Data/pak"               # recompute a script's quality from the save (Script_RecomputeQuality)
+python3 tools/export_person.py "<game>/Data/pak" --save "<save>.jad" --list    # people with a costume; --person ID / --all builds viewer/data/
+python3 tools/anm_dump.py <file.anm>                                         # decode an animation clip
 ```
 Everything extracted lives under gitignored `data/game_data/`; renders go to `docs/generated/` (gitignored). The firewall audit passed after this work. Assets
 needed per save are found from its `SourcePath` names (`docs/SAVE_FORMAT.md`, "From save names to game files"); a different save needs its own assets extracted.
