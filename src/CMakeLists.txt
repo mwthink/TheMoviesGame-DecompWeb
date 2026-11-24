@@ -22,6 +22,7 @@ add_library(otm_game
     game/staff/Stunts.cpp
     game/staff/StarRating.cpp
     game/staff/StaffTuningLoader.cpp
+    game/boot/IntroSequence.cpp
 )
 target_include_directories(otm_game PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -73,3 +74,8 @@ target_link_libraries(otm_movie_calc PRIVATE otm_game)
 add_executable(estimate_test tests/EstimateTest.cpp)
 target_link_libraries(estimate_test PRIVATE otm_game)
 add_test(NAME estimate COMMAND estimate_test)
+
+# The intro splash sequence and WinMain's boot fork (docs/BOOT.md).
+add_executable(intro_sequence_test tests/IntroSequenceTest.cpp)
+target_link_libraries(intro_sequence_test PRIVATE otm_game)
+add_test(NAME intro_sequence COMMAND intro_sequence_test)

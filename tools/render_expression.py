@@ -98,7 +98,7 @@ def render(face, pos, tex, size, box):
                 zb[y * size + x] = zx
                 u = l0 * V[0][6] + l1 * V[1][6] + l2 * V[2][6]
                 v = l0 * V[0][7] + l1 * V[1][7] + l2 * V[2][7]
-                tx, ty = int(u % 1.0 * (tw - 1)), int(v % 1.0 * (th - 1))
+                tx, ty = (int(min(max(u, 0.0), 1.0) * (tw - 1)), int(min(max(v, 0.0), 1.0) * (th - 1))) if texi == 1 else (int(u % 1.0 * (tw - 1)), int(v % 1.0 * (th - 1)))
                 r, g, bl, _ = px[ty * tw + tx]
                 nm = [l0 * V[0][3 + j] + l1 * V[1][3 + j] + l2 * V[2][3 + j] for j in range(3)]
                 ln = math.sqrt(sum(q * q for q in nm)) or 1
