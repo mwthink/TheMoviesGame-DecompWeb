@@ -11,7 +11,7 @@ Singleton `AudienceTaste` is created by `AudienceTaste_Constructor` (`00523c50`,
 **Data.** `AudienceTaste_LoadTimelineSeeds` (`00523090`) reads a `"timeline"` data set. Per genre it builds a sorted list of 0x28-byte entries (`AudienceTaste_PushTimelineEntry`, `00522490`). Each entry has a date at +0 and a popularity value in [0,1] at +0x24 (`pfVar4[9]`). The genre map is at `this+0x64`.
 
 **Constants set in `Init`.**
-- Decay rate `this+0x70 = ln(2) / (4 years)`. `FUN_0043b710` multiplies days by `0.002739726` (= 1/365), so time is in years. This is a 4-year half-life.
+- Decay rate `this+0x70 = ln(2) / (4 years)`. `Time_ToYears` multiplies days by `0.002739726` (= 1/365), so time is in years. This is a 4-year half-life.
 - Other defaults: `this+0x74 = 1.0`, `this+0x78 = 1910.0` (probably a start year), `this+0x7c` = a 1800.0 time value.
 
 **Formula** (`AudienceTaste_GetGenreTrend`, `005216e0`):
@@ -27,7 +27,7 @@ So each scripted era value pulls a genre's popularity away from neutral, and the
 **Consumers.**
 - `Release_GetNormalizedGenrePopularity` and `Release_NotifyIfMostPopularGenreChanged` (`0047f9f0`) fire a notification when the top genre changes.
 - The `"PopularGenrePropensity"` property (`decomp_0010.c`) is used in character/AI logic.
-- `FUN_00521900` is a debug dump: it prints a text bar of each genre's trend.
+- `AudienceTaste_DebugDumpGenreTrends` is a debug dump: it prints a text bar of each genre's trend.
 
 ## Radio and timeline events
 
@@ -112,7 +112,7 @@ I compared our export against that project's Lionhead library sources (`src/Lion
 - Segments are the same: a 32-byte name (zero-padded, stored in a 33-byte buffer), a dword size, then the data. B&W's `LHFile::VerifyFile` (`007bd7d0`) reads the name, reads the size, seeks past the data, and repeats until end of file, so it builds a segment directory.
 - Our equivalent is `LH_DecodeSegmentStructure` (`00c0a430`), which checks the header with `LH_VerifyLUGHeader`. It then reads each segment's info with `LH_GetFirstSegmentInfo` (`00c0a370`) and records offset and size in a 0x28-byte node. Its assert path names `.\CLHSegmentReader.cpp`, so it is a rewrite of the same format under a new class name, not the same code.
 - `.lug` audio banks and B&W's segment files therefore share a container. The write side matches too: B&W's `WriteSegmentHeader` (`007bdb20`) is the counterpart of the segment writes in our `LH_BuildLUGAsset` (`00bd34d0`).
-- Suggested renames for our unnamed functions around `00c0a3e0`-`00c0a7d0`: `FUN_00c0a3e0` clears the segment list, and the node constructor `FUN_00c0ab70` builds one directory entry. I read these but did not verify them against the segment code beyond what is quoted here.
+- Suggested renames for our unnamed functions around `00c0a3e0`-`00c0a7d0`: `CLHSegmentReader_Clear` clears the segment list, and the node constructor `CLHSegmentEntry_Constructor` builds one directory entry. I read these but did not verify them against the segment code beyond what is quoted here.
 
 **No match found for:**
 - `LHParseFile` (enum-list parser using `bsearch`/`qsort`). Our only `_bsearch` caller uses 100-byte records and is unrelated.
@@ -184,14 +184,14 @@ The Fable docs also list this block as unknown. The distance floats and the alia
 
 Only the parts I could read from the decompile are here. The per-entry fields are not decoded, so no extractor can be written from this alone.
 
-**Discovery** (`FUN_00a96360`, `decomp_0051.c`): scans `data\Pak\*.*pak`, then the per-user folder `...\Lionhead Studios\TheMovies\` for `*.cpak` (the folder is from `SHGetSpecialFolderPathA` with CSIDL `0x23`, the common application data folder). `.cpak` files are user content and go through a separate loader (`FUN_00aafc30`) from the normal `.pak` path.
+**Discovery** (`PakFiles_Discover`, `decomp_0051.c`): scans `data\Pak\*.*pak`, then the per-user folder `...\Lionhead Studios\TheMovies\` for `*.cpak` (the folder is from `SHGetSpecialFolderPathA` with CSIDL `0x23`, the common application data folder). `.cpak` files are user content and go through a separate loader (`FUN_00aafc30`) from the normal `.pak` path.
 
-**Loading** (`FUN_00aafeb0`, `decomp_0052.c`):
+**Loading** (`PakSystem_AddPak`, `decomp_0052.c`):
 - At most `0xffe` (4094) pak files can be loaded. Past that it logs `"Too many pak files ... is the maximum"`. Each pak gets a sequential index from the counter `DAT_010b9360`.
 - The index is XORed into each entry's flags dword (entry `+0x14`, mask `0x7ff8000`, shifted left 15), so every entry records which pak it came from in bits 15-26. Code elsewhere reads it back with `(flags >> 0xf) & 0xfff` (for example `decomp_0046.c`).
 - The pak's `FILE*` is kept open at pak object `+0x28`, in read mode. Pak object `+0x24` is a mode flag: 1 normally, or 2 when the header version is 6.
 
-**Header** (`FUN_00a9b6b0`, parsed from a buffer read by `FUN_00a9be50`; size check in `FUN_00a9baa0` requires at least 0x34 bytes):
+**Header** (`PakHeader_Parse`, parsed from a buffer read by `PakHeader_ReadFromFile`; size check in `PakFile_GetHeaderBufferSize` requires at least 0x34 bytes):
 
 | File offset | Meaning |
 |---|---|
@@ -210,7 +210,7 @@ In v4 the three offsets sit at `0x1c`-`0x24`. In v5 and v6 three more dwords com
 
 **Entries:** 0x38 bytes each. Only the flags dword at `+0x14` (pak index in bits 15-26) is known. The file-name/hash, offset and size fields have not been decoded.
 
-**Path handling** (`FUN_00ab0060`, `FUN_00ab0150`): paths are lower-cased and cut down to the part after `data\`. A file-type classifier checks the extensions `.msh`, `.pak`, `.cpak`, `.exe`, `.avi`, `.wmv`, `.fnt`. For `.msh` it treats names starting `head_` and `cos_` specially, with `_fat` and `_enh` suffixes (body-size and enhanced variants of costumes). A separate `"%s\%s%s%04d.pak"` format is used when generating numbered pak names.
+**Path handling** (`PakPath_StripToDataRelative`, `FUN_00ab0150`): paths are lower-cased and cut down to the part after `data\`. A file-type classifier checks the extensions `.msh`, `.pak`, `.cpak`, `.exe`, `.avi`, `.wmv`, `.fnt`. For `.msh` it treats names starting `head_` and `cos_` specially, with `_fat` and `_enh` suffixes (body-size and enhanced variants of costumes). A separate `"%s\%s%s%04d.pak"` format is used when generating numbered pak names.
 
 ### Criteria segment, confirmed in our loader
 

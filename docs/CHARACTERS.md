@@ -13,7 +13,7 @@ Records of 0x78 bytes after a 0xa8 header: the body mesh name, then texture laye
 Parses all 464 `.cos` files; 406 (format byte 3) have the record layout, 58 have other formats and give only the body mesh name. The floats/flags in each record are not decoded.
 
 ## `.hd` heads and the face morph (`tools/hd_dump.py`)
-Read from `FUN_00a18e50` (loads `Data\\Heads\\<name>`), `FUN_00a1aad0` (builds a head from `generic_head.msh`) and `FUN_009db5f0` (the morph):
+Read from `Head_Load` (loads `Data\\Heads\\<name>`), `Head_FindOrCreate` (builds a head from `generic_head.msh`) and `FUN_009db5f0` (the morph):
 * `0x0c`: the head's texture name (`head_f_japanese_girl.dds`); from `0x94` on, **three arrays of 996 vertices x 6 floats** (x, y, z, nx, ny, nz). 996 = 760 + 58 + 178 = the vertices of `generic_head.msh` in file order (the 760-vertex face, the 58-vertex eyeballs, the 178-vertex eyelid/mouth shell). Array A is the head's own shape (within 2.4 cm of the generic head, 6 mm on average, identical on the eyeballs), B and C are deltas.
 * vertex = A + p4 * B + p5 * C for one head; with two heads (`Head[0]`, `Head[1]`, `HeadMix`): (1 - mix) * (A0 + p4 B0 + p5 C0) + mix * (A1 + p4 B1 + p5 C1); normals the same, then normalised.
 * p4 and p5 are the age and weight morphs (`CharacterModel_SetAgeMorph`: 0 below 30 years, +0.025 per year, 1.0 at 70; `SetWeightMorph`: 0 at 60 kg, +0.025 per kg, 1.0 at 100 kg). The decompiler lost which argument is which; the tools take p4 = age, p5 = weight, an assumption (the deltas are 1 to 4 cm at most).

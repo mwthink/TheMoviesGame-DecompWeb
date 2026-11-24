@@ -63,23 +63,23 @@ Add `--outlines` for the footprint/room polygons and `--markers` for the origin 
 ## Not done
 
 The second `u16` in a chunk header; what the `u16`/flag bits 0x13 / 0x15 / 0x16 mean (names above are by flag bit, not by purpose);
-which slot each of the two rasterizer passes in `FUN_009e8060` reads (the decompile lost the arguments); the meaning of the other chunks (`b16_01`, `b16_10`) and of the chunk header's two unknown `u16`s.
+which slot each of the two rasterizer passes in `MeshPolygons_RasterizeFootprint` reads (the decompile lost the arguments); the meaning of the other chunks (`b16_01`, `b16_10`) and of the chunk header's two unknown `u16`s.
 
 ## Placement footprint in the code
 
 Chunk slots on the loaded mesh object (set by `LH_LoadMeshBinary`): `+0x50` = `flag13` hull, `+0x5c` = `b15_02` flat polygon, `+0x60` = `b16_01`, `+0x54` = `b16_08`, `+0x58` = `b16_10`.
 
-1. **Footprint source.** `FUN_0097fc60` (called by `FUN_00528060` for an asset's model, `0097fc60`) is the only place that picks a slot: it looks at `mesh+0x5c`
-   first; if that is null it uses `mesh+0x50`, and if that is null too it **builds an axis-aligned box from the mesh bounds** into `+0x50` (`FUN_009e6e90`: 8 vertices, 12 triangles from
+1. **Footprint source.** `Object_GetFootprintBitmap` (called by `FUN_00528060` for an asset's model, `0097fc60`) is the only place that picks a slot: it looks at `mesh+0x5c`
+   first; if that is null it uses `mesh+0x50`, and if that is null too it **builds an axis-aligned box from the mesh bounds** into `+0x50` (`MeshPolygon_BuildBoundsBox`: 8 vertices, 12 triangles from
    the centre at `+0xc8..0xd0` and half-extents `+0xd4..0xdc`). So a mesh without a `b15_02` polygon (the large facilities all have one) gets a bounding box.
-2. **Rasterizing.** `FUN_009e8060` projects the chosen polygon's triangles (`FUN_009e7c60`, one pass per chunk kind with fill values 2 and 3) into a byte bitmap at **0.5 world units per
+2. **Rasterizing.** `MeshPolygons_RasterizeFootprint` projects the chosen polygon's triangles (`FootprintBitmap_RasterizePolygonTriangles`, one pass per chunk kind with fill values 2 and 3) into a byte bitmap at **0.5 world units per
    cell** (`origin = min * 0.5`) and returns it to the asset, which stores it at `CAsset + 0x3a0` as `{u8* data, rows, cols, origin_x (+0xc), origin_y (+0x10)}`.
    Bit 0 of a byte is "covered". `CAsset_DrawFootprintOverlay` (`005292e0`) draws exactly these cells (`cell = i * 0.5 + origin - 256`), and `CAsset_RefreshFootprintFlag`
    (`00528510`) re-tests the footprint whenever the asset moves.
-3. **Placement test.** `FUN_0046d400(footprint, flagMask)` walks the footprint bitmap and, for every covered cell, asks the **lot cell grid** (`FUN_0046c5d0`)
+3. **Placement test.** `Footprint_IsPlacementClear(footprint, flagMask)` walks the footprint bitmap and, for every covered cell, asks the **lot cell grid** (`LotGrid_IsCellFree`)
    whether it is free; any covered cell that is not free fails the placement (and, if the debug flag is on, marks it). Masks seen: `0x41`, `0x3ff`, `0x2f`, `0xfffffc01`, `0xffffffd1`
-   (`FUN_0046d730` sets/clears the asset's footprint flags in the grid with them).
-4. **The lot cell grid** (`DAT_0104913c`, `DAT_01049130/34` = size, `FUN_0046cad0` converts world to cell) is finer than the 256 x 256 bitmap in the save: `FUN_00465650(gx, gy, on)`
+   (`Footprint_UpdateGridFlags` sets/clears the asset's footprint flags in the grid with them).
+4. **The lot cell grid** (`DAT_0104913c`, `DAT_01049130/34` = size, `LotGrid_WorldToCell` converts world to cell) is finer than the 256 x 256 bitmap in the save: `LotGrid_BlockPathCell(gx, gy, on)`
    expands one saved 2-unit path cell into the 0.5-unit sub-cells (a 4 x 4 block, flag masks `0x30`/`0x3e` and their complements) of that finer grid.
    `CLot_RefreshOccupancyGridForBounds` (`00465a50`) calls it for every bitmap bit that is set. So the saved bitmap is the **path mask** (paved cells block placement); the live
    per-asset footprints are registered on the fine grid at runtime and are not in the save.
@@ -90,7 +90,7 @@ Not traced: the exact meaning of each flag bit in the cell grid's word, and the 
 
 `jad_dump.py ... --ground <dir with land_*.dds>` draws the terrain with the real textures instead of flat colours. The 257 x 257 cells are **vertices** (256 quads + the
 edge column), so each pixel bilinearly blends the four surrounding vertices; a vertex is its layers composited (layer 0 opaque, layers 1 and 2 with alpha `(bits 4-5 + 1) * 0.25`).
-The texture scale is **assumed**: one tile per 12 world units (`--tile`), from the `0.0833` (1/12) texture-matrix constant in `FUN_009e56f0`; it looks right but is not confirmed.
+The texture scale is **assumed**: one tile per 12 world units (`--tile`), from the `0.0833` (1/12) texture-matrix constant in `TMLandscape_SetupGroundTextureState`; it looks right but is not confirmed.
 `land_alpha.dds` (a blend mask) is not used.
 
 ## Rooms and the cutaway view

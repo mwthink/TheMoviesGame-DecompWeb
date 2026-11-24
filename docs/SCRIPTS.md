@@ -144,15 +144,15 @@ meaning of these fields (creation dates versus "last updated") is *not yet pinne
 
 ## Script quality (formula traced from MoviesSE.exe)
 
-`FUN_004c3ae0(capFlag)` (`0x004c3ae0`, called from the script editor `FUN_00610190` and elsewhere) recomputes the script's quality (float at +0x128) as a
-**clamped running sum**; weights and limits come from `scriptquality.ini` (loaded by `FUN_004c99a0`, defaults in brackets are used only if a key is missing):
+`Script_RecomputeQuality(capFlag)` (`0x004c3ae0`, called from the script editor `FUN_00610190` and elsewhere) recomputes the script's quality (float at +0x128) as a
+**clamped running sum**; weights and limits come from `scriptquality.ini` (loaded by `ScriptQuality_LoadTuningData`, defaults in brackets are used only if a key is missing):
 
 ```
 q = 0
 q += clamp01( sum(shot.runtime * 0.1) / max_length )            * max_length_weight         # runtime = [scene ini] runtime (frames?), summed over shots
 q += clamp01( max(roles of the largest scene, cast size) / min_required_roles ) * min_required_roles_weight
 q += clamp01( set_changes / max_set_changes )                   * max_set_changes_weight    # consecutive shots on different sets
-q += clamp01( costume_changes / max_costume_changes )           * max_costume_changes_weight   # FUN_005b77a0, per cast slot across shots
+q += clamp01( costume_changes / max_costume_changes )           * max_costume_changes_weight   # CProject_CountCostumeChanges, per cast slot across shots
 q += clamp01( extras_in_cast / max_extras )                     * max_extras_weight
 q += clamp01( mean_shots( scene_quality * scene_repeat_factor ^ earlier_uses_of_the_same_scene ) ) * scene_quality_weight
 q += clamp01( mean_shots( set_quality ) )                       * set_quality_weight

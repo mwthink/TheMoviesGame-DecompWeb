@@ -1,7 +1,7 @@
 # `.anm` animations, skeletons and skinning
 
 `tools/anm_dump.py <file.anm>` decodes a clip; `tools/export_character.py` turns a costume + clips into `viewer/data/<id>/character.json` (default `viewer/data/sample/`, added to `viewer/data/index.json`), shown by `viewer/index.html` (a Character selector, also `[` / `]` or the arrow keys, and `#<id>` in the URL; see `docs/CHARACTERS.md`) (three.js, vendored in `viewer/vendor/`; start with the `character-viewer` entry of `.claude/launch.json`, or `python3 -m http.server --directory viewer`).
-Layout read from `Anim_ReadHeader` (`00984ad0`), `Anim_ReadSetHeader` (`00984b40`), `Anim_ReadTrackSet` (`009859c0`), `Anim_ReadChannel` (`00a4e030`), `Anim_DecodeRleArray` (`00a4db20`), `Anim_BuildTranslationTable` (`009852c0`), `Matrix_FromPackedPoseSample` (`009ab4a0`), `FUN_009ab3f0` (Euler to matrix).
+Layout read from `Anim_ReadHeader` (`00984ad0`), `Anim_ReadSetHeader` (`00984b40`), `Anim_ReadTrackSet` (`009859c0`), `Anim_ReadChannel` (`00a4e030`), `Anim_DecodeRleArray` (`00a4db20`), `Anim_BuildTranslationTable` (`009852c0`), `Matrix_FromPackedPoseSample` (`009ab4a0`), `Matrix3_FromEulerAngles` (Euler to matrix).
 
 ## Checked against real files
 `walk.anm`, `walk_angry`, `walk_zombie`, `walk_casual_stroll`: the parser ends exactly at the end of each file. 30 channels = the 30 bones of `cos_m_50s_1.msh` (the parent table in the anim equals the skeleton's parents); the anim's translations equal the bind-pose local offsets (0.046, 0.121, 0.431 ...). Played on the skinned costume the walk looks right (legs alternate, arms counter-swing).

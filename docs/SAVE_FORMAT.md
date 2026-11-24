@@ -30,7 +30,7 @@ Written by `Savegame_SaveToDisk` (`004b37e0`) / read by `Savegame_LoadFromDisk` 
 
 * Objects appear in the order the serializer writes them; **object ids are renumbered every save** (they shift when
   objects are added), so compare saves by (class, ordinal), not id.
-* The **tag** is the 4-byte hash of the variable name (`FUN_009f3c40`): `h = h*0x17 + (c & ~0x20)` over the characters, 32-bit,
+* The **tag** is the 4-byte hash of the variable name (`Saveable_HashVariableName`): `h = h*0x17 + (c & ~0x20)` over the characters, 32-bit,
   stored little-endian (the `& ~0x20` makes it case-insensitive for letters). Names are the strings passed to
   `Saveable_BeginVariable` / the `SLVAR_*` macros. `tools/jad_dump.py` hashes every string literal in
   `data/ExportDecompiled` and caches the result in `docs/generated/save_field_names.csv` (~5000 names; about 92% of the
@@ -127,7 +127,7 @@ This is the same grid for the path bitmap and the terrain paint. Observed: 31 of
 centres), on quarter-turn rotations; facilities and the billboard are off-grid (fixed lot slots, e.g. catering at (-24.457, 26.873)).
 Laying the assets on the terrain puts every one of them on the grass lot at the gate where the lot meets the road.
 
-**`TMLandscape`** is one object with a single field (tag `922a5dd0`, ~223 KB), read by `FUN_009e5540`:
+**`TMLandscape`** is one object with a single field (tag `922a5dd0`, ~223 KB), read by `TMLandscape_ReadTerrainBlob`:
 
 ```
 u32 length (of the rest)  u32 version (2)  u32 texture count (7)
@@ -138,7 +138,7 @@ u32 length (of the rest)  u32 version (2)  u32 texture count (7)
 ```
 
 Each cell byte is masked with `0x3f` by the loader and is one **paint layer**: three layers per cell. Low nibble = texture index (0xF = none);
-bits 4-5 = blend weight `(value + 1) * 0.25` (from `FUN_009e23b0`). Layer 0 is the base (sand almost everywhere, hi bits 3 = opaque); layers 1 and 2
+bits 4-5 = blend weight `(value + 1) * 0.25` (from `TMLandscape_GetPaintLayerWeight`). Layer 0 is the base (sand almost everywhere, hi bits 3 = opaque); layers 1 and 2
 paint over it (grass, earth, tarmac). In the tutorial save most of the lot is grass with a dirt border, and the road is tarmac; the blank-lot save
 has the same lot with different painting, and its own path bits.
 
@@ -256,7 +256,7 @@ the cash drop) but which building the 3,000.00 is, is not recorded in the spent 
   (126 each), `Gardens`, `MyPeople`, `MyDesireMap.Values` have no known layout.
 * Ornament/facility `GUID` (8 bytes) semantics, `StateOfRepair` / `BuildWorkDone` units, `SL_CamRot`/`SL_CamZoo` units.
 * How a `CFacility`'s `SubFacilities` value (16 bytes: count + pointers + hash) is laid out beyond "count then entries".
-* Terrain: the heightmap/mesh is not in the save (only the paint layers and the path bits below). The blend-weight meaning of bits 4-5 is from the code (`FUN_009e23b0`), not checked in game. The ~17 KB after the path bitmap is mostly zeros with scattered per-patch records (not decoded).
+* Terrain: the heightmap/mesh is not in the save (only the paint layers and the path bits below). The blend-weight meaning of bits 4-5 is from the code (`TMLandscape_GetPaintLayerWeight`), not checked in game. The ~17 KB after the path bitmap is mostly zeros with scattered per-patch records (not decoded).
 * Whether the sidewalk slab scale in the render (one texture tile per 2 world units) matches the game; the paths' exact blending at their edges.
 * Whether the 2-unit grid applies to player-placed props and sets (only prebuilt tutorial ornaments have been seen).
 * The meaning of the room/object `ObjectsIn` field (`TMRoom`) and `TMFloorPlan`'s repeated `?239a5558` (4 entries pointing to ids 1305-1308: probably its rooms).
@@ -313,17 +313,17 @@ Fields: `RoomName`, `PParentAsset` (object id of the placed facility or set), `M
 ## Where room names and floor text come from (2026-11-24)
 
 **The room list is data, not code.** No table of rooms is in the executable. A facility's rooms are the named parts (`room_*`) of its model, found through the asset's `.ini` (`mesh = ...`); the loader keeps them
-as a room table on the mesh (`LH_LoadMeshBinary`, table at mesh + 0x70, 0x90 bytes per entry: 32-byte name + polygon; `FUN_00a14bd0` initialises each part's drawing data). The facility's creation code picks
+as a room table on the mesh (`LH_LoadMeshBinary`, table at mesh + 0x70, 0x90 bytes per entry: 32-byte name + polygon; `RoomPart_InitDrawingData` initialises each part's drawing data). The facility's creation code picks
 the behaviour class (`CHireRoom`, `CFireRoom`, ...) from the part name, and the save then stores one `TMRoom`-family object per part, matched by `RoomName` (above).
 `python3 tools/list_rooms.py "<game>/Data/pak" "<stringdatabase.lhts[,addon]>" > rooms.md` lists every room in the archives: **93 assets with rooms and 198 room parts**
 (the 19 facilities and sets in the Quick Start save, plus ones not in it: cosmetic surgery (`nip_tuck`, `implants`, `liposuctio`), hospital (`hosp_hosp`), post-production, publicity office (`publicity_pr`),
 stunt school (`stuntschool_create`, `_fire`), the 4-star script office, trailers 1-5, ~70 more sets).
 
-**The text on the floor is a string-table lookup** (`FUN_00a157b0` draws a room part; `Localize(key)` reads `Data/text/<lang>/stringdatabase.lhts`, read by `tools/lhts.py`):
+**The text on the floor is a string-table lookup** (`RoomPart_Draw` draws a room part; `Localize(key)` reads `Data/text/<lang>/stringdatabase.lhts`, read by `tools/lhts.py`):
 * the key is the part name, upper-case: `room_ss_actors` -> `ROOM_SS_ACTORS` ("Create"), and if `ROOM_SS_ACTORS_2` exists it is a second line ("Actor"): the "Create / Actor" of the in-game floor;
 * parts without a key are drawn with no text: the hallways (`*_hall`), windows (`room_window`, `*_windows`), the unnamed whole-floor `room_`, the set floors (`room_1_carpet`, ...), and a few with no entry
   (`room_hosp_hosp`, `room_stuntschool_create`);
-* a part whose name contains `_fire` or `_canit` gets flag 0x80 (`FUN_00a14bd0`) and is drawn from five preloaded strings (`ROOM_FIRE_STAFF` "Fire", `ROOM_FIRE_SCRIPT` "Can It",
+* a part whose name contains `_fire` or `_canit` gets flag 0x80 (`RoomPart_InitDrawingData`) and is drawn from five preloaded strings (`ROOM_FIRE_STAFF` "Fire", `ROOM_FIRE_SCRIPT` "Can It",
   `ROOM_FIRE_WANABE` "Reject", `ROOM_PROD_PR_DONE`, `ROOM_TRAILER_RELAX`) selected at run time (index `DAT_010b93a4`): which one shows presumably depends on what is being held (a wannabe over the stage school's
   `room_ss_fire` reads "Reject"; the same room reads "Fire" in a later screenshot with a different character held, and the gatehouse's fire room reads "Fire"); the selection logic is not traced;
 * `room_ss_starmaker`, `room_cso_blank`, `room_prod_release`, `room_preprod_extras/crew` get extra flags (0x4 / 0x100 / 0x400), so their text can be hidden or swapped by state: the star-maker pad is drawn without text in the screenshot even though
@@ -340,21 +340,21 @@ paving is not stored as paint. In the code:
 * `Object_SpawnSurfacePatches` (`00980c10`, called when a building is placed, with the reverse on removal) walks the mesh's named tag points (parsed by `tools/msh_dump.py`, key `tags`: header flag byte 2 = count,
   0x50 bytes each after the nodes / skeleton / node names: 32-byte name + 3x3 matrix + translation):
   `_sp_tarmac<W>_<H>` stamps a W x H block of cells (2 units each, extending along the model's +x and +y from the tag, rotated with the asset) with texture index `count - 2` (tarmac); `_sp_grass<W>_<H>` stamps grass (index 1, four passes);
-  `_sp_sand<W>_<H>` stamps sand (index 0, four passes) then 0-3 random passes of earth (index 4); `_sp_pavement_0*` calls `FUN_009e1980` at the tag's cell (sets the cell's bit in both bitmaps, `DAT_0105f8d8` (saved) and `DAT_0105f8dc`
-  (transient, zeroed when version-2 terrain loads), and fixes up the cell's paint layers); removal clears them (`FUN_009e1ff0`).
+  `_sp_sand<W>_<H>` stamps sand (index 0, four passes) then 0-3 random passes of earth (index 4); `_sp_pavement_0*` calls `TMLandscape_SetPathCell` at the tag's cell (sets the cell's bit in both bitmaps, `DAT_0105f8d8` (saved) and `DAT_0105f8dc`
+  (transient, zeroed when version-2 terrain loads), and fixes up the cell's paint layers); removal clears them (`TMLandscape_ClearPathCell`).
   **Checked against the Quick Start saves (both): the tarmac stamps match exactly, 106 of 106 cells (`_sp_tarmac_6_4` customscript, `_sp_tarmac_9_6` 3-star script office, `_sp_tarmac_7_4` production), so the tag position,
   rotation convention and W x H axes are right.** The terrain's tarmac plazas are therefore stamps from those buildings' tags.
   **The pavement tags are not the path network:** 39 tags on the 19 facilities, 7 sets and trailers sit a median of ~5 cells from the nearest saved path cell (random lot points: 2.4), and only 8 have any saved bit in their four corner
   cells. In game they are doorsteps or "work areas" inside the rooms where characters stand (the player's observation; not verified in the code), so they are left out of the path render. Other tag names seen: `_sp_rotate_` (script offices).
-* The player's path tool (`terrain_path`, `terrain_pathdelete`, `is_landscaping_path` / `_antipath`, `PIP_PLACING_PATH`) sets and clears the same bits (`FUN_009e1980` with the flag `DAT_0105ef80`, anti-path = clear).
-* `FUN_00465650(gx, gy, on)` expands each set cell into the 0.5-unit placement grid, so paths are cells a new building cannot be placed on.
+* The player's path tool (`terrain_path`, `terrain_pathdelete`, `is_landscaping_path` / `_antipath`, `PIP_PLACING_PATH`) sets and clears the same bits (`TMLandscape_SetPathCell` with the flag `DAT_0105ef80`, anti-path = clear).
+* `LotGrid_BlockPathCell(gx, gy, on)` expands each set cell into the 0.5-unit placement grid, so paths are cells a new building cannot be placed on.
 
 Not checked: what the pavement tags are for (see above), how the sidewalk is drawn at path edges, the meaning of the `DAT_0105f8dc` transient bitmap while the player is painting, the `_sp_grass` / `_sp_sand` stamps (no building in these saves has one).
 
 ## Gameplay objects: relationships, performance, costs, legacy, credits (2026-11-24)
 
 Decoded from the Quick Start save `quick film studios4 July 1960…` (4 stars, 47 `CStaffCosts`, 18 released films). Cross-checked against the
-decompile (`ChemistryManager.cpp` functions near `FUN_0042b030`, `FUN_0042cf..`) and `relationships.ini` (extract with `pak_extract.py`; it is in
+decompile (`ChemistryManager.cpp` functions near `ChemistryEntry_GetClampedValue`, `FUN_0042cf..`) and `relationships.ini` (extract with `pak_extract.py`; it is in
 `Addon_2704_0000.pak`, not in `data/game_data`). Object ids in the tables are examples; ids are renumbered every save.
 
 ### `CRelationships` -> `CRelationship` -> `ChemistryModifier` (star-to-star chemistry)
@@ -362,7 +362,7 @@ decompile (`ChemistryManager.cpp` functions near `FUN_0042b030`, `FUN_0042cf..`)
   objects, one per *other* star (4 stars -> 3 each, 12 in total).
 * `CRelationship`: `POwner` (the star who holds the feeling), `PStar` (the other star), `BaseChemistry` (f32, 0.46..0.53 at the start: the seed value),
   `Modifiers` = list of `ChemistryModifier` ids. The relationship is **directional** (A->B and B->A are separate objects with different base values).
-  Chemistry as read by the game = **clamp01(BaseChemistry + modsum)** (`FUN_0042b030`: `+0x9c` base plus `+0xa0` sum, clamped 0..1; `FUN_0042e910`
+  Chemistry as read by the game = **clamp01(BaseChemistry + modsum)** (`ChemistryEntry_GetClampedValue`: `+0x9c` base plus `+0xa0` sum, clamped 0..1; `ChemistryManager_GetChemistryWith`
   returns 0.5 when the pair has no relationship object, and when the two are the same person). `modsum` is rebuilt (the function at decomp_0002.c:15195) as the **sum of every modifier's `Value`** plus fixed bonuses looked up in the `relationships.ini` table for the pair type
   (`[MF]`/`[FM]`/`[SS]`: `GENDERDIFF`, `AGEDIFF`, `ATTRACTDIFF`, `PERSONALITYDIFF`, `PHYSIQUEDIFF`, `STARRATINGDIFF`, `IMAGEDIFF`, `PROMOTINGSAMEFILM`,
   `RIVALS`, `LOWERRANKINGTRAILER`, `SIMILARSTARSTATUS`) when the pair is of the same gender / same personality trait / mood
