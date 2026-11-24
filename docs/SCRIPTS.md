@@ -178,6 +178,41 @@ which is exactly the repeat penalty on the second `time_bomb` shot (`0.75 * 0.5 
 earlier; the save is consistent with the two `time_bomb` shots *not* counting as the same scene (e.g. separate scene-state objects per shot), but that is a hypothesis
 and the tool still applies the penalty as decompiled. Also not computed: costume changes (assumed 0).
 
+## Lifecycle: writing -> design -> casting -> rehearsal (saves of 3 May - 4 July 1960)
+
+Five further saves were made on top of the Quick Start save, one per step. State label = the save's `[HEADER]` string. Object ids are **renumbered in
+every save** (Turtles is project 1580 on 7 April, 1581 on 3 May, 1580 again on 6 June ...), so match by class/title, not id.
+
+| save | state label | what the Turtles project looks like |
+|---|---|---|
+| 7 April | `quickstart-script-writin` | `CPhaseWriting` (`e027bcab` = 2); script `Quality` 0.1381 (computed target 0.2700) |
+| 3 May | `script-almost-done` | same objects; `Quality` 0.2214; the script office and its comedy room still carry `PProject`; writers still in `room_so_office` |
+| 6 June | `script-ready` | `Quality` = 0.2700 = `4b51dbd5` (done); the project's phase object is now **`CPhaseDesign`** (`e027bcab` = 3); `CFacilityScriptOffice.PProject` and `CScriptRoom.PProject` are cleared (0), the project's `7f31b418` (script office link) is cleared; writers are released (`PInBuilding` 0; `InRoomName` `room_so_scifi` for one: see below) |
+| 13 June | `script-casting` | dragged to **Begin Casting**: phase is now **`CPhasePreProduction`** (`e027bcab` = 4) with `PFacility` -> `CFacilityPreProduction`; the project holds 3 auto-assigned crew `CStaff` (list `0d2bbc43`, counters `9b60d4fa` = `064e7a4c` = 3: Adam Russell, Kirsty McKinnel, Kiernan Sleep); the nonlead role "Mort Germain" got an actor, a `CExtra` (Kevin Storrie); `CProjectCosts.ActorList` gets a `CCostItem` |
+| 25 June | `star-assigned` | the lead role's `PActor` -> a `CStar` (Helen Farrer, id 1266) and the **role is renamed** ("Vince Andetti" -> "Lucy Winter": a name generated to suit the actor; `IsGeneratedName` stays 1); `CRole.fceacfa3` 0 -> 1; `CProjectCosts.ActorList` has 2 items and `DailyInclusiveCosts` rises; the first `CProjectStaffEnhancement` appears (owner = the `CExtra`) and is listed in project field `ee42c889` |
+| 4 July | `director-assigned` | `CProject.PDirector` -> a `CStar` (id 1249); `f14a0386` 0 -> 0.0566; 3 `CProjectStaffEnhancement`s (extra, star, director) all with `StartTick` 177992 and `EndTick` 0; `CPhasePreProduction.DesireSwitchCount` 0 -> 1; the next-tannoy days move forward |
+
+Findings:
+
+* **Phase = the project's phase object.** `CProject.83631420` points at the current phase object, replaced at each step: `CPhaseWriting` -> `CPhaseDesign` -> `CPhasePreProduction`
+  (the release phase `CPhaseRelease` exists from the start for the old movie only). Its field `e027bcab` is the phase number (writing 2, design 3, pre-production 4; later
+  phases not seen). `CPhasePreProduction` adds `PFacility`, `TicksInUse` (33 -> 214 -> 362), `DayOfNext{Actor,Director,Crew,Extras,Casting,StuntMen}Tannoy` (game-day numbers of the next
+  announcement; -1 = none), `FirstTimeThrough` and `DesireSwitchCount`. `CProjectCosts` follows the phase (`DailyInclusiveCosts`, `TotalSpentUse`: the money fields are 8-byte
+  values this tool prints as garbage for the second word; *not decoded*).
+* **Script quality grows while writing and is final when it is ready.** Saved `Quality`: 0.1381 (7 April) -> 0.2214 (3 May) -> 0.2700 (6 June, equal to the computed value of
+  "Script quality" above, and never changes afterwards). So the formula's result is the *target* and `Quality` is that value scaled by writing progress (0.51 and 0.82 of it at
+  the two intermediate saves). *Two points only: whether the growth is linear in time, and what it is a function of (writer experience? the phase's progress), is not traced.*
+* **Game-day numbers.** The tannoy day numbers are the same unit as the other f32 dates (`ReleaseDate`, `Hired`). Comparing them with the save dates (13 June 1960 ~ 715621)
+  gives game day ~ Python day ordinal - 53 (inferred from the tannoy values, *not* from the code).
+* `CProject.cecd8e39` (a date) is 715748 / 715669 on 7 April / 3 May, and stays 28-29 days after the save date in the four later saves; not monotonic, meaning unknown.
+* **Rehearsal** is not a physical state change here: the six `CRehearseRoom`s are identical before and after the director is assigned. What changes is the three
+  `CProjectStaffEnhancement`s (per-person trackers of one project: `StressGain`, `GenreExperienceGain`, `StarRatingGain`, `WagesEarned`, `StuntExperience*`, and the
+  `...AtStart` / `...StartOfShot` snapshots; `StartTick` = when it began, `EndTick` 0 = still running), created for the cast once the cast is full. The finished McGun has 4 of them.
+* **The second script** (writing started in the 6 June save): nothing in the saved objects represents it. There is no third `CProject`, no new `CScript` (the only new `CScript`s
+  are library copies of "The Super Human Race" that the game adds on load), and no script room carries a `PProject`. One writer is in `room_so_scifi` of the script office in that save
+  and a sci-fi script-room exists, but the in-progress second script is *not found*; it may only exist in the writer's `Desire` state or be lost when the room is left.
+* The two writers' `PCurrentScript` still points at the Turtles project after it is finished (also in the 4 July save), while their `PInBuilding` is 0.
+
 ## What changed between the two Quick Start saves
 
 `quick film studios22 January 1960…jad` (state `QUICKSTART`) has only McGun. Object counts, 22 January -> 7 April: `CProject` 1 -> 2,
@@ -188,8 +223,7 @@ writers' `PCurrentScript`, and `PProject` on the one-star script office and its 
 
 ## Open questions
 
-* Why the in-progress script's saved `Quality` (0.138102) is not the computed value (0.270014). The ratio is 0.5115; the finished McGun script has `Quality` = the computed value.
-  Not traced (candidates: a writing-progress scaling by the writers, `CProject_ComputeScriptWritingDuration`; the script-office cap).
+* What the writing-progress factor on `Quality` is (see Lifecycle: it is 0.51, 0.82, then 1.0 of the computed value at the three saves while writing).
 * Why McGun is off by the repeat penalty (above), and the costume-change term.
 * Whether the script's **text** (dialogue, narrative) exists anywhere in the save. It does not seem to: scripts are scene/part templates
   (`SCENE`, `SourceName`), and the dialogue lives in the scene files (`010_conv_both`, ...), not in the `.jad`.
