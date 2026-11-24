@@ -326,8 +326,15 @@ stunt school (`stuntschool_create`, `_fire`), the 4-star script office, trailers
   (`room_hosp_hosp`, `room_stuntschool_create`);
 * a part whose name contains `_fire` or `_canit` gets flag 0x80 (`FUN_00a14bd0`) and is drawn from five preloaded strings (`ROOM_FIRE_STAFF` "Fire", `ROOM_FIRE_SCRIPT` "Can It",
   `ROOM_FIRE_WANABE` "Reject", `ROOM_PROD_PR_DONE`, `ROOM_TRAILER_RELAX`) selected at run time (index `DAT_010b93a4`): which one shows presumably depends on what is being held (a wannabe over the stage school's
-  `room_ss_fire` reads "Reject"); the selection logic is not traced;
+  `room_ss_fire` reads "Reject"; the same room reads "Fire" in a later screenshot with a different character held, and the gatehouse's fire room reads "Fire"); the selection logic is not traced;
 * `room_ss_starmaker`, `room_cso_blank`, `room_prod_release`, `room_preprod_extras/crew` get extra flags (0x4 / 0x100 / 0x400), so their text can be hidden or swapped by state: the star-maker pad is drawn without text in the screenshot even though
   `ROOM_SS_STARMAKER` ("Import") / `_2` ("Star") exist.
 
 `jad_dump.py --rooms --strings <stringdatabase.lhts[,addon]>` draws these texts. The string database is game content: it stays local (the repo only has the reader).
+
+### Paths are not in the terrain paint (open, 2026-11-24)
+
+In game the beige paved paths between the buildings (the `land_sidewalk` slabs) are visible, but they are **not** in the saved terrain: the sidewalk texture (index 6) has no cell in any of the four saves, and
+no object class or field named path/pavement exists in the Quick Start save (`CBuildButtonData` lists only facility, set and prop items). The undecoded ~17 KB after the occupancy bitmap is mostly zeros with a few non-zero
+words (patch records, not a path mask). The loader (`FUN_009e5540`) clears a second 8 KB bitmap (`DAT_0105f8dc`) for version-2 terrain instead of reading one, so path data is probably rebuilt at load from something else
+(`terrain_path`, `is_landscaping_path` and `PIP_PLACING_PATH` strings exist). Where it comes from is not known; the renders therefore show grass where the game shows paths.
