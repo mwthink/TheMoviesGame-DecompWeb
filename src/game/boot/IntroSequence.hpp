@@ -59,6 +59,14 @@ public:
     // GameStateManager +0x14: the user asked to skip the current screen. Cleared whenever the state changes.
     void RequestSkip() { skip_ = true; }
 
+    // orig: Input_CheckGlobalShortcuts 0x0045DF30, a method of the intro manager called once per frame before the update (the Ghidra
+    // name is misleading; renames.csv calls it CIntroScreenManager_PollSkipKeys). It polls GetAsyncKeyState; no window message is
+    // involved. A skip is requested when the game window is in front and Esc, Space or Enter is down. It is edge-triggered by a
+    // latch (the global DAT_00F88F3C): a key that stays down requests one skip, and the latch clears only on a frame where none is
+    // down in the foreground window (a window that is not in front clears it too). The latch is per object here, global there.
+    struct SkipKeys { bool windowInFront = false; bool esc = false; bool space = false; bool enter = false; };
+    void PollSkipKeys(const SkipKeys& keys);
+
     // One frame of UpdateIntroSplashScreens. Returns true once the sequence is complete (state 6).
     bool Update(const IntroInput& in);
 
@@ -82,6 +90,7 @@ private:
     Presentation present_;
     std::uint32_t deadlineMs_ = 0;   // GameStateManager +0x08
     bool skip_ = false;              // GameStateManager +0x14
+    bool skipKeyLatch_ = false;      // DAT_00F88F3C
 };
 
 // What LH_MasterGameLoop does with a message it pulled off the queue.

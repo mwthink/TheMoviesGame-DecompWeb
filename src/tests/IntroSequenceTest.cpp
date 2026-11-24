@@ -95,6 +95,40 @@ int main() {
         Check("legal skippable even on first launch", s.state() == IntroState::Lionhead);
     }
 
+    // --- The skip keys: polled, edge-triggered, Esc / Space / Enter, only with the window in front.
+    {
+        IntroSequence s(MakeIntroConfig(0, 1, false));
+        IntroInput in; in.nowMs = 0;
+        s.Update(in);                                   // -> lionhead (image mode, skippable)
+        IntroSequence::SkipKeys k; k.windowInFront = true; k.space = true;
+        s.PollSkipKeys(k); s.Update(in);
+        Check("space skips", s.state() == IntroState::Activision);
+        s.PollSkipKeys(k); s.Update(in);                // the key is still held: the latch blocks a second skip
+        Check("a held key skips once", s.state() == IntroState::Activision);
+        k.space = false;
+        s.PollSkipKeys(k);                              // released: the latch clears
+        k.enter = true;
+        s.PollSkipKeys(k); s.Update(in);
+        Check("enter skips after a release", s.state() == IntroState::Intel);
+        IntroSequence t(MakeIntroConfig(0, 1, false));
+        t.Update(in);
+        IntroSequence::SkipKeys e; e.windowInFront = true; e.esc = true;
+        t.PollSkipKeys(e); t.Update(in);
+        Check("esc skips", t.state() == IntroState::Activision);
+        IntroSequence u(MakeIntroConfig(0, 1, false));
+        u.Update(in);
+        IntroSequence::SkipKeys bg; bg.windowInFront = false; bg.esc = true;
+        u.PollSkipKeys(bg); u.Update(in);
+        Check("esc with the window behind does nothing", u.state() == IntroState::Lionhead);
+        // A key held into the next screen does not skip it too: the transition cleared the flag and the latch is still set.
+        IntroSequence v(MakeIntroConfig(0, 1, false));
+        v.Update(in);
+        IntroSequence::SkipKeys h; h.windowInFront = true; h.enter = true;
+        v.PollSkipKeys(h); v.Update(in);               // -> activision
+        v.PollSkipKeys(h); v.Update(in);               // still held
+        Check("held key does not skip the next screen", v.state() == IntroState::Activision);
+    }
+
     // --- The pump and the boot fork.
     Check("kill focus dropped", ClassifyPumpMessage(0x08) == PumpAction::Drop);
     Check("sys key up dropped", ClassifyPumpMessage(0x105) == PumpAction::Drop);

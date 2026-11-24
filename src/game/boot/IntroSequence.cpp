@@ -91,6 +91,16 @@ bool IntroSequence::Update(const IntroInput& in) {
     return done();
 }
 
+// orig: Input_CheckGlobalShortcuts 0x0045DF30
+void IntroSequence::PollSkipKeys(const SkipKeys& keys) {
+    const bool held = keys.windowInFront && (keys.esc || keys.space || keys.enter);
+    if (held) {
+        if (!skipKeyLatch_) { skip_ = true; skipKeyLatch_ = true; }
+    } else {
+        skipKeyLatch_ = false;
+    }
+}
+
 PumpAction ClassifyPumpMessage(std::uint32_t message) {
     switch (message) {
     case 0x08:   // WM_KILLFOCUS

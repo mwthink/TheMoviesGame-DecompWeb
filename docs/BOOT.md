@@ -43,6 +43,14 @@ State at `GameStateManager+0x04`. `+0x14` is a "skip requested" flag, cleared on
 
 `LH_MasterGameLoop` pumps messages around it: WM_KILLFOCUS and WM_SYSKEYUP are dropped, WM_CLOSE and WM_QUIT end the loop.
 
+**The skip flag is polled, not messaged.** Once per frame, before the update, `CIntroScreenManager_PollSkipKeys` (0x45DF30, called
+`Input_CheckGlobalShortcuts` in the Ghidra export) calls `GetAsyncKeyState` for Esc (0x1B), Space (0x20) and Enter (0x0D). If the game
+window is in front and one is down, and the latch `DAT_00F88F3C` is clear, it sets `manager+0x14` and the latch. The latch clears on a frame where none is held
+in a foreground window, so a held key skips one screen, not all of them. The window procedure (0x542380) only records key state
+(the 256-byte table at `0x104C7F0`) and forwards characters to an input singleton; it has nothing to do with the intro. The animated
+logo has its own check (`FUN_009EC720`: Esc or Space, no Enter). Ported as `IntroSequence::PollSkipKeys`; not exercised in a run, since
+`GetAsyncKeyState` needs a real key press.
+
 ## Measured: boot1 (Wine/CrossOver, coverage tracer injected before `WinMain`)
 
 Setup (boot1): `TheMoviesInjector.exe --launch` as in WINE_CROSSOVER.md, no input sent. Registry: `Skip Front End=0` (so the intro runs),
@@ -91,11 +99,21 @@ What this settles:
 
   The call site passes `(mainObject+0xC8 != 0)`. That field is the `-download <value>` command-line switch (see "Command line").
 
-- **The command line.** `Game_Constructor` hands the command line to `Game_ParseCommandLine` (0x421A70), which looks for three switches
-  with `CmdLine_GetSwitch` (0x567860, finds `-key [value]`): `-reenter` (`+0x84`), `-editor` (`+0x85`) and `-download <value>` (`+0xC8`,
-  value stored through `FUN_004015D0`). In `Game_StartupSequence`: `-download` makes the call `WFrontEnd_GetOrCreate(1)`, sets
-  `DAT_0104DAE0`, and afterwards calls `FUN_0068F550` on the front end (presumably to open the online/download screen); `-editor`
-  calls `FUN_007843B0(0,0,0,0)`. None was used in boot1 or close1.
+- **The command line.** Four switches, all read with `CmdLine_GetSwitch` (0x567860) from `WinMain`'s `lpCmdLine`, which `WinMain`
+  also hands to `Game_MainLoop` and so to `Game_Constructor` and `Game_ParseCommandLine` (0x421A70):
+
+  | switch | where | effect |
+  |---|---|---|
+  | `-safemode` | `WinMain` 0x543072 | window size 800x600 (0x320 x 0x258) |
+  | `-reenter` | `Game_ParseCommandLine` | `Game+0x84` = 1 |
+  | `-editor` | same | `Game+0x85` = 1; `Game_StartupSequence` then calls `FUN_007843B0(0,0,0,0)` |
+  | `-download <value>` | same | `Game+0xC8` = 1, value (at most 100 characters) assigned to the global string `DAT_00E57B40`; `Game_StartupSequence` then calls `WFrontEnd_GetOrCreate(1)`, sets `DAT_0104DAE0` and calls `FUN_0068F550` on the front end |
+
+  `DAT_00E57B40` is read by `FUN_006C31A0`, `FUN_006C7240`, `FUN_006C73C0`, `FUN_006D5B00`, `FUN_006D6690` and `FUN_004217B0`, none of
+  which has been read. None of the switches was used in boot1 or close1.
+  The parser's quirks (a `-` counts anywhere, even mid-word; the value is the next token even if it starts with `-`; keys are
+  case-sensitive; every occurrence is scanned and the last value wins) are ported in `src/game/boot/CommandLine.*` and tested, but
+  from reading the code only: it has not been run against the real binary.
 - **The "load a save at start-up" branch is dead.** `0x4290B0` reads `DAT_00E4E604` and, if nonzero, loads a save via
   `Savegame_LoadAndRestoreGame` instead. `DAT_00E4E600` is a string whose initial bytes in the executable are an empty buffer (size 0)
   and the only other reference to it is its static destructor, so nothing ever assigns it: the branch cannot run in this build.
@@ -129,6 +147,25 @@ Not settled: which splash is which (an image-name trace would say), why the thir
 decode and upload under Rosetta is the obvious candidate), the skip flag, the legal notice (state 5), and whether the Windows box
 shows the same gaps.
 
+## Game_Bootstrap's two halves
+
+`Game_Bootstrap` (0x4244A0..0x4289E0) is two things back to back.
+
+**1. The class registry (0x4244A0..0x428412): 126 save-game classes.** Each block does, in order: build the class's RTTI name
+(`.?AVCAward@TM@@`, from a static string at `ecx+8`), `FUN_0098FA50(factory, &name)` (register the factory under that name; a counter
+`DAT_00E6746C` numbers the classes), `FUN_0098F9E0(callback)` (add a pre-load callback to the list at `DAT_010584E8`, which
+`Save_RunPreLoadCallbacks` walks; 21 distinct callbacks are shared among the 126 classes), then one static-init call. This is the table
+`Save_LoadObjectByType` looks the RTTI name up in (SAVE_FORMAT.md). Each factory is `operator_new(size)`, a constructor, then a vtable
+call; Ghidra's decompile of all 126 agrees with the size and constructor read from the bytes, and every constructor stores a vtable.
+The static inits are either empty, push a descriptor onto the list at `DAT_010584C8`, or register a persistence name such as
+`"PBonusManager"` or `"PDataLog"` through `FUN_0098FDD0`. `renames.csv` now has `<Class>_CreateInstance`, `<Class>_Constructor` (with the
+object size in the evidence), `<Class>_StaticInit` and, for the callbacks used by one class only, `<Class>_PreLoadCallback`.
+
+**2. The subsystem inits (0x428414..0x4289AF): 87 calls to 86 distinct functions** (`SWFCache_LoadConfig` is called twice), almost all one-shot: registering console commands (`dbg_money`, `ass_hide`,
+`chr_hide`...), message ids (`MT_OBJECT_SELECT`, `MT_REVIEWS_*`...) and reading tuning keys (`gui`/`FadeDuration`, `studio`/`FundsHighlighting...`,
+`trailers`/`territoryfactor`...). Sixteen were named from their strings in this pass (the evidence in `renames.csv` says so); 49 of the 86 are still `FUN_` or
+`thunk_FUN_`, mostly with no distinctive string, and are left unnamed rather than guessed.
+
 ## Measured: close1 (window closed during the intro)
 
 Same setup as boot1 (tracer injected, no input), then a non-forced `wine taskkill /im MoviesSE.exe` about 4 s after
@@ -153,8 +190,8 @@ fits a main thread that is busy loading the next splash (the slow transition in 
 
 1. **Resolved:** `LH_MasterGameLoop` returns 0 when the intro finishes and nonzero when the window is closed (boot1, close1).
    Not covered: closing during the animation or movie variants of the first two splashes.
-2. **Who sets the skip flag (`+0x14`).** Not found; presumably a key handler in the window procedure (`LAB_00542380`). The
-   reimplementation exposes it as `RequestSkip()`.
+2. **Resolved:** the skip flag is set by `CIntroScreenManager_PollSkipKeys`, which polls Esc, Space and Enter (see "The intro").
+   Not run: a real key press under Wine has not been tried, so the Open Count gate on the Intel and ATI splashes is still untested.
 3. **Resolved:** `WFrontEnd` is created at 0x4290D5 in `Game_StartupSequence` (see boot1). Other callers of `WFrontEnd_GetOrCreate`
    (`FUN_00687BC0`, `FUN_006D7AC0`, `FUN_006D7F50`, the debug console) were not reached; they are probably how the menu comes back
    after a game. What `FUN_0068F550` and `FUN_007843B0` do is not read.
