@@ -15,8 +15,13 @@ entry                      0x00AD2451   CRT startup (heap, mtinit, ioinit, cinit
    renderer / audio init   FUN_009A6960 (exit(1) on failure), FUN_009A3480 ("ERROR_CANNOTSTART_3D"), audio thread, ...
    fork                    if (ShouldSkipFrontEnd() || LH_MasterGameLoop() == 0) Game_MainLoop();
  LH_MasterGameLoop         0x0045E720   intro splash sequence (this is NOT the menu)
- Game_MainLoop             0x00447C30   builds the 0xCC-byte main object (FUN_004291C0), then ticks Game_TickOneFrame
- WFrontEnd                 0x0068F1C0.. the menu (FRONTEND_RESUME / NEW / LOAD / OPTIONS / CREDITS / QUIT ... items)
+ Game_MainLoop             0x00447C30   operator_new(0xCC) -> Game_Constructor, then ticks Game_TickOneFrame
+  Game_Constructor         0x004291C0
+   Game_StartupSequence    0x004289E0   (really 0x4289E0..0x4291A0; Ghidra exported only the first ~95 lines)
+     CVar registration, Game_Bootstrap (0x4244A0, a long list of registrations), object setup
+     0x004290D5            WFrontEnd_GetOrCreate(mainObject+0xC8 != 0)   0x00695DA0
+       operator_new(0x718); WFrontEnd_Constructor 0x00695460; singleton in DAT_0104DAFC
+ WFrontEnd_Tick            0x006921C0   from the first frame: the menu (FRONTEND_RESUME / NEW / LOAD / OPTIONS / CREDITS / QUIT ...)
 ```
 
 `ShouldSkipFrontEnd` (0x004EF580) is the config int "Skip Front End", default 0.
@@ -65,8 +70,22 @@ What this settles:
   functions were called, matching the `DAT_0105BE08 == 0` branch. The manager class is `CIntroScreenManager` (the Ghidra name
   `GameStateManager` is ours).
 - **The first splash lasts 3 s**, matching `splashMs`.
-- **The menu is not part of the intro.** `WFrontEnd` first appears 21 s after `Game_MainLoop`, behind the main object, the UI window
-  classes and `Game_Bootstrap` (0x4244A0, a good candidate for where the front end is created; open question 3, still untraced).
+- **The menu is not part of the intro.** `WFrontEnd` is created at the end of `Game_StartupSequence`, which `Game_Constructor` runs
+  as the first thing `Game_MainLoop` does (open question 3, see below). The 20.9 s between the constructor and the menu is that
+  function's own work (timestamps are first calls, in Wine on Rosetta):
+
+  | t (s) | step inside `Game_StartupSequence` |
+  |---|---|
+  | 33.020 | CVar registration (`FUN_009ABD80`, `CVarSystem_Register_STUBBED`) |
+  | 35.37 | `FUN_005E6D10`, `FUN_0041FD60`, `FUN_00551D40` (2.3 s after the CVar step) |
+  | 35.434 | `Game_Bootstrap` (registrations: handlers per `FUN_00ACDB9E` name, `Secur32.dll` loaded) |
+  | 42.061 | first `FUN_005434B0` (6.6 s after `Game_Bootstrap` began, so that time is `Game_Bootstrap` and the code after it) |
+  | 53.924 | `FUN_005E16D0`, `FUN_0053D440`, `FUN_00424080`, `FUN_009A1560` (11.9 s after the first `FUN_005434B0`, the largest stall; first-call times cannot say which call inside it is slow) |
+  | 53.925 | `WFrontEnd_GetOrCreate` (0x4290D5) |
+  | 60.941 | `FUN_00421090`, then `WFrontEnd_Tick` at 60.947 |
+
+  The call site passes `(mainObject+0xC8 != 0)` (0 here). The path after it that was not taken, `FUN_0068F550` on the singleton and
+  `Savegame_LoadAndRestoreGame` (0x4B3550), looks like "go straight to a save"; it did not run.
 
 What it does not settle:
 - **Total intro time disagrees with the model.** The intro ran 17.606 s to 33.017 s = 15.4 s; four 3 s splashes would be 12 s. Either
@@ -81,10 +100,11 @@ What it does not settle:
    the skip setting.
 2. **Who sets the skip flag (`+0x14`).** Not found; presumably a key handler in the window procedure (`LAB_00542380`). The
    reimplementation exposes it as `RequestSkip()`.
-3. **Where `WFrontEnd` is created.** No direct caller of its constructor (`FUN_00690690`) exists in the decompile, so it goes
-   through a vtable or factory. Candidates: `FUN_004291C0`, the `Game_TickState*` handlers, `FUN_004F3B20` / `FUN_004F98F0`.
+3. **Where `WFrontEnd` is created.** Answered: `Game_StartupSequence` at 0x4290D5 (see "Measured: boot1"). The decompile hid it
+   because Ghidra cut that function's body short; found by scanning the executable for `call 0x695DA0`. Other callers exist
+   (`FUN_00687BC0`, `FUN_006D7AC0`, `FUN_006D7F50`, the debug console) and were not reached in boot1. Still open: what is in the
+   11.9 s stall before it (between the `FUN_005434B0` calls at 0x428E5B..0x428FD5 and `FUN_005E16D0` at 0x429052), what `mainObject+0xC8` is, and the 0x4290EB.. branch.
 4. **State 5's trigger** (locale 0xD via `FUN_009B4250`) is named from the asset only.
 5. The first-run `MessageBoxW` in WinMain (`DAT_0105BE04`, `SM_FIRST_TIME_*`) is not modelled.
 
-To close 3: look at who calls `FUN_00695460` / constructs `WFrontEnd` between 33.0 s and 53.9 s in boot1 (start from
-`Game_Bootstrap`). To close 1: close the window during the intro in a run and see whether `Game_MainLoop` still follows.
+To close 1: close the window during the intro in a run and see whether `Game_MainLoop` still follows.

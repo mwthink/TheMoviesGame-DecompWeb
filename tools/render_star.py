@@ -70,13 +70,13 @@ def face_texture(assets, info, age=0.0):
     male = info["gender"] == 1
     def vfile(prefix, idx, suf=""):
         return "%s%02d%s.dds" % (prefix, idx - 1, suf) if idx >= 1 else None
-    if info["eye_makeup"] >= 1:
-        layers.append(vfile("mup_eyes_v", info["eye_makeup"]))
-    if info["eye_makeup"] >= 1 and info["makeup_colour"] >= 1:        # the colour layer only counts when an eye makeup is chosen (the default colour 1 alone would draw a black outline)
-        layers.append(vfile("mup_eyes_v", info["makeup_colour"]))
+    # Layer slots are drawn in category order (FUN_004415a0 / FUN_0046dfd0): 0+1 eyes (shape x colour pair, drawn at slot 1 and only when slot 0 has a
+    # shape), 2 lips, 3 beard (hair colour suffix, `_gy` overlay by age), 4 tattoo, 5/6 eyebrows (male/female), 7 nails (skipped), 8 mask.
+    if info["eye_makeup"] >= 1 and info["makeup_colour"] >= 1:
+        layers.append(("eyes", vfile("mup_eyes_v", info["eye_makeup"]), vfile("mup_eyes_v", info["makeup_colour"])))
     layers.append(vfile("mup_lips_v", info["lipstick"]))
-    layers.append(vfile("mup_meyebrow_v" if male else "mup_feyebrow_v", info["eyebrow"]))
     layers.append(vfile("mup_beard_v", info["beard"], suffix))
+    layers.append(vfile("mup_meyebrow_v" if male else "mup_feyebrow_v", info["eyebrow"]))
     if info["hair"].lower().endswith(".msh"):
         stem = info["hair"][:-4]
         m = M.parse(open(find(assets, info["hair"]), "rb").read()) if find(assets, info["hair"]) else None
@@ -84,6 +84,14 @@ def face_texture(assets, info, age=0.0):
             layers.append(stem + suffix + ".dds")
     used = []
     for name in layers:
+        if isinstance(name, tuple):             # eye makeup: the shape file's alpha, tinted with the colour file's average colour (the exact two-texture blend `FUN_004473c0` was not read)
+            _k, shape, colour = name
+            st, ct = load_tex(assets, shape), load_tex(assets, colour)
+            if st and ct and st[0] == w:
+                tot = sum(p[3] for p in ct[2]) or 1
+                tint = [sum(p[j] * p[3] for p in ct[2]) // tot for j in range(3)]
+                px = blend_layer(px, [(tint[0], tint[1], tint[2], p[3]) for p in st[2]]); used.append("eyes %s tinted by %s" % (shape, colour))
+            continue
         if name:
             lt = aged(assets, name, age) if (name.startswith("mup_beard") or name.startswith("hair_")) else load_tex(assets, name)
             if lt and lt[0] == w:

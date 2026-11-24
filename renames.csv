@@ -1974,3 +1974,7 @@ address,old_name,new_name,evidence
 0098bb60,FUN_0098bb60,Save_PostLoadObjects,"drains the loaded-object list (DAT_01058404): calls vtable slot 6 (post-load), releases the temporary refcount, then reports progress 1.0"
 0098cf50,FUN_0098cf50,Save_LoadObjectList,"reads [OBJ] entries until ""\n[/OBJECTS]\n"": per entry the length, the RTTI name, then Save_LoadObjectByType; logs ""**Finished Loading Objects***"""
 0098c0d0,FUN_0098c0d0,Save_RunPreLoadCallbacks,calls every function pointer in the vector DAT_010584e8..DAT_010584ec
+00695da0,FUN_00695da0,WFrontEnd_GetOrCreate,"lazy singleton (DAT_0104dafc): operator_new(0x718) + FUN_00695460 on first call, then pushes the front-end state; first called 53.925 s in boot1 (docs/BOOT.md)"
+00695460,FUN_00695460,WFrontEnd_Constructor,"the only direct caller is WFrontEnd_GetOrCreate; first WFrontEnd function reached in boot1 (53.926 s)"
+004289e0,FUN_004289e0,Game_StartupSequence,"real extent is 0x4289E0..0x4291A0 (the Ghidra body is cut at ~95 lines): CVar registration, FUN_005e6d10, Game_Bootstrap, object setup, then WFrontEnd_GetOrCreate at 0x4290D5; called from FUN_004291c0"
+004291c0,FUN_004291c0,Game_Constructor,"Game_MainLoop's operator_new(0xCC) object; calls Game_StartupSequence (boot1: 33.018 s)"
