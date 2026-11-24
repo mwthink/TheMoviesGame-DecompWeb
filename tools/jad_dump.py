@@ -5,7 +5,7 @@
     python3 tools/jad_dump.py save.jad --class CFinance   # every field of the objects of one class
     python3 tools/jad_dump.py save.jad --lists            # the 24 global object registries from [STATICS]
     python3 tools/jad_dump.py save.jad --map [--svg out.svg]  # placed assets (SourcePath + POSITION + MyAngle), grid analysis, ASCII plan
-    python3 tools/jad_dump.py save.jad --terrain out.png [--occupancy] [--footprints DIR] [--roofs TEXDIR [--outlines] [--markers] [--no-lightmaps] [--cutaway Z]] [--rooms [--labelscale N] [--no-numbers]] [--ppu N] [--ground LANDTEXDIR [--tile UNITS]] [--crop x0,y0,x1,y1]
+    python3 tools/jad_dump.py save.jad --terrain out.png [--occupancy] [--footprints DIR] [--roofs TEXDIR [--outlines] [--markers] [--no-lightmaps] [--cutaway Z]] [--rooms [--labelscale N] [--no-numbers] [--strings stringdatabase.lhts[,addon.lhts]]] [--ppu N] [--ground LANDTEXDIR [--tile UNITS]] [--crop x0,y0,x1,y1]
                                                        # ground paint + assets as a PNG (x right, y up); DIR holds ini + msh files
     python3 tools/jad_dump.py a.jad b.jad              # field-level diff (statics + objects matched by id)
 
@@ -28,6 +28,8 @@ import re, struct, sys
 from collections import Counter, defaultdict
 
 import csv, glob, os, zlib
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import lhts
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NAMES_CSV = os.path.join(ROOT, "docs", "generated", "save_field_names.csv")
@@ -447,7 +449,7 @@ ROOM_LABELS = {"room_ss_extras": "Create Extra", "room_ss_actors": "Create Actor
                "room_ss_fire": "Reject", "room_ss_starmaker": "(striped star-maker pad)"}
 
 
-def draw_rooms(put, tri, line, to_px, items, meshes, k, room_data=None, label_scale=1, numbers=True):
+def draw_rooms(put, tri, line, to_px, items, meshes, k, room_data=None, label_scale=1, numbers=True, strings=None):
     """Fill each named room floor polygon (mesh parts called room_*) in its own colour at the asset's placement and label it with a number; the unnamed
     `room_` part (the whole walkable floor) is skipped. Prints a legend: number = room name per mesh."""
     import math
@@ -473,20 +475,25 @@ def draw_rooms(put, tri, line, to_px, items, meshes, k, room_data=None, label_sc
                 cx = sum(q[0] for q in pts) / len(pts)
                 cy = sum(q[1] for q in pts) / len(pts)
                 width = max(q[0] for q in pts) - min(q[0] for q in pts)
-                label = ROOM_LABELS.get(name) or name[5:] if name.startswith("room_") else name
-                label = ROOM_LABELS.get(name) or label
-                label = label.replace("(", "").replace(")", "").replace("_", " ")
-                text = f"{len(legend)} {label}" if numbers else label
-                draw_text(put, cx, cy, wrap_label(text, max(4, int(width / (6 * label_scale)))), label_scale)
+                if strings is not None:       # the game's own floor text (tools/lhts.py); rooms without a key (halls, windows) show their part name
+                    blocks = lhts.room_lines(strings, name) or ["(" + name[5:].replace("_", " ") + ")"]
+                else:
+                    label = ROOM_LABELS.get(name) or (name[5:] if name.startswith("room_") else name)
+                    blocks = [label.replace("(", "").replace(")", "").replace("_", " ")]
+                if numbers:
+                    blocks = [f"{len(legend)} {blocks[0]}"] + blocks[1:]
+                lines = [ln for b_ in blocks for ln in wrap_label(b_, max(4, int(width / (6 * label_scale))))]
+                draw_text(put, cx, cy, lines, label_scale)
         if apath not in seen:
             seen.add(apath)
             print(f"  rooms in {apath}:")
             for i, (n, r) in enumerate(legend):
                 info = f"{r['cls']}, {'enabled' if r['enabled'] else 'disabled'}" + (f", limit {r['limit']}" if r["limit"] else "") + (f", runs {r['activity']}" if r["activity"] else "") if r else "no room object"
-                print(f"    {i + 1} = {n}" + (f' ("{ROOM_LABELS[n]}" in game)' if n in ROOM_LABELS else "") + f"  [{info}]")
+                text = " / ".join(lhts.room_lines(strings, n)) if strings is not None else ""
+                print(f"    {i + 1} = {n}" + (f'  "{text}"' if text else "") + (f' ("{ROOM_LABELS[n]}" seen in game)' if n in ROOM_LABELS else "") + f"  [{info}]")
 
 
-def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None, roofs=None, outlines=True, markers=True, ground=None, tile=12.0, lightmaps=True, cutaway=None, rooms=False, label_scale=1, numbers=True):
+def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None, roofs=None, outlines=True, markers=True, ground=None, tile=12.0, lightmaps=True, cutaway=None, rooms=False, label_scale=1, numbers=True, strings=None):
     """Top-down PNG: ground paint (cell g = round((world + 256) / 2), centred on even world coordinates), optionally the occupancy bits,
     the placed assets (red = facility, blue = ornament) and, with a directory of ini + msh files, each asset's mesh polygons rotated by
     MyAngle and moved to POSITION: b15_02 footprint = orange fill, b16_01 = yellow outline, facility room floors = cyan outline."""
@@ -590,7 +597,7 @@ def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None,
     if roofs and meshes:
         render_roofs(px, W, H, k, x0, y1, items, meshes, roofs, lightmaps, cutaway)
     if rooms:
-        draw_rooms(put, tri, line, to_px, items, meshes, k, room_objects(p), label_scale, numbers)
+        draw_rooms(put, tri, line, to_px, items, meshes, k, room_objects(p), label_scale, numbers, strings)
     for _c, _i, apath, (x, y, _z), ang in items:
         m = meshes.get(apath)
         if m and outlines:
@@ -705,6 +712,9 @@ def main(argv):
     cut = argv[argv.index("--cutaway") + 1] if "--cutaway" in argv else None
     if cut:
         args.remove(cut)
+    strfile = argv[argv.index("--strings") + 1] if "--strings" in argv else None
+    if strfile:
+        args.remove(strfile)
     lscale = argv[argv.index("--labelscale") + 1] if "--labelscale" in argv else None
     if lscale:
         args.remove(lscale)
@@ -721,7 +731,8 @@ def main(argv):
                          roofs=roofs, outlines=not roofs or "--outlines" in argv, markers=not roofs or "--markers" in argv,
                          ground=ground, tile=float(tile), lightmaps="--no-lightmaps" not in argv,
                          cutaway=float(cut) if cut else None, rooms="--rooms" in argv, ppu=int(ppu_arg) if ppu_arg else None,
-                         label_scale=int(lscale) if lscale else 1, numbers="--no-numbers" not in argv)
+                         label_scale=int(lscale) if lscale else 1, numbers="--no-numbers" not in argv,
+                         strings=lhts.load(*strfile.split(",")) if strfile else None)
         elif "--map" in argv:
             show_map(p, svg)
         elif "--lists" in argv:
