@@ -19,6 +19,7 @@ portable C++ reimplementation, written from the decompiled code and the document
 | Class attribution | `tools/attribute_classes.py`: 6,478 functions with a known class, +1,185 at >=85% (tier A), +2,744 at 70-85% (tier B), +463 family-level; 18,567 without evidence |
 | Runtime tracing | first-call coverage tracer + this-class log run on a Windows test box: 9,458 distinct functions (27%) seen over 2 game years; steady-state set about 3,800 functions; 3,673 functions with an observed `this` class |
 | Windows test box | set up, key login from the Mac, game runs windowed under software Direct3D (see `WINDOWS_TEST_BOX.md`, `DECOMP_PIPELINE.md`) |
+| Wine on the Mac | the game runs under CrossOver (menu, Quick Start, gameplay, sound); loads are very slow (Rosetta). Debugger DLL not tried there. See `WINE_CROSSOVER.md` |
 | Not started | reading save games, struct/type recovery, library function identification, anything beyond the movie/staff economy in `src/`, any renderer/UI/engine work |
 
 ## Documents
@@ -28,6 +29,7 @@ portable C++ reimplementation, written from the decompiled code and the document
 | `README.md` | layout, what is and is not in the repo |
 | `docs/REIMPLEMENTATION.md` | module layout, rules (`// orig: 0xVA` tags, when to write `verified`), build and test, status per module, `pak_extract.py` |
 | `docs/DECOMP_PIPELINE.md` | Ghidra-export to C pipeline, class attribution method and numbers, **running the game on the box and what the traces showed** |
+| `docs/WINE_CROSSOVER.md` | running the game under CrossOver/Wine on the Mac: what it needed (LAA, ASF writer via WMP11, OpenAL), steps, performance |
 | `docs/WINDOWS_TEST_BOX.md` | what the test box is and how it was set up (the plan, plus what turned out to be needed) |
 | `docs/MOVIE_QUALITY.md`, `MOVIE_SUCCESS.md`, `STUNT_SYSTEM.md`, `TRAITS_AND_EXPERIENCE.md` | decoded formulas with data and measurements (MOVIE_SUCCESS.md also holds the star rating, AI studios, save format notes and much more: grep it) |
 | `docs/FLM_FORMAT.md` | the `.flm` scene format |
@@ -109,6 +111,10 @@ Read only the last screenshot of a scripted sequence (the user asked for that); 
 7. **Open decisions for the user**: whether the decompiler export (`data/identified_organized`) stays tracked; the licence of `src/`;
    the overall strategy (replace the original's functions from the inside through the injected DLL, versus building a standalone engine); how far
    to automate function-by-function reimplementation with a differential harness.
+
+8. **Use the Wine setup** (`WINE_CROSSOVER.md`): (a) try the debugger DLL under Wine (copy the built `TheMoviesDebugger.dll` and injector from the box, or cross-build with
+   mingw-w64) and compare its coverage/`decade_log` output for one identical run against the box, to learn whether Wine runs can be trusted for tracing;
+   (b) have the user play there to produce save games for the save-game reader (item 6); (c) keep `verified` tags for box measurements until (a) agrees.
 
 ## Known rough edges
 

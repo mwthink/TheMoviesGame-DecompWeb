@@ -29,7 +29,8 @@ docs/          findings and format write-ups (MOVIE_*.md, STUNT_SYSTEM.md, FLM_F
 FINDINGS.md    older findings notes (being rewritten)
 renames.csv    proposed function names, library_map.csv, fable_matches.csv
 tools/         analysis and generator scripts (Python/PowerShell); tools/ghidra_names.csv = live Ghidra names;
-               tools/winbox/ = scripts for the Windows test box (build, launch, trace, drive the game)
+               tools/winbox/ = scripts for the Windows test box (build, launch, trace, drive the game);
+               tools/wine/ = patch_laa.py, for running the game under CrossOver/Wine on the Mac (docs/WINE_CROSSOVER.md)
 ghidra/        Ghidra scripts (the Ghidra project itself is local: *.gpr / *.rep, gitignored)
 debugger/      TheMoviesDebugger: injected DLL + injector (CMake), used to verify findings at runtime
 src/           the readable reimplementation (portable C++17): core/, game/movie, game/staff, apps/ (otm_movie_calc), tests/
