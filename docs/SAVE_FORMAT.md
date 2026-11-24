@@ -279,5 +279,6 @@ python3 tools/jad_dump.py <save>.jad --lists                                    
 python3 tools/jad_dump.py <save>.jad --class CStar                                      # one class with field names
 python3 tools/jad_dump.py <save>.jad --map [--svg out.svg]                               # placed assets, grid check, plan
 python3 tools/jad_dump.py <save>.jad --terrain out.png [--occupancy]                      # terrain paint + assets as a PNG
+python3 tools/jad_dump.py <save>.jad --terrain out.png --footprints <ini+msh dir> --roofs <dds dir> --crop -64,-8,64,72   # textured top-down view (docs/MSH_FORMAT.md)
 python3 tools/jad_dump.py <a>.jad <b>.jad                                               # diff
 ```

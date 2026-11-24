@@ -5,7 +5,7 @@
     python3 tools/jad_dump.py save.jad --class CFinance   # every field of the objects of one class
     python3 tools/jad_dump.py save.jad --lists            # the 24 global object registries from [STATICS]
     python3 tools/jad_dump.py save.jad --map [--svg out.svg]  # placed assets (SourcePath + POSITION + MyAngle), grid analysis, ASCII plan
-    python3 tools/jad_dump.py save.jad --terrain out.png [--occupancy] [--footprints DIR] [--crop x0,y0,x1,y1]
+    python3 tools/jad_dump.py save.jad --terrain out.png [--occupancy] [--footprints DIR] [--roofs TEXDIR [--outlines] [--markers]] [--crop x0,y0,x1,y1]
                                                        # ground paint + assets as a PNG (x right, y up); DIR holds ini + msh files
     python3 tools/jad_dump.py a.jad b.jad              # field-level diff (statics + objects matched by id)
 
@@ -275,7 +275,63 @@ def load_footprints(d, items):
     return out
 
 
-def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None):
+def render_roofs(px, W, H, k, x0, y1, items, meshes, texdir):
+    """Top-down textured view of the placed models: every triangle of every mesh (rotated by MyAngle, moved to POSITION) is rasterized with a
+    z-buffer, so the highest surface wins (roofs, tree canopies). Texture = the material's diffuse texture (tex index 0) decoded from texdir;
+    alpha < 0.5 is skipped; reflection/environment/sky materials are skipped. Lightmaps are not applied."""
+    import math
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import dds
+    cache = {}
+
+    def tex(name):
+        if name not in cache:
+            f = os.path.join(texdir, name.lower())
+            cache[name] = dds.load(f) if os.path.exists(f) else None
+        return cache[name]
+    zbuf = [-1e9] * (W * H)
+    skip = ("refl", "envmap", "gen_", "lm_")
+    for _c, _i, apath, (x, y, _z), ang in items:
+        m = meshes.get(apath)
+        if not m:
+            continue
+        ca, sa = math.cos(ang), math.sin(ang)
+        for node in m["nodes"]:
+            for pr in node["prims"]:
+                mat = m["materials"][pr["material"]] if pr["material"] < len(m["materials"]) else None
+                ti = mat["tex"][0] if mat else 255
+                name = m["textures"][ti] if ti < len(m["textures"]) else None
+                t = tex(name) if name and not name.lower().startswith(skip) else None
+                if not t:
+                    continue
+                tw, th, tpx = t
+                pv = [((x + v[0] * ca - v[1] * sa - x0) * k, (y1 - (y + v[0] * sa + v[1] * ca)) * k, v[2], v[6], v[7]) for v in pr["verts"]]
+                for i0, i1, i2 in pr["tris"]:
+                    a, b, c = pv[i0], pv[i1], pv[i2]
+                    den = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
+                    if abs(den) < 1e-9:
+                        continue
+                    for yy in range(max(0, int(min(a[1], b[1], c[1]))), min(H - 1, int(max(a[1], b[1], c[1]))) + 1):
+                        for xx in range(max(0, int(min(a[0], b[0], c[0]))), min(W - 1, int(max(a[0], b[0], c[0]))) + 1):
+                            u = ((b[1] - c[1]) * (xx + .5 - c[0]) + (c[0] - b[0]) * (yy + .5 - c[1])) / den
+                            v = ((c[1] - a[1]) * (xx + .5 - c[0]) + (a[0] - c[0]) * (yy + .5 - c[1])) / den
+                            if u < 0 or v < 0 or u + v > 1:
+                                continue
+                            w_ = 1 - u - v
+                            z = u * a[2] + v * b[2] + w_ * c[2]
+                            if z <= zbuf[yy * W + xx]:
+                                continue
+                            tu = u * a[3] + v * b[3] + w_ * c[3]
+                            tv = u * a[4] + v * b[4] + w_ * c[4]
+                            r, g, bl, al = tpx[(int(tv * th) % th) * tw + int(tu * tw) % tw]
+                            if al < 128:
+                                continue
+                            zbuf[yy * W + xx] = z
+                            o = (yy * W + xx) * 3
+                            px[o:o + 3] = bytes((r, g, bl))
+
+
+def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None, roofs=None, outlines=True, markers=True):
     """Top-down PNG: ground paint (cell g = round((world + 256) / 2), centred on even world coordinates), optionally the occupancy bits,
     the placed assets (red = facility, blue = ornament) and, with a directory of ini + msh files, each asset's mesh polygons rotated by
     MyAngle and moved to POSITION: b15_02 footprint = orange fill, b16_01 = yellow outline, facility room floors = cyan outline."""
@@ -337,9 +393,11 @@ def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None)
                 if u >= 0 and v >= 0 and u + v <= 1:
                     put(xx, yy, col, alpha)
     import math
+    if roofs and meshes:
+        render_roofs(px, W, H, k, x0, y1, items, meshes, roofs)
     for _c, _i, apath, (x, y, _z), ang in items:
         m = meshes.get(apath)
-        if m:
+        if m and outlines:
             ca, sa = math.cos(ang), math.sin(ang)
             place = lambda v: to_px(x + v[0] * ca - v[1] * sa, y + v[0] * sa + v[1] * ca)
             for name, col, fill in (("b16_01", (255, 230, 0), False), ("b15_02", (255, 140, 0), True)):
@@ -358,7 +416,7 @@ def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None)
                 for t in ch["tris"]:
                     for e in ((0, 1), (1, 2), (2, 0)):
                         line(pts[t[e[0]]], pts[t[e[1]]], (0, 220, 220))
-    for _c, _i, apath, (x, y, _z), _a in items:
+    for _c, _i, apath, (x, y, _z), _a in (items if markers else []):
         fac = apath.startswith("facility")
         r, col = (max(2, k), (220, 30, 30)) if fac else (max(1, k // 2), (30, 30, 200))
         cx, cy = to_px(x, y)
@@ -442,10 +500,14 @@ def main(argv):
     crop = argv[argv.index("--crop") + 1] if "--crop" in argv else None
     if crop:
         args.remove(crop)
+    roofs = argv[argv.index("--roofs") + 1] if "--roofs" in argv else None
+    if roofs:
+        args.remove(roofs)
     if len(args) == 1:
         p = parse(args[0])
         if png:
-            show_terrain(p, png, "--occupancy" in argv, fp, tuple(float(v) for v in crop.split(",")) if crop else None)
+            show_terrain(p, png, "--occupancy" in argv, fp, tuple(float(v) for v in crop.split(",")) if crop else None,
+                         roofs=roofs, outlines=not roofs or "--outlines" in argv, markers=not roofs or "--markers" in argv)
         elif "--map" in argv:
             show_map(p, svg)
         elif "--lists" in argv:

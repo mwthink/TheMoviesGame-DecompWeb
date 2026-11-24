@@ -52,6 +52,60 @@ def bbox(verts):
     return tuple((min(v[k] for v in verts), max(v[k] for v in verts)) for k in range(3))
 
 
+def align4(p):
+    return (p + 3) & ~3
+
+
+def read_node(d, pos):
+    """One submesh node: 0x34 bytes (u8 n_prims, 3 more bytes with bit 0x10 of byte 3 = 4 extra bytes follow, 12 f32 = 3x3 matrix + translation),
+    then n_prims primitives (docs/MSH_FORMAT.md)."""
+    nprim = d[pos]
+    has_extra = d[pos + 3] & 0x10
+    m = struct.unpack_from("<12f", d, pos + 4)
+    pos += 0x38 if has_extra else 0x34
+    prims = []
+    for _ in range(nprim):
+        mat = d[pos] & 0xFF
+        ntri, nvert = struct.unpack_from("<2I", d, pos + 4)
+        f0, f1, f2, f3 = d[pos + 12:pos + 16]
+        pos += 16
+        if f0 & 0x10:
+            pos += 12
+        qb = None
+        if f0 & 0x20:
+            qb = struct.unpack_from("<14f", d, pos)
+            pos += 56
+        extra = 0
+        if f0 & 0x40:
+            extra = struct.unpack_from("<I", d, pos)[0]
+            pos += 4
+        tris = [struct.unpack_from("<3H", d, pos + 6 * i) for i in range(ntri)]
+        pos = align4(pos + 6 * ntri)
+        verts = []
+        if f0 & 0x20:           # compact: 8 x u16 per vertex, dequantized with the bounds block
+            for i in range(nvert):
+                u = struct.unpack_from("<8H", d, pos + 16 * i)
+                t = [v / 65535.0 for v in u]
+                verts.append((qb[0] + t[0] * (qb[3] - qb[0]), qb[1] + t[1] * (qb[4] - qb[1]), qb[2] + t[2] * (qb[5] - qb[2]),
+                              2 * t[3] - 1, 2 * t[4] - 1, 2 * t[5] - 1,
+                              qb[6] + t[6] * (qb[8] - qb[6]), qb[7] + t[7] * (qb[9] - qb[7])))
+            pos += 16 * nvert
+            if f1 & 1:
+                pos += 4 * nvert
+        else:                   # direct: 8 x f32 per vertex (position, normal, uv)
+            for i in range(nvert):
+                verts.append(struct.unpack_from("<8f", d, pos + 32 * i))
+            pos += 32 * nvert
+            if f1 & 1:
+                pos += 8 * nvert
+        pos = align4(pos)
+        if f0 & 1:
+            pos += 20 * nvert
+        pos += 8 * extra
+        prims.append({"material": mat, "verts": verts, "tris": tris, "flags": (f0, f1, f2, f3)})
+    return {"matrix": m, "prims": prims}, pos
+
+
 def parse(data):
     d = inflate(data)
     ver, ntex, nmat, nsub = struct.unpack_from("<4I", d, 0)
@@ -85,8 +139,15 @@ def parse(data):
         pos += 32
         c, pos = chunk(d, pos)
         parts.append((name, c))
+    nodes = []
+    try:
+        for _ in range(nsub):
+            node, pos = read_node(d, pos)
+            nodes.append(node)
+    except Exception as e:      # geometry is best effort; the header data above is still valid
+        nodes.append({"error": f"{type(e).__name__}: {e} at 0x{pos:x}", "prims": []})
     return {"version": ver, "n_submeshes": nsub, "flags": flags.hex(), "textures": textures, "materials": mats,
-            "chunks": chunks, "parts": parts, "size": len(d), "rest": pos}
+            "chunks": chunks, "parts": parts, "nodes": nodes, "size": len(d), "rest": pos}
 
 
 def fmt_box(b):

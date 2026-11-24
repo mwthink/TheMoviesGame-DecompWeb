@@ -15,8 +15,30 @@ materials   n_materials x 0x14 bytes (0x18 when byte 0xe & 4). Bytes 0..3 are te
 polygon chunks, each present when its flag bit is set, in this order: byte 0x13 != 0, 0x16 & 0x10, 0x16 & 8, 0x15 & 4, 0x16 & 4, 0x15 & 2, 0x16 & 1
             chunk = u16 n_verts, u16 ?, u16 n_tris, u16 ?, n_verts x (f32 x, y, z), n_tris x 3 x u16, padded to 4 bytes
 named parts n_named_parts x (32-byte name + a polygon chunk): facilities have `room_`, `room_staff_hire_janitor`, `room_ss_starmaker`, `room_window` ...
-submeshes   the render geometry (compact 16-byte quantized or 32-byte float vertices, FINDINGS.md): not parsed
+nodes       n_submeshes render nodes (below), then skeleton / name tables (2-4 KB at the end of the files, not parsed)
 ```
+
+## Render geometry (parsed by `msh_dump.parse`, `nodes`)
+
+```
+node       u8 n_prims, 3 more bytes (bit 0x10 of byte 3: 4 extra bytes follow), 12 x f32 = 3x3 matrix + translation  -> 0x34 bytes (0x38 with the extra)
+           The matrix is the node's pivot/bind transform: vertices are ALREADY in model space (catering node 12: raw bounds match the collision hull,
+           adding the translation does not), so it is ignored when drawing.
+primitive  u32 (low byte = material index), u32 n_tris, u32 n_verts, 4 flag bytes (f0..f3), then by f0:
+           bit 0x10: 3 u32 (ids/hashes);  bit 0x20: 14 f32 quantization block;  bit 0x40: u32 count of 8-byte records to skip after the vertices
+           n_tris x 3 x u16 indices (triangle list), padded to 4
+           vertices: f0 & 0x20 -> 8 x u16 per vertex = pos xyz, normal xyz (2t-1), uv, with t = value / 65535 and pos = lerp(bbox min, bbox max) from the
+                     block (floats 0-2 min, 3-5 max; 6-9 = uv min/max); else 8 x f32 (pos, normal, uv).
+                     f1 & 1: a second UV stream follows (4 bytes/vertex compact, 8 floats-bytes direct); then pad to 4
+           f0 & 1: 20 bytes per vertex more (not decoded), skipped
+```
+
+Checked on all 15 meshes: every file parses without error, the vertex bounds match the collision hulls (stage school 27.7 wide vs hull 27.7, hedge 4.0 vs 3.9, palm tree 17 vs 16 high) and
+the rendered result (below) looks right. Not checked: the `f0 & 1` extra block (probably skinning), the second UV stream's use (lightmap), `f2`/`f3`, per-material flags.
+
+`tools/dds.py` decodes the textures (DXT1/3/5, top mip). `tools/jad_dump.py <save> --terrain out.png --footprints <dir with ini+msh> --roofs <dir with dds> [--crop x0,y0,x1,y1]`
+draws a top-down view of the placed models: all triangles, rotated by `MyAngle`, with a z-buffer (highest surface wins), textured with each material's diffuse texture. Lightmaps are not applied.
+Add `--outlines` for the footprint/room polygons and `--markers` for the origin dots.
 
 ## What the files show
 
@@ -40,7 +62,7 @@ submeshes   the render geometry (compact 16-byte quantized or 32-byte float vert
 
 ## Not done
 
-Submesh vertex and index data; the second `u16` in a chunk header; what the `u16`/flag bits 0x13 / 0x15 / 0x16 mean (names above are by flag bit, not by purpose);
+The second `u16` in a chunk header; what the `u16`/flag bits 0x13 / 0x15 / 0x16 mean (names above are by flag bit, not by purpose);
 which slot each of the two rasterizer passes in `FUN_009e8060` reads (the decompile lost the arguments); the meaning of the other chunks (`b16_01`, `b16_10`) and of the chunk header's two unknown `u16`s.
 
 ## Placement footprint in the code
