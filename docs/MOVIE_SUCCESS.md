@@ -441,7 +441,7 @@ So body appearance = clamp01(((1 - fatness) + (+0xbc8)) * 0.5), and the costume 
 
 **Fit score** (`ComputeFitScoreWithPerfectFit_A` 0x5882E0): average of three terms `1 - |star value - role target| * k` (image/virtual 0x238, a second value, body appearance), times Perfect Fit's bonus value when that award bonus (index 7) is active, clamped 0-1.
 
-Other: drunk level (`CStar_AddDrunkLevel`) is clamped 0-1; `CStar_AddMoodStat8C/90` add a value scaled by No Worries to the star's mood stats.
+Other: drunk level (`CStar_AddDrunkLevel`) is clamped 0-1; `CStar_AddWorkBarStress` / `CStar_AddWorkBarBoredom` (formerly `CStar_AddMoodStat8C/90`) add a value, scaled by No Worries when positive, to the star's work-bar Stress and Boredom (`CWorkBar_AddStress` / `CWorkBar_AddBoredom`, see FRONTEND.md "Stress, boredom and addiction").
 
 ## 3ag. CProject save variables (`CProject_RegisterSaveVariables` 0x5BB460)
 

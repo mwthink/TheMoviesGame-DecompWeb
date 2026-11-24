@@ -162,10 +162,12 @@ value for the audience's boredom with a star (`boredomhalflife` and `boredomboos
 
 The **addiction levels** are a different class, `AddictionState` (the `+0x8C` offset is a coincidence): `AddictionState_SetLevel(index, value)` clamps to 0..1 and stores at
 `+0x8C + 4*index`, and `AddictionState_AddScaledByPartyOn(index, delta)` first scales a positive delta by the **Party On** award bonus (index 8: "Allows your Stars to
-eat and drink without fear of addiction"). `FUN_00588F90` seeds four of them randomly when a star is created, so the four bars on the health screen are the likely
-candidates (`HEALTHGUI_ALCOHOL` Alcoholism, `HEALTHGUI_ANGER` Anger, `HEALTHGUI_OVEREAT` Over Eating, `HEALTHGUI_SEXUAL` Sexual Addiction, with a
-`HEALTHGUI_WAYWARDNESS` total, which is also the front end's name for the sandbox option, `FRONTEND_SANDBOX_WAYWARDNESS`). Which index is which was not determined,
-and the object has six floats (`+0x8C` to `+0xA0`) of which the star creation uses four.
+eat and drink without fear of addiction"). `FUN_00588F90` seeds four of them randomly when a star is created. Indexes 0 and 1 are the **drink and food** addictions, most likely in that order: the
+rehab room (`CDetoxRoom`, `FUN_009195C0`) looks up the resident desires `"overdrink"` and `"overeat"`, resets them and lowers addiction levels 0 and then 1, and
+the tutorial text names exactly those two bars ("Drink or Food Addiction bar"). The health screen also lists Anger and Sexual Addiction (`HEALTHGUI_ANGER`,
+`HEALTHGUI_SEXUAL`, with a `HEALTHGUI_WAYWARDNESS` total, which is also the front end's name for the sandbox option, `FRONTEND_SANDBOX_WAYWARDNESS`), so the other
+two of the four seeded levels are probably those; that, and the pairing of index 0 and 1 with drink and food, were not confirmed against a measurement. The object has six
+floats (`+0x8C` to `+0xA0`).
 
 **Health** (option 7). The float that option 7 pins is the character's **health**, 0..1 with 1.0 healthy, read through vtable slot `0x1E4` and changed through slot `0x1E8`. It lives at `+0xBC0` in `CStar`, `+0xA84` in `CExtra` and `+0xA90` in `CWannabe`; `CStaff` returns a constant 1.0. Slot 132 and 133 are looks and sex appeal. The function names `*_GetAmbitionLevel`, `*_ApplyAmbitionDelta` and `*_PropagateAmbitionToWidget` were wrong: the first two are health (the hospital room raises it to a cap, `ShootController_ApplyStuntConsequences` lowers it with `-healthLoss`, `awardsbonuses.ini` says `health = health - damage * thick_skin_factor`, and `Tannoy_StuntPersonInjured` fires `TANNOY_STUNT_PERSON_INJURED` when it falls below `DAT_00E53304`), and the last set the character model's age and weight morphs. They are renamed in `renames.csv`.
 
