@@ -92,3 +92,11 @@ Not traced: the exact meaning of each flag bit in the cell grid's word, and the 
 edge column), so each pixel bilinearly blends the four surrounding vertices; a vertex is its layers composited (layer 0 opaque, layers 1 and 2 with alpha `(bits 4-5 + 1) * 0.25`).
 The texture scale is **assumed**: one tile per 12 world units (`--tile`), from the `0.0833` (1/12) texture-matrix constant in `FUN_009e56f0`; it looks right but is not confirmed.
 `land_alpha.dds` (a blend mask) is not used.
+
+## Rooms and the cutaway view
+
+`jad_dump.py ... --rooms` fills each named room floor polygon (mesh parts called `room_*`, `docs/MSH_FORMAT.md` "Named parts") in its own colour at the asset's `POSITION` / `MyAngle`, numbered, and prints a
+legend (`1=room_ss_extras, ...`). The unnamed `room_` part is the union of the walkable floor and is skipped. `--cutaway Z` drops every triangle whose vertices are all above Z (default use: 2.5), which
+removes roofs and shows what is under them. Observed on the tutorial save: the stage school has five rooms (extras, actors, directors, fire, starmaker); the gatehouse three (fire, hire janitor, hire builder);
+the trailer two (window, trailer_assign). The catering building's mesh has no named room parts. The facility shells are **empty** under the roof (grass shows through): the interiors are the sets the player
+builds in the rooms, which is why a save with player-built sets is needed to see them (`docs/SAVE_FORMAT.md`).

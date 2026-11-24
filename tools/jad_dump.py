@@ -5,7 +5,7 @@
     python3 tools/jad_dump.py save.jad --class CFinance   # every field of the objects of one class
     python3 tools/jad_dump.py save.jad --lists            # the 24 global object registries from [STATICS]
     python3 tools/jad_dump.py save.jad --map [--svg out.svg]  # placed assets (SourcePath + POSITION + MyAngle), grid analysis, ASCII plan
-    python3 tools/jad_dump.py save.jad --terrain out.png [--occupancy] [--footprints DIR] [--roofs TEXDIR [--outlines] [--markers] [--no-lightmaps]] [--ground LANDTEXDIR [--tile UNITS]] [--crop x0,y0,x1,y1]
+    python3 tools/jad_dump.py save.jad --terrain out.png [--occupancy] [--footprints DIR] [--roofs TEXDIR [--outlines] [--markers] [--no-lightmaps] [--cutaway Z]] [--rooms] [--ground LANDTEXDIR [--tile UNITS]] [--crop x0,y0,x1,y1]
                                                        # ground paint + assets as a PNG (x right, y up); DIR holds ini + msh files
     python3 tools/jad_dump.py a.jad b.jad              # field-level diff (statics + objects matched by id)
 
@@ -275,10 +275,10 @@ def load_footprints(d, items):
     return out
 
 
-def render_roofs(px, W, H, k, x0, y1, items, meshes, texdir, lightmaps=True):
+def render_roofs(px, W, H, k, x0, y1, items, meshes, texdir, lightmaps=True, cutaway=None):
     """Top-down textured view of the placed models: every triangle of every mesh (rotated by MyAngle, moved to POSITION) is rasterized with a
     z-buffer, so the highest surface wins (roofs, tree canopies). Texture = the material's diffuse texture (tex index 0) decoded from texdir;
-    alpha < 0.5 is skipped; reflection/environment/sky materials are skipped. With lightmaps (the material's texture slot 2, on the second UV set) the colour is diffuse x lightmap x 2."""
+    alpha < 0.5 is skipped; reflection/environment/sky materials are skipped. With cutaway=Z, triangles whose vertices are all above Z are dropped, which removes roofs and upper walls and shows the interiors. With lightmaps (the material's texture slot 2, on the second UV set) the colour is diffuse x lightmap x 2."""
     import math
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import dds
@@ -312,6 +312,8 @@ def render_roofs(px, W, H, k, x0, y1, items, meshes, texdir, lightmaps=True):
                 pv = [((x + v[0] * ca - v[1] * sa - x0) * k, (y1 - (y + v[0] * sa + v[1] * ca)) * k, v[2], v[6], v[7]) + tuple(v[8:10]) for v in pr["verts"]]
                 for i0, i1, i2 in pr["tris"]:
                     a, b, c = pv[i0], pv[i1], pv[i2]
+                    if cutaway is not None and min(a[2], b[2], c[2]) > cutaway:
+                        continue
                     den = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
                     if abs(den) < 1e-9:
                         continue
@@ -340,7 +342,50 @@ def render_roofs(px, W, H, k, x0, y1, items, meshes, texdir, lightmaps=True):
                             px[o:o + 3] = bytes((r, g, bl))
 
 
-def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None, roofs=None, outlines=True, markers=True, ground=None, tile=12.0, lightmaps=True):
+DIGITS = {"0": "111101101101111", "1": "010110010010111", "2": "111001111100111", "3": "111001111001111", "4": "101101111001001",
+          "5": "111100111001111", "6": "111100111101111", "7": "111001001010010", "8": "111101111101111", "9": "111101111001111"}
+ROOM_COLOURS = [(230, 25, 75), (60, 180, 75), (255, 225, 25), (0, 130, 200), (245, 130, 48), (145, 30, 180), (70, 240, 240),
+                (240, 50, 230), (210, 245, 60), (250, 190, 212), (0, 128, 128), (170, 110, 40)]
+
+
+def draw_rooms(put, tri, line, to_px, items, meshes, k):
+    """Fill each named room floor polygon (mesh parts called room_*) in its own colour at the asset's placement and label it with a number; the unnamed
+    `room_` part (the whole walkable floor) is skipped. Prints a legend: number = room name per mesh."""
+    import math
+    seen = set()
+    for _c, _i, apath, (x, y, _z), ang in items:
+        m = meshes.get(apath)
+        if not m or not m["parts"]:
+            continue
+        ca, sa = math.cos(ang), math.sin(ang)
+        place = lambda v: to_px(x + v[0] * ca - v[1] * sa, y + v[0] * sa + v[1] * ca)
+        legend = []
+        for n, (name, ch) in enumerate(m["parts"]):
+            pts = [place(v) for v in ch["verts"]]
+            if name == "room_":      # the whole walkable floor, already a union of the rooms: not drawn
+                continue
+            col = ROOM_COLOURS[len(legend) % len(ROOM_COLOURS)]
+            legend.append(name)
+            for t in ch["tris"]:
+                tri(pts[t[0]], pts[t[1]], pts[t[2]], col, 0.55)
+            if pts:
+                cx = int(sum(q[0] for q in pts) / len(pts))
+                cy = int(sum(q[1] for q in pts) / len(pts))
+                lab = str(len(legend))
+                sc = max(2, k // 3)
+                for ci, chr_ in enumerate(lab):
+                    for gy in range(5):
+                        for gx in range(3):
+                            if DIGITS[chr_][gy * 3 + gx] == "1":
+                                for dy in range(sc):
+                                    for dx in range(sc):
+                                        put(cx + (ci * 4 + gx) * sc + dx - len(lab) * 2 * sc, cy + gy * sc + dy - 2 * sc, (0, 0, 0))
+        if apath not in seen:
+            seen.add(apath)
+            print(f"  rooms in {apath}: " + ", ".join(f"{i + 1}={n}" for i, n in enumerate(legend)))
+
+
+def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None, roofs=None, outlines=True, markers=True, ground=None, tile=12.0, lightmaps=True, cutaway=None, rooms=False):
     """Top-down PNG: ground paint (cell g = round((world + 256) / 2), centred on even world coordinates), optionally the occupancy bits,
     the placed assets (red = facility, blue = ornament) and, with a directory of ini + msh files, each asset's mesh polygons rotated by
     MyAngle and moved to POSITION: b15_02 footprint = orange fill, b16_01 = yellow outline, facility room floors = cyan outline."""
@@ -442,7 +487,9 @@ def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None,
                     put(xx, yy, col, alpha)
     import math
     if roofs and meshes:
-        render_roofs(px, W, H, k, x0, y1, items, meshes, roofs, lightmaps)
+        render_roofs(px, W, H, k, x0, y1, items, meshes, roofs, lightmaps, cutaway)
+    if rooms:
+        draw_rooms(put, tri, line, to_px, items, meshes, k)
     for _c, _i, apath, (x, y, _z), ang in items:
         m = meshes.get(apath)
         if m and outlines:
@@ -554,6 +601,9 @@ def main(argv):
     ground = argv[argv.index("--ground") + 1] if "--ground" in argv else None
     if ground:
         args.remove(ground)
+    cut = argv[argv.index("--cutaway") + 1] if "--cutaway" in argv else None
+    if cut:
+        args.remove(cut)
     tile = argv[argv.index("--tile") + 1] if "--tile" in argv else "12"
     if "--tile" in argv:
         args.remove(tile)
@@ -562,7 +612,8 @@ def main(argv):
         if png:
             show_terrain(p, png, "--occupancy" in argv, fp, tuple(float(v) for v in crop.split(",")) if crop else None,
                          roofs=roofs, outlines=not roofs or "--outlines" in argv, markers=not roofs or "--markers" in argv,
-                         ground=ground, tile=float(tile), lightmaps="--no-lightmaps" not in argv)
+                         ground=ground, tile=float(tile), lightmaps="--no-lightmaps" not in argv,
+                         cutaway=float(cut) if cut else None, rooms="--rooms" in argv)
         elif "--map" in argv:
             show_map(p, svg)
         elif "--lists" in argv:
