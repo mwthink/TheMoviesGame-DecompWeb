@@ -15,7 +15,7 @@ portable C++ reimplementation, written from the decompiled code and the document
 
 | Area | State |
 |---|---|
-| Ghidra | 60,838 functions; 30,700 still `FUN_*` after the 75 names added on 2026-11-24 (`renames.csv` has the evidence). Names live in `tools/ghidra_names.csv` (refresh from Ghidra, apply with `ghidra/ApplyNames.java`); **the live Ghidra project does not have the 2026-11-24 names yet: run `ApplyNames.java`** |
+| Ghidra | 60,838 functions; 30,700 still `FUN_*` after the 75 names added on 2026-11-24 (`renames.csv` has the evidence). Names live in `tools/ghidra_names.csv`; apply them to a Ghidra project with `ghidra/scripts/ApplyNames.java` (headless: `analyzeHeadless <projectDir> TheMovies -process MoviesSE.exe -noanalysis -scriptPath ghidra/scripts -postScript ApplyNames.java <abs path to tools/ghidra_names.csv> [dry]`; the live local project had all 75 of the 2026-11-24 names applied and verified with a dry run) |
 | `src/` | portable C++17, 9 test executables + `otm_movie_calc` (game/movie, staff, studio, ai); `tools/progress.py`: 45 functions reimplemented, 15 verified against logged game values |
 | Class attribution (numbers from the run before the 2026-11-24 names; rerun to refresh) | `tools/attribute_classes.py`: 6,478 functions with a known class, +1,185 at >=85% (tier A), +2,744 at 70-85% (tier B), +463 family-level; 18,567 without evidence |
 | Runtime tracing | first-call coverage tracer + this-class log run on a Windows test box: 9,458 distinct functions (27%) seen over 2 game years; steady-state set about 3,800 functions; 3,673 functions with an observed `this` class |
@@ -121,7 +121,7 @@ Read only the last screenshot of a scripted sequence (the user asked for that); 
    whether the game accepts an edited save (lists of object ids and counts must stay consistent; untested); look at a save with released movies, a later decade and
    the non-Wine game. Open details are listed at the end of `SAVE_FORMAT.md` (the ~17 KB after the terrain path bitmap, the runtime cell-grid flag bits,
    the meaning of the other mesh polygon chunks, ground tile scale 12 units and lightmap gain 2x which are assumed).
-7. **Apply the 2026-11-24 names in Ghidra** (`ghidra/ApplyNames.java` with `tools/ghidra_names.csv`), regenerate `gen/`, rerun `attribute_classes.py`, and name the ~20
+7. **Regenerate after the 2026-11-24 names** (Ghidra already has them): re-export `data/ExportDecompiled`, regenerate `gen/`, rerun `attribute_classes.py`, and name the ~20
    documented functions still left (see the Function naming row). Port the movie cost accrual (`CProjectCosts_AccrueUpdate` and helpers) into `src/` and check it against
    `PREPROD_COST` lines in `decade_log.csv`: that also settles whether pre-production wages are real cash out (`MOVIE_QUALITY.md`).
 8. **Open decisions for the user**: whether the decompiler export (`data/identified_organized`) stays tracked; the licence of `src/`;
