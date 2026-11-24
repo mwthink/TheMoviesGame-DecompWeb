@@ -95,7 +95,7 @@ Counts are for the fresh-studio save (the tutorial saves add the tutorial scaffo
 
 **Lot and buildings**
 * `CLot` (1): camera (`SL_CamPos`, `SL_CamFoc`, `SL_CamRot`, `SL_CamZoo` (name truncated in the save), `SL_GameSpeed`) and `SL_Version` = `Build 001015 (12:25:19, Apr 27 2006)`.
-  The terrain itself is not stored here: `TMLandscape` has a single opaque field.
+  The terrain is a separate object, `TMLandscape`: see "Terrain and the occupancy grid" below.
 * Every placed asset shares one base layout: `SourcePath` (asset path), `PFixedAssetCosts`, `Knackered`, `NearlyKnackered`, `StateOfRepair`
   (1.0 = new), `BuildWorkDone`/`BuildWorkNeeded`, `DecayBegin`, `PPossessor` (owner), `PFloorPlan`, `POSITION`, `MyAngle`, `GUID`. The same
   base is used by `CFacility`, `CFacilityStageSchool`, `CFacilityTrailer`, `CSponsoredBillboard`, `COrnament`, `CLot`.
@@ -112,6 +112,36 @@ Counts are for the fresh-studio save (the tutorial saves add the tutorial scaffo
 * `CProjectAI` (project), `CProjectSuccess` (`Overall`, `PublicInterest`, `CastStarRatings`, `EraFit`, the weighted/unweighted boredom components,
   `Technology`: the inputs of `docs/MOVIE_SUCCESS.md`), `CProjectIncome` (`InitialPool`, `DailyPercentage`, …), `CScript` (+ `PartDesc`/`ShotDesc`:
   the script's parts and shots, `Quality`, genre), `CCostume`, `CLogo` (studio logo file `logo_v00.dds`).
+
+## Placement: coordinates, the 2-unit grid and the terrain
+
+`jad_dump.py <save> --map` lists every placed asset (`SourcePath`, `POSITION`, `MyAngle`), checks coordinates against candidate grid steps and
+prints an ASCII plan (`--svg out.svg` also writes a vector plot). `--terrain out.png [--occupancy]` draws the ground paint with the
+assets on top (x to the right, y up; red squares = facilities, blue dots = ornaments); `docs/generated/terrain_2355.png` is the tutorial save.
+
+**World to grid.** `WorldToOccupancyGridCoord` (`0046bfd0`) is `cell = round((world + 256) / 2)` for x and y. A cell is
+**2 x 2 world units**, the grid is **256 x 256** and spans world -256..+256, world (0, 0) is cell (128, 128). The first index is x, the second y.
+This is the same grid for the occupancy bitmap and the terrain paint. Observed: 31 of 32 tutorial ornaments sit on odd integer coordinates (cell
+centres), on quarter-turn rotations; facilities and the billboard are off-grid (fixed lot slots, e.g. catering at (-24.457, 26.873)).
+Laying the assets on the terrain puts every one of them on the grass lot at the gate where the lot meets the road.
+
+**`TMLandscape`** is one object with a single field (tag `922a5dd0`, ~223 KB), read by `FUN_009e5540`:
+
+```
+u32 length (of the rest)  u32 version (2)  u32 texture count (7)
+7 x 32-byte NUL-padded names: Land_sand00, Land_grass00, Land_grass02, Land_grass01, Land_earth00, Land_tarmac00, Land_sidewalk02
+65,793 cells x 3 bytes        = 256 rows x 257: index x*257 + y; the 257th column is a 0x3f edge sentinel
+8,192 bytes                   occupancy bitmap, 256 x 256 bits: bit x*256 + y (byte = bit >> 3, mask 1 << (bit & 7))
+~17 KB                        not decoded
+```
+
+Each cell byte is masked with `0x3f` by the loader and is one **paint layer**: three layers per cell. Low nibble = texture index (0xF = none);
+bits 4-5 = blend weight `(value + 1) * 0.25` (from `FUN_009e23b0`). Layer 0 is the base (sand almost everywhere, hi bits 3 = opaque); layers 1 and 2
+paint over it (grass, earth, tarmac). In the tutorial save most of the lot is grass with a dirt border, and the road is tarmac; the blank-lot save
+has the same lot with different painting, and its own occupancy bits.
+
+The occupancy bitmap is the grid used by lot building code (`CLot_RefreshOccupancyGridForBounds`, `00465a50`). In the tutorial save 9,305 of 65,536
+cells are set; the lot's grass area is mostly clear.
 
 ## `CFinance` (decoded)
 
@@ -183,7 +213,9 @@ the cash drop) but which building the 3,000.00 is, is not recorded in the spent 
   (126 each), `Gardens`, `MyPeople`, `MyDesireMap.Values` have no known layout.
 * Ornament/facility `GUID` (8 bytes) semantics, `StateOfRepair` / `BuildWorkDone` units, `SL_CamRot`/`SL_CamZoo` units.
 * How a `CFacility`'s `SubFacilities` value (16 bytes: count + pointers + hash) is laid out beyond "count then entries".
-* `TMLandscape` has one 4-byte-tagged opaque field; the terrain/heightmap is not in the save (probably rebuilt from the lot asset).
+* Terrain: the heightmap/mesh is not in the save (only the paint layers and occupancy bits below). The 8-bit-hi blend meaning is from the code (`FUN_009e23b0`), not checked in game. The ~17 KB after the occupancy bitmap is not decoded.
+* Whether a set bit in the occupancy bitmap means "blocked" or "occupied by a placed item" (it is set over the city road and neighbouring blocks, and in thin footprints around lot buildings), and why the first 24 columns of the bitmap look striped.
+* Whether the 2-unit grid applies to player-placed props and sets (only prebuilt tutorial ornaments have been seen).
 * The meaning of the room/object `ObjectsIn` field (`TMRoom`) and `TMFloorPlan`'s repeated `?239a5558` (4 entries pointing to ids 1305-1308: probably its rooms).
 * Where the **set pieces / props / walls placed by the player** are stored. The fresh studio has none, and the tutorial saves only show prebuilt ornaments and facilities,
   so a save with a player-built set (`SetItemList`/`PropItemList`) is needed.
@@ -202,5 +234,7 @@ the cash drop) but which building the 3,000.00 is, is not recorded in the spent 
 python3 tools/jad_dump.py "$HOME/Documents/The Movies/Saved Games/<save>.jad"          # summary
 python3 tools/jad_dump.py <save>.jad --lists                                            # static registries
 python3 tools/jad_dump.py <save>.jad --class CStar                                      # one class with field names
+python3 tools/jad_dump.py <save>.jad --map [--svg out.svg]                               # placed assets, grid check, plan
+python3 tools/jad_dump.py <save>.jad --terrain out.png [--occupancy]                      # terrain paint + assets as a PNG
 python3 tools/jad_dump.py <a>.jad <b>.jad                                               # diff
 ```

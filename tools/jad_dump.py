@@ -5,6 +5,7 @@
     python3 tools/jad_dump.py save.jad --class CFinance   # every field of the objects of one class
     python3 tools/jad_dump.py save.jad --lists            # the 24 global object registries from [STATICS]
     python3 tools/jad_dump.py save.jad --map [--svg out.svg]  # placed assets (SourcePath + POSITION + MyAngle), grid analysis, ASCII plan
+    python3 tools/jad_dump.py save.jad --terrain out.png [--occupancy]  # ground paint + placed assets as a PNG (x right, y up)
     python3 tools/jad_dump.py a.jad b.jad              # field-level diff (statics + objects matched by id)
 
 Container layout (observed from saves made under Wine; not yet checked against the loader code):
@@ -25,7 +26,7 @@ Field tags are NOT unique inside an object (e.g. a repeated tag is an array elem
 import re, struct, sys
 from collections import Counter, defaultdict
 
-import csv, glob, os
+import csv, glob, os, zlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NAMES_CSV = os.path.join(ROOT, "docs", "generated", "save_field_names.csv")
@@ -225,6 +226,74 @@ def show_map(p, svg=None):
         print("wrote", svg)
 
 
+# ---- terrain (TMLandscape) ---------------------------------------------------------------------------------------
+# One opaque field, read by FUN_009e5540. Layout (after the field's own u32 byte length):
+#   u32 version (2), u32 texture count (7), count x 32-byte NUL-padded names (Land_sand00 ...),
+#   65793 cells x 3 bytes (= 256 x 257: index x*257 + y, the 257th column is a 0x3f edge sentinel),
+#   8192-byte occupancy bitmap (bit x*256 + y of the 256x256 grid), then ~17 KB not decoded.
+# Cell bytes (the loader masks them with 0x3f): three paint layers; low nibble = texture index (0xf = none),
+# bits 4-5 = blend weight (value + 1) * 0.25. Grid cell = round((world + 256) / 2): 2 world units per cell.
+LAND_COLORS = {"sand": (222, 200, 140), "grass": (100, 170, 70), "earth": (130, 90, 50),
+               "tarma": (60, 60, 70), "sidew": (190, 190, 190)}
+
+
+def landscape(p):
+    """-> (texture names, cells[x][y] = (layer0, layer1, layer2) raw masked bytes, occupancy bytes) or None."""
+    blobs = [v for o in p["objects"] if o["class"] == "TMLandscape" for _, v in o["fields"]]
+    if not blobs or max(map(len, blobs)) < 245:
+        return None
+    v = max(blobs, key=len)
+    ver, n = struct.unpack_from("<II", v, 4)
+    names = [v[12 + 32 * i:44 + 32 * i].split(b"\0")[0].decode("latin1") for i in range(n)]
+    d = v[12 + 32 * n:]
+    cells = [[tuple(b & 0x3f for b in d[3 * (x * 257 + y):3 * (x * 257 + y) + 3]) for y in range(256)] for x in range(256)]
+    return names, cells, d[3 * 65793:3 * 65793 + 8192]
+
+
+def write_png(path, w, h, rgb):
+    raw = b"".join(b"\0" + bytes(rgb[y * w * 3:(y + 1) * w * 3]) for y in range(h))
+    def chunk(t, data):
+        return struct.pack(">I", len(data)) + t + data + struct.pack(">I", zlib.crc32(t + data) & 0xffffffff)
+    open(path, "wb").write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+                           + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+
+
+def show_terrain(p, path, occupancy=False, scale=4):
+    land = landscape(p)
+    if not land:
+        sys.exit("no TMLandscape data in this save")
+    names, cells, occ = land
+    print("textures:", ", ".join(f"{i}={n}" for i, n in enumerate(names)))
+    def color(name):
+        k = name.lower().replace("land_", "")
+        return next((c for key, c in LAND_COLORS.items() if k.startswith(key[:5])), (255, 0, 255))
+    palette = [color(n) for n in names]
+    W = 256 * scale
+    px = bytearray(W * W * 3)
+    for gx in range(256):
+        for gy in range(256):
+            col = (255, 0, 255)
+            for lay in cells[gx][gy]:        # layer 0 is the base; layers 1 and 2 paint over it
+                if lay & 15 < len(palette):
+                    col = palette[lay & 15]
+            i = gx * 256 + gy
+            if occupancy and occ[i >> 3] >> (i & 7) & 1:
+                col = tuple(int(c * 0.4 + t * 0.6) for c, t in zip(col, (230, 40, 40)))
+            for dy in range(scale):
+                row = ((255 - gy) * scale + dy) * W + gx * scale
+                px[row * 3:(row + scale) * 3] = bytes(col) * scale
+    items = [a for a in placed_assets(p) if a[0] != "CLot"]
+    for _c, _i, apath, (x, y, _z), _a in items:
+        fac = apath.startswith("facility")
+        r, col = (6, (220, 30, 30)) if fac else (3, (30, 30, 200))
+        cx, cy = int((x + 256) / 2 * scale), int(W - (y + 256) / 2 * scale)
+        for yy in range(max(0, cy - r), min(W, cy + r + 1)):
+            for xx in range(max(0, cx - r), min(W, cx + r + 1)):
+                px[(yy * W + xx) * 3:(yy * W + xx) * 3 + 3] = bytes(col)
+    write_png(path, W, W, px)
+    print(f"wrote {path} ({W}x{W}; {len(items)} assets; {sum(bin(b).count('1') for b in occ)} occupied cells)")
+
+
 def keyed(fields):
     seen = defaultdict(int)
     out = {}
@@ -282,9 +351,14 @@ def main(argv):
     svg = argv[argv.index("--svg") + 1] if "--svg" in argv else None
     if svg:
         args.remove(svg)
+    png = argv[argv.index("--terrain") + 1] if "--terrain" in argv else None
+    if png:
+        args.remove(png)
     if len(args) == 1:
         p = parse(args[0])
-        if "--map" in argv:
+        if png:
+            show_terrain(p, png, "--occupancy" in argv)
+        elif "--map" in argv:
             show_map(p, svg)
         elif "--lists" in argv:
             show_lists(p)
