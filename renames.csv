@@ -1982,3 +1982,37 @@ address,old_name,new_name,evidence
 00490e80,FUN_00490e80,Preload_LoadList,"Game_Bootstrap init that reads the ""preload"" list; ~6.1 s in boot1, and the mesh loader LH_LoadMeshBinary first fires inside it"
 00421a70,FUN_00421a70,Game_ParseCommandLine,"called from Game_Constructor with the command line; sets +0x84 for -reenter, +0x85 for -editor, +0xC8 for -download <value>"
 00567860,FUN_00567860,CmdLine_GetSwitch,"(cmdline, ""key"", out, size): finds ""-key [value]"" in the command line; used for reenter/editor/download"
+0096be00,FUN_0096be00,NetSocket_Constructor,"sets socket handle +0x58 to -1, zeroes the buffers, runs WSAStartup(2.2) once (Ordinal_115, 0x202) and links the object into the global socket list; allocated as 0xc4 bytes"
+0096c8f0,FUN_0096c8f0,NetSocket_Destructor,"closes the socket if open, unlinks the object from the global socket list (DAT_01050b28), frees its buffers"
+0096bf10,FUN_0096bf10,NetSocket_Close,"shutdown(SD_SEND), drains with recv until it returns <= 0, closesocket; resets +0x58 to -1"
+0096b0f0,FUN_0096b0f0,NetSocket_SetNonBlocking,"ioctlsocket(FIONBIO 0x8004667e); on failure builds a ""Winsock Error: <WSAGetLastError>"" string"
+00969de0,FUN_00969de0,NetSocket_QueryBytesAvailable,ioctlsocket(FIONREAD 0x4004667f)
+00969d90,FUN_00969d90,NetSocket_Send,"send(); returns 0 for WSAEWOULDBLOCK (0x2733), otherwise adds the byte count to the sent total at +0xb0"
+0096aa40,FUN_0096aa40,NetSocket_FlushSendBuffer,"if the pending buffer (+0x88..+0x8c) is non-empty and the socket is writable, send() it"
+00969c50,FUN_00969c50,NetSocket_WaitWritable,"select() on this socket with a timeout of seconds*1000 (50 ms when 0); used before every send (FlushSendBuffer, HTTP send); throws on SOCKET_ERROR"
+00969ba0,FUN_00969ba0,NetSocket_WaitReadable,select() on this socket with the same timeout rule (-1 = block); used before receives in the HTTP client
+00969cf0,FUN_00969cf0,NetSocket_PollConnect,"after an async connect: 0 if writable, otherwise select() again and return 5 (ready) or 4 (pending)"
+0096abe0,FUN_0096abe0,NetSocket_ResolveHost,"inet_addr(), falling back to gethostbyname(); returns -1 when both fail"
+0096ae90,FUN_0096ae90,NetAddress_ResolveCached,resolves the host name held in the address object and caches the IPv4 result at +0x1c
+0096b0a0,FUN_0096b0a0,NetAddress_FromSockAddr,inet_ntoa + ntohs: copies the dotted address and the host-order port out of a sockaddr_in
+0096b050,FUN_0096b050,NetAddress_ToSockAddr,"fills a sockaddr_in: AF_INET (2), htons(port at +0x20), the resolved IPv4 address"
+0096afc0,FUN_0096afc0,NetSocket_CreateBound,"socket(AF_INET, type 1=SOCK_STREAM / 2=SOCK_DGRAM) then bind() to the address; returns the handle or -1"
+0096b4f0,FUN_0096b4f0,NetSocket_CreateFromAddress,calls CreateBound with the type stored in the address object (+0x24) and keeps the handle and type in this
+0096b920,FUN_0096b920,NetSocket_OpenBound,"htons(port), resolve, socket() (type 1/2/3), bind(); stores the handle at +0x58 and the type at +0x80"
+0096ba70,FUN_0096ba70,NetSocket_ConnectAsync,"OpenBound, SetNonBlocking(1), connect(); treats WSAEWOULDBLOCK (0x2733) as success"
+0096bb40,FUN_0096bb40,NetSocket_ConnectBlocking,"OpenBound, connect(), then SetNonBlocking(1) when it succeeded"
+0096b250,FUN_0096b250,NetSocket_Listen,"socket(), setsockopt(SOL_SOCKET 0xffff, SO_REUSEADDR 4), bind(), listen(); dead code (only reached from the uncalled 0x970bb0 path)"
+0096b430,FUN_0096b430,NetSocket_Accept,accept() on a listening socket (+0x7c flag); fills the peer address; dead code (see NetSocket_Listen)
+0096f9f0,FUN_0096f9f0,NetSocket_CreateListener,"allocates a 0xc4-byte socket object, runs the constructor and Listen() for a TCP address; its only caller (0x970bb0) has no callers"
+0096c410,FUN_0096c410,NetSocket_Receive,"select(), then recv() or recvfrom() depending on the socket type, closesocket on error; refuses type 3"
+0096bfb0,FUN_0096bfb0,NetSocket_SendTo,sendto()/send()/closesocket(); no direct callers
+00969330,FUN_00969330,Net_QueryAdaptersInfo,"LoadLibrary(""Iphlpapi.dll"") + GetProcAddress(""GetAdaptersInfo"") into a 0x280-byte buffer; no direct callers"
+009694c0,FUN_009694c0,Net_QueryWininetProxy,"LoadLibrary(""wininet.dll"") + GetProcAddress(""InternetQueryOptionA""): reads the IE proxy setting; fallback of Net_AutoDetectProxy"
+00969740,FUN_00969740,Net_AutoDetectProxy,"tries an HTTP request on the given port, then on 8080 (0x1f90), then falls back to Net_QueryWininetProxy; called by WOnlineAutoConfig_Tick"
+0096e860,FUN_0096e860,LHHttp_BuildRequest,"builds the request line and header block, string ""GET "" / ""POST "", into the per-request buffer (+0x208..)"
+0096ed70,FUN_0096ed70,LHHttp_ReceiveResponseHeaders,"reads and parses ""http/1."" status line and ServerCode for the request in state 1; returns negative error codes"
+0096e270,FUN_0096e270,LHHttp_PumpSend,"state 2: polls the async connect (NetSocket_PollConnect); then sends the built request buffer in chunks of at most 0x1000 bytes through LHHttp_SendBytes and, when all is sent, switches to state 1 (awaiting response)"
+0096d1d0,FUN_0096d1d0,LHHttp_SendBytes,WaitWritable then NetSocket_Send; returns 3 when there is no connection or send() fails
+00966120,FUN_00966120,MV_ParseMVX301Reply,"""MVX301:"" reply: skips to the first "":"" and returns atol() of the rest (-1 for NULL, 0 when the prefix does not match)"
+009681b0,FUN_009681b0,MV_ParseMV0050Reply,"""MV0050:"" reply: reads six 32-bit and two 16-bit header fields, then a count followed by that many 0x50-byte records (operator_new(0x50)); only caller is WOnlineScreen 0x6d3fe0"
+00965e90,FUN_00965e90,MV_ParseMV0040Reply,"""MV0040:"" reply: count of embedded blobs, each written to a GetTempFileNameA(""sy"") temp file; only caller is WOnlineScreen 0x6c73c0"

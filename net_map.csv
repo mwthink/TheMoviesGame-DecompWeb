@@ -43,8 +43,8 @@ addr,name,size,stack,layer,evidence,class
 00965ce0,FUN_00965ce0,19,A,glue,,
 00965d20,FUN_00965d20,32,A,glue,,
 00965d80,FUN_00965d80,37,A,glue,,
-00965e90,FUN_00965e90,152,A,protocol,string MV0040:,
-00966120,FUN_00966120,54,A,protocol,string MVX301:,
+00965e90,MV_ParseMV0040Reply,152,A,protocol,string MV0040:,
+00966120,MV_ParseMVX301Reply,54,A,protocol,string MVX301:,
 00966350,FUN_00966350,12,A,glue,,
 00966370,FUN_00966370,12,A,glue,,
 00966500,FUN_00966500,37,A,shared,,
@@ -81,7 +81,7 @@ addr,name,size,stack,layer,evidence,class
 00967b30,FUN_00967b30,23,A,glue,,
 00967b80,FUN_00967b80,93,A,glue,,
 00967d30,FUN_00967d30,181,A,glue,string Could not open data file!,
-009681b0,FUN_009681b0,116,A,protocol,string MV0050:,
+009681b0,MV_ParseMV0050Reply,116,A,protocol,string MV0050:,
 009683c0,FUN_009683c0,10,A,glue,,
 009683e0,FUN_009683e0,10,A,glue,,
 00968400,FUN_00968400,36,A,glue,,
@@ -93,17 +93,17 @@ addr,name,size,stack,layer,evidence,class
 00968fe0,FUN_00968fe0,131,A,glue,,
 009691f0,FUN_009691f0,19,A,glue,,
 009692e0,FUN_009692e0,27,A,glue,,
-00969330,FUN_00969330,55,A,transport,string Iphlpapi.dll [no direct callers],
+00969330,Net_QueryAdaptersInfo,55,A,transport,string Iphlpapi.dll [no direct callers],
 00969450,FUN_00969450,42,A,glue,,
-009694c0,FUN_009694c0,83,A,transport,string wininet.dll,
+009694c0,Net_QueryWininetProxy,83,A,transport,string wininet.dll,
 00969620,FUN_00969620,48,A,glue,,
-00969740,FUN_00969740,55,A,glue,,
+00969740,Net_AutoDetectProxy,55,A,glue,,
 00969a30,FUN_00969a30,11,A,shared,,
-00969ba0,FUN_00969ba0,44,A,transport,"calls __WSAFDIsSet,select#",
-00969c50,FUN_00969c50,38,A,transport,"calls __WSAFDIsSet,select#",
-00969cf0,FUN_00969cf0,37,A,transport,"calls __WSAFDIsSet,select#",
-00969d90,FUN_00969d90,24,A,transport,"calls WSAGetLastError#,send#",
-00969de0,FUN_00969de0,16,A,transport,calls ioctlsocket#,
+00969ba0,NetSocket_WaitReadable,44,A,transport,"calls __WSAFDIsSet,select#",
+00969c50,NetSocket_WaitWritable,38,A,transport,"calls __WSAFDIsSet,select#",
+00969cf0,NetSocket_PollConnect,37,A,transport,"calls __WSAFDIsSet,select#",
+00969d90,NetSocket_Send,24,A,transport,"calls WSAGetLastError#,send#",
+00969de0,NetSocket_QueryBytesAvailable,16,A,transport,calls ioctlsocket#,
 0096a050,FUN_0096a050,12,A,shared,,
 0096a0f0,FUN_0096a0f0,57,A,shared,,
 0096a410,FUN_0096a410,17,A,shared,,
@@ -116,34 +116,34 @@ addr,name,size,stack,layer,evidence,class
 0096a940,FUN_0096a940,18,A,glue,,
 0096a970,FUN_0096a970,13,A,glue,[no direct callers],
 0096a9e0,FUN_0096a9e0,17,A,shared,,
-0096aa40,FUN_0096aa40,29,A,transport,calls send#,
+0096aa40,NetSocket_FlushSendBuffer,29,A,transport,calls send#,
 0096aab0,FUN_0096aab0,26,A,glue,,
 0096aaf0,FUN_0096aaf0,15,A,glue,[no direct callers],
 0096ab60,FUN_0096ab60,38,A,shared,,
-0096abe0,FUN_0096abe0,75,A,transport,"calls gethostbyname#,inet_addr#",
+0096abe0,NetSocket_ResolveHost,75,A,transport,"calls gethostbyname#,inet_addr#",
 0096ad80,FUN_0096ad80,30,A,shared,string vector<T> too long,
 0096adf0,FUN_0096adf0,35,A,shared,string list<T> too long,
-0096ae90,FUN_0096ae90,41,A,glue,,
-0096afc0,FUN_0096afc0,36,A,transport,"calls bind#,htons#,socket#",
-0096b050,FUN_0096b050,18,A,transport,calls htons#,
-0096b0a0,FUN_0096b0a0,24,A,transport,"calls inet_ntoa#,ntohs#",
-0096b0f0,FUN_0096b0f0,41,A,transport,"calls WSAGetLastError#,ioctlsocket#",
+0096ae90,NetAddress_ResolveCached,41,A,glue,,
+0096afc0,NetSocket_CreateBound,36,A,transport,"calls bind#,htons#,socket#",
+0096b050,NetAddress_ToSockAddr,18,A,transport,calls htons#,
+0096b0a0,NetAddress_FromSockAddr,24,A,transport,"calls inet_ntoa#,ntohs#",
+0096b0f0,NetSocket_SetNonBlocking,41,A,transport,"calls WSAGetLastError#,ioctlsocket#",
 0096b190,FUN_0096b190,25,A,glue,,
 0096b210,FUN_0096b210,16,A,glue,,
-0096b250,FUN_0096b250,94,A,transport,"calls WSAGetLastError#,bind#,htons#,listen#,setsockopt#,socket#",
-0096b430,FUN_0096b430,46,A,transport,"calls WSAGetLastError#,accept#",
-0096b4f0,FUN_0096b4f0,15,A,glue,,
+0096b250,NetSocket_Listen,94,A,transport,"calls WSAGetLastError#,bind#,htons#,listen#,setsockopt#,socket#",
+0096b430,NetSocket_Accept,46,A,transport,"calls WSAGetLastError#,accept#",
+0096b4f0,NetSocket_CreateFromAddress,15,A,glue,,
 0096b710,FUN_0096b710,102,A,shared,,
-0096b920,FUN_0096b920,72,A,transport,"calls WSAGetLastError#,bind#,htons#,socket#",
-0096ba70,FUN_0096ba70,41,A,transport,"calls WSAGetLastError#,connect#",
-0096bb40,FUN_0096bb40,39,A,transport,"calls WSAGetLastError#,connect#",
+0096b920,NetSocket_OpenBound,72,A,transport,"calls WSAGetLastError#,bind#,htons#,socket#",
+0096ba70,NetSocket_ConnectAsync,41,A,transport,"calls WSAGetLastError#,connect#",
+0096bb40,NetSocket_ConnectBlocking,39,A,transport,"calls WSAGetLastError#,connect#",
 0096bc20,FUN_0096bc20,36,A,glue,,
 0096bce0,FUN_0096bce0,68,A,glue,,
-0096be00,FUN_0096be00,50,A,transport,calls WSAStartup#,
-0096bf10,FUN_0096bf10,30,A,transport,"calls closesocket#,recv#,shutdown#",
-0096bfb0,FUN_0096bfb0,306,A,transport,"calls closesocket#,send#,sendto# [no direct callers]",
-0096c410,FUN_0096c410,130,A,transport,"calls WSAGetLastError#,__WSAFDIsSet,closesocket#,recv#,recvfrom#,select#",
-0096c8f0,FUN_0096c8f0,69,A,shared,,
+0096be00,NetSocket_Constructor,50,A,transport,calls WSAStartup#,
+0096bf10,NetSocket_Close,30,A,transport,"calls closesocket#,recv#,shutdown#",
+0096bfb0,NetSocket_SendTo,306,A,transport,"calls closesocket#,send#,sendto# [no direct callers]",
+0096c410,NetSocket_Receive,130,A,transport,"calls WSAGetLastError#,__WSAFDIsSet,closesocket#,recv#,recvfrom#,select#",
+0096c8f0,NetSocket_Destructor,69,A,shared,,
 0096ca20,FUN_0096ca20,46,A,glue,,
 0096cc90,FUN_0096cc90,16,A,loose,[no direct callers],
 0096cdf0,FUN_0096cdf0,41,A,glue,,
@@ -155,7 +155,7 @@ addr,name,size,stack,layer,evidence,class
 0096d0f0,FUN_0096d0f0,20,A,glue,,LHHttp
 0096d120,FUN_0096d120,20,A,shared,,LHHttp
 0096d150,FUN_0096d150,36,A,glue,,LHHttp
-0096d1d0,FUN_0096d1d0,25,A,shared,,LHHttp
+0096d1d0,LHHttp_SendBytes,25,A,shared,,LHHttp
 0096d220,FUN_0096d220,12,A,shared,,LHHttp
 0096d260,FUN_0096d260,16,A,glue,,LHHttp
 0096d660,FUN_0096d660,22,A,shared,,LHHttp
@@ -182,20 +182,20 @@ addr,name,size,stack,layer,evidence,class
 0096de20,FUN_0096de20,35,A,shared,string list<T> too long,LHHttp
 0096dec0,FUN_0096dec0,24,A,shared,,LHHttp
 0096df20,FUN_0096df20,128,A,shared,,LHHttp
-0096e270,FUN_0096e270,95,A,shared,,LHHttp
+0096e270,LHHttp_PumpSend,95,A,shared,,LHHttp
 0096e440,FUN_0096e440,41,A,glue,,LHHttp
 0096e580,FUN_0096e580,21,A,glue,,LHHttp
 0096e600,FUN_0096e600,18,A,glue,,LHHttp
 0096e640,FUN_0096e640,36,A,glue,,
 0096e6b0,FUN_0096e6b0,87,A,glue,,LHHttp
 0096e7b0,LHHttp_BuildHeaderBlock,48,A,http,string User-Agent,LHHttp
-0096e860,FUN_0096e860,330,A,http,string GET ,LHHttp
-0096ed70,FUN_0096ed70,184,A,http,string http/1.,LHHttp
+0096e860,LHHttp_BuildRequest,330,A,http,string GET ,LHHttp
+0096ed70,LHHttp_ReceiveResponseHeaders,184,A,http,string http/1.,LHHttp
 0096f0d0,LHHttp_ParseResponseHeaders,74,A,http,string ServerCode,LHHttp
 0096f240,FUN_0096f240,67,A,glue,,
 0096f370,FUN_0096f370,237,A,glue,,
 0096f7c0,FUN_0096f7c0,90,A,glue,,
-0096f9f0,FUN_0096f9f0,61,A,glue,,
+0096f9f0,NetSocket_CreateListener,61,A,glue,,
 00970010,FUN_00970010,22,A,glue,,
 009700d0,FUN_009700d0,18,A,glue,,
 009700f0,FUN_009700f0,13,A,glue,[no direct callers],

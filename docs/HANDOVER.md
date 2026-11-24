@@ -15,7 +15,7 @@ portable C++ reimplementation, written from the decompiled code and the document
 
 | Area | State |
 |---|---|
-| Ghidra | 60,838 functions; 30,677 still `FUN_*` after the 75 names added on 2026-11-24 (`renames.csv` has the evidence) and 23 character-appearance names from the StarMaker analysis (`CharacterHead_*`, `CharacterModel_*`, `MakeupLayer_*`, `Mesh_*`, `Texture_Draw*`, `AnimInstance_EvaluatePose`; applied to the live project on 2026-11-24 after a backup in `~/ghidra-projects-backup-before-appearance-names`; table in `docs/STARMAKER.md` section 10). Names live in `tools/ghidra_names.csv`; apply them to a Ghidra project with `ghidra/scripts/ApplyNames.java` (headless: `analyzeHeadless <projectDir> TheMovies -process MoviesSE.exe -noanalysis -scriptPath ghidra/scripts -postScript ApplyNames.java <abs path to tools/ghidra_names.csv> [dry]`; the live local project had all 75 of the 2026-11-24 names applied and verified with a dry run) |
+| Ghidra | 60,838 functions; 30,677 still `FUN_*` after the 75 names added on 2026-11-24 (`renames.csv` has the evidence) and 23 character-appearance names from the StarMaker analysis (`CharacterHead_*`, `CharacterModel_*`, `MakeupLayer_*`, `Mesh_*`, `Texture_Draw*`, `AnimInstance_EvaluatePose`; applied to the live project on 2026-11-24 after a backup in `~/ghidra-projects-backup-before-appearance-names`; table in `docs/STARMAKER.md` section 10). Names live in `tools/ghidra_names.csv`; apply them to a Ghidra project with `ghidra/scripts/ApplyNames.java` (headless: `analyzeHeadless <projectDir> TheMovies -process MoviesSE.exe -noanalysis -scriptPath ghidra/scripts -postScript ApplyNames.java <abs path to tools/ghidra_names.csv> [dry]`; the live local project had all 75 of the 2026-11-24 names applied and verified with a dry run). Another 34 networking names (`NetSocket_*`, `LHHttp_*`, `MV_Parse*`, `Net_*`) are in `renames.csv` only, not yet applied (`docs/NETWORK.md`) |
 | `src/` | portable C++17, 11 `ctest` groups + `otm_movie_calc` (game/movie, staff, studio, ai, boot, character); `tools/progress.py`: 45 functions reimplemented, 15 verified against logged game values |
 | Class attribution (rerun 2026-11-24 after the new names) | `tools/attribute_classes.py`: 6,475 functions with a known class, +1,222 at >=85% (tier A), +2,800 at 70-85% (tier B), +598 family-level; 18,220 without evidence (before the rerun: 6,478 / 1,185 / 2,744 / 463 / 18,567). The comparison spans every name added since the 2026-11-21 run, not only the 75 new ones |
 | Runtime tracing | first-call coverage tracer + this-class log run on a Windows test box: 9,458 distinct functions (27%) seen over 2 game years; steady-state set about 3,800 functions; 3,673 functions with an observed `this` class |
@@ -43,6 +43,7 @@ portable C++ reimplementation, written from the decompiled code and the document
 | `docs/SCRIPTS.md` *(2026-11-24)* | how a script is stored in a save and how script quality is computed |
 | `docs/CHARACTERS.md`, `docs/ANM_FORMAT.md` *(2026-11-24)* | people and costumes in a save; `.anm` animations, skeletons, skinning and the viewer |
 | `docs/STARMAKER.md` *(2026-11-24)* | `StarMaker.exe` (the character editor): what it is, how it was compared with MoviesSE (about 89% shared code), what it taught us so far (age/weight morph order, slider table, `.fan`, `head_shape.dat`), open questions |
+| `docs/NETWORK.md` *(2026-11-24)* | the networking code in `MoviesSE.exe`: two stacks (the game's own HTTPLib/MV client behind `WOnlineScreen`, and the statically linked Perforce P4API client with its bundled zlib 1.0.4), how they were found, the layers, the dead server side, names, what is not decoded. Data: `net_map.csv`, `p4api_map.csv` (`tools/net_map.py`, `tools/p4api_map.py`) |
 | `docs/FLM_FORMAT.md` | the `.flm` scene format |
 | `docs/SAVE_FORMAT.md` *(2026-11-24)* | the `.jad` saved-game container, value encodings, what is in a save by class, terrain and the 2-unit grid, save names to ini/mesh/texture files, what is still unknown |
 | `docs/MSH_FORMAT.md` *(2026-11-24)* | `.msh` models checked against real files: header, textures, materials, polygon chunks, render geometry, lightmaps, and the code path from a mesh polygon to the placement footprint |
@@ -55,7 +56,8 @@ cmake -S src -B build/src && cmake --build build/src && ctest --test-dir build/s
 python3 tools/audit_firewall.py                       # before every commit
 python3 tools/pak_extract.py extract "<game>/Data/pak" data/game_data releasing_movies.ini stunts.ini global.ini ...   # see REIMPLEMENTATION.md
 build/src/otm_movie_calc --help                        # quality / success / revenue estimate, marketing comparison
-python3 tools/attribute_classes.py --exe "<game>/MoviesSE.exe"     # needs objdump (Xcode); writes docs/generated/class_attribution*
+python3 tools/attribute_classes.py --exe "<game>/MoviesSE.exe"     # needs objdump (Xcode); writes docs/generated/class_attribution*; re-labels P4API functions from p4api_map.csv
+python3 tools/callgraph.py --build && python3 tools/net_map.py && python3 tools/p4api_map.py   # regenerate net_map.csv / p4api_map.csv (after any names change)
 python3 tools/analyze_this_log.py data/runtime/<run>/coverage_this.csv
 python3 tools/steady_state.py data/runtime/<run>/coverage_log.csv
 ```
@@ -145,6 +147,13 @@ Read only the last screenshot of a scripted sequence (the user asked for that); 
 10. **Use the Wine setup** (`WINE_CROSSOVER.md`): (a) the debugger DLL runs under Wine (copied from the box); now compare one identical run (Quick Start, F9 per step, same game time) against the box, to learn whether
    Wine runs can be trusted for tracing, and replace the trap-flag re-arm in `CoverageTracer.cpp` so `this`-class mode works there;
    (b) have the user play there to produce save games for the save-game reader (item 6); (c) keep `verified` tags for box measurements until (a) agrees.
+
+11. **Networking code, what is left** *(`docs/NETWORK.md`)*: (a) apply the 34 network names from `renames.csv` to the Ghidra project and
+    `tools/ghidra_names.csv` (they exist only in `renames.csv` and in the call graph); (b) re-run `attribute_classes.py` with the exe
+    so the `P4API` re-label (from `p4api_map.csv`) reaches `class_attribution.csv` (the hook was only syntax-checked); (c) on the box,
+    trace a played month and then the Online screen to confirm the static cone (`net_map.csv`) stays silent in play and lights up in
+    the order UI, MV, HTTP, sockets; (d) decide what the reimplementation does with the Online screen (`net_map.csv` lists the UI
+    functions that reach the library); (e) optional: the `Perforce::*` glue classes, the `X-MoviesContent-*` / `MV00xx` protocol.
 
 ## Save, terrain and model tooling *(2026-11-24)*
 

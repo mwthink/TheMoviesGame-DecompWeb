@@ -29,7 +29,7 @@ docs/          findings and format write-ups: MOVIE_QUALITY / MOVIE_SUCCESS / ST
                SAVE_FORMAT / SCRIPTS / CHARACTERS (saved games), MSH_FORMAT / ANM_FORMAT / FLM_FORMAT (assets), STARMAKER (the character editor binary),
                REIMPLEMENTATION, DECOMP_PIPELINE, WINDOWS_TEST_BOX, WINE_CROSSOVER, HANDOVER (state and next steps)
 FINDINGS.md    older findings notes, kept as a reference (radio/news, genre trend, audio engine, .lug loader)
-renames.csv    proposed function names with evidence; library_map.csv, fable_matches.csv
+renames.csv    proposed function names with evidence; library_map.csv, fable_matches.csv; net_map.csv, p4api_map.csv (networking code, docs/NETWORK.md)
 tools/         analysis and generator scripts (Python/PowerShell); tools/ghidra_names.csv = live Ghidra names;
                jad_dump.py, script_dump.py, script_quality.py, save_cast.py (saved games, scripts, terrain and placement renders),
                msh_dump.py, dds.py, anm_dump.py, cos_dump.py (models, textures, animations, costumes),
