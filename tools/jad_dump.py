@@ -4,6 +4,7 @@
     python3 tools/jad_dump.py save.jad                 # header, statics, per-class object summary
     python3 tools/jad_dump.py save.jad --class CFinance   # every field of the objects of one class
     python3 tools/jad_dump.py save.jad --lists            # the 24 global object registries from [STATICS]
+    python3 tools/jad_dump.py save.jad --map [--svg out.svg]  # placed assets (SourcePath + POSITION + MyAngle), grid analysis, ASCII plan
     python3 tools/jad_dump.py a.jad b.jad              # field-level diff (statics + objects matched by id)
 
 Container layout (observed from saves made under Wine; not yet checked against the loader code):
@@ -155,6 +156,75 @@ def dump_class(p, cls):
                 print(f"   {NAMES.get(t, t):<26} {trunc(v):<30} {guess(v)}")
 
 
+def placed_assets(p):
+    """Every object with a SourcePath and a POSITION: (class, id, asset path, (x, y, z), angle)."""
+    t_src, t_pos, t_ang = (struct.pack("<I", tag_hash(n)).hex() for n in ("SourcePath", "POSITION", "MyAngle"))
+    out = []
+    for o in p["objects"]:
+        f = {}
+        for t, v in o["fields"]:
+            f.setdefault(t, v)
+        if t_src not in f or t_pos not in f or len(f[t_pos]) < 12:
+            continue
+        v = f[t_src]
+        n = struct.unpack_from("<I", v)[0] if len(v) >= 4 else 0
+        path = v[4:4 + n].split(b"\0")[0].decode("latin1") if 0 < n <= len(v) - 4 else "?"
+        ang = struct.unpack("<f", f[t_ang][:4])[0] if len(f.get(t_ang, b"")) >= 4 else 0.0
+        out.append((o["class"], o["id"], path, struct.unpack("<3f", f[t_pos][:12]), ang))
+    return out
+
+
+def grid_report(vals, label):
+    """Fraction of coordinates that land on multiples of each candidate step."""
+    print(f"  {label}: " + "  ".join(
+        f"step {st:g}: {sum(abs(v / st - round(v / st)) < 1e-3 for v in vals)}/{len(vals)}"
+        for st in (0.25, 0.5, 1, 2, 4, 5, 10)))
+
+
+def show_map(p, svg=None):
+    items = placed_assets(p)
+    if not items:
+        print("no placed assets")
+        return
+    print(f"{len(items)} placed assets")
+    print(f"{'class':<22}{'asset':<36}{'x':>9}{'y':>9}{'z':>7}{'angle/pi':>10}")
+    for c, _i, path, (x, y, z), a in sorted(items, key=lambda r: (r[0], r[2], r[3])):
+        print(f"{c:<22}{path:<36}{x:9.3f}{y:9.3f}{z:7.2f}{a / 3.14159265:10.3f}")
+    print("\ngrid check (coordinates on multiples of a step):")
+    for grp, rows in (("all", items), ("COrnament", [r for r in items if r[0] == "COrnament"]),
+                      ("facilities", [r for r in items if r[0] != "COrnament"])):
+        if rows:
+            print(f" {grp} ({len(rows)})")
+            grid_report([r[3][0] for r in rows], "x")
+            grid_report([r[3][1] for r in rows], "y")
+    ang = Counter(round(r[4] / (3.14159265 / 2), 2) for r in items)
+    print("angle in quarter-turns:", dict(sorted(ang.items())))
+    # ASCII plan, 2 world units per column/row, y up. Letter = first letter of the asset's file name.
+    xs, ys = [r[3][0] for r in items], [r[3][1] for r in items]
+    x0, y0, cell = min(xs), min(ys), 2.0
+    W, H = int((max(xs) - x0) / cell) + 1, int((max(ys) - y0) / cell) + 1
+    grid = [["."] * W for _ in range(H)]
+    legend = {}
+    for _c, _i, path, (x, y, _z), _a in items:
+        ch = os.path.basename(path).replace("p_", "").replace("facility_", "")[:1].upper() or "?"
+        legend.setdefault(ch, set()).add(os.path.basename(path))
+        grid[int((y - y0) / cell)][int((x - x0) / cell)] = ch
+    print(f"\nplan (1 char = {cell:g} units, x from {x0:g}, y from {y0:g}, y up):")
+    for row in reversed(grid):
+        print("  " + "".join(row))
+    print("legend:", "; ".join(f"{k}={','.join(sorted(v))}" for k, v in sorted(legend.items())))
+    if svg:
+        sc = 10
+        e = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{x0 - 5} {-(max(ys) + 5)} {max(xs) - x0 + 10} {max(ys) - y0 + 10}">']
+        for _c, _i, path, (x, y, _z), a in items:
+            fac = path.startswith("facility")
+            e.append(f'<circle cx="{x:.2f}" cy="{-y:.2f}" r="{2 if fac else 0.8}" fill="{"#c33" if fac else "#393"}"><title>{path} {x:.2f},{y:.2f}</title></circle>')
+            e.append(f'<line x1="{x:.2f}" y1="{-y:.2f}" x2="{x + 1.5 * __import__("math").cos(a):.2f}" y2="{-(y + 1.5 * __import__("math").sin(a)):.2f}" stroke="#000" stroke-width="0.2"/>')
+        e.append("</svg>")
+        open(svg, "w").write("\n".join(e))
+        print("wrote", svg)
+
+
 def keyed(fields):
     seen = defaultdict(int)
     out = {}
@@ -209,9 +279,14 @@ def main(argv):
     cls = argv[argv.index("--class") + 1] if "--class" in argv else None
     if cls:
         args.remove(cls)
+    svg = argv[argv.index("--svg") + 1] if "--svg" in argv else None
+    if svg:
+        args.remove(svg)
     if len(args) == 1:
         p = parse(args[0])
-        if "--lists" in argv:
+        if "--map" in argv:
+            show_map(p, svg)
+        elif "--lists" in argv:
             show_lists(p)
         else:
             dump_class(p, cls) if cls else summary(p)
