@@ -16,7 +16,7 @@ anything marked *unverified* is a guess.
 
 ## Container
 
-Written by `Savegame_SaveToDisk` (`004b37e0`) / read by `Savegame_LoadFromDisk` (`004b2b40`); the version literal is `"ver17"`.
+Written by `Savegame_SaveToDisk` (`004b37e0`) / read by `Savegame_LoadFromDisk` (`004b2b40`); the version tag is a 4-byte hash of a version string. **The saves written by this build carry `hash("ver18")` (`8ab37c01` = `0x017cb38a`); the older `"ver17"` hashes to `89b37c01`.** `Savegame_IsSupportedVersionHash` (`004aff80`) accepts either of two strings in a two-entry table at `00e514b8` (the string bytes are not in the export, so which two is unconfirmed; `ver17` is the literal the first decompile read). The earlier note that the literal is only `"ver17"` was wrong for writing.
 
 ```
 8ab37c01 04000000 0a000000 0a          prefix
@@ -43,10 +43,26 @@ Written by `Savegame_SaveToDisk` (`004b37e0`) / read by `Savegame_LoadFromDisk` 
 
 ## Header
 
-`cash` (f32, e.g. 150000.0 for a new studio), a few u32s that look like the real-world save time (hour, minute, …, day,
-month, year: *unverified*), then the **state label** (`post-intro-tutorial`; set by the tutorial scripts, tutorial saves use
-`no-facility-hired-star`, `pending-building`), the **studio name**, and the **boss/owner name** (`crossover`; the studio name is
-empty/absent in the tutorial saves and is typed in at the end of the tutorial).
+Layout fixed by `SaveGameHeader_Write` (`004b4340`, the save method of `CSaveGameHeader`, object size 0xE8) and checked byte for byte against a Quick Start save.
+The fields are **not tagged**; they are written in this order:
+
+| order | field (offset in the object) | value |
+|---|---|---|
+| 1 | f32 `+0x28` | **in-game date**, days at 365 per year (715563.875 = June 1960). Earlier notes called these four bytes a tag |
+| 2 | f32 `+0x64` | cash: player studio capital x 2^-23 (`SaveGameHeader_FillFromGameState`) |
+| 3-8 | 6 x u32 `+0x2c..+0x40` | real-world save time from `strftime` + `wtol`: **hour, minute, weekday (0 = Sunday), day, month, year** (observed 10, 45, 2, 24, 11, 2026 for a save named "...1045Tuesday24November2026") |
+| 9-11 | 3 x wide string `+0x44`, `+0x68`, `+0x88` | state label, studio name, boss name in some order (see below); each is `u32 byte length` (chars x 2 + 2) + UTF-16LE with terminator |
+| 12 | f32 `+0xa8` | a studio field `+0x1ec` (unsigned) x (1/60000) x (1/60): milliseconds to hours, so probably play time. *unverified* |
+| 13-14 | 2 x u32 `+0xac`, `+0xb0` | studio field `+0x1e4`; `+0xb0` is a value from the player's entry in the studio list (virtual call slot 0x28), 0 when absent. Meaning unknown |
+| 15 | wide string `+0xb4` | a string from `FUN_00421b80` (unidentified) |
+| 16 | byte `+0xd4` | 1 when the global game-mode object's float at `+0x78` equals 2.0 (a mode flag, likely sandbox or difficulty) |
+| 17 | u32 count + that many strings | a list from `FUN_004b4040`/`FUN_004b05e0` (unidentified; probably the installed expansions or content packs the save needs) |
+
+The decompiler drops `this` for the string assignments in `SaveGameHeader_FillFromGameState`, so which of the three strings is the studio name could not be
+read from the code; the field values seen in saves are in the paragraph that follows. After the closing `[/HEADER]` marker the saver writes one more u32 (`DAT_0104cdf4 + 0x3c`).
+In the saves: the state label (`post-intro-tutorial`; set by the tutorial scripts, tutorial saves use
+`no-facility-hired-star`, `pending-building`; a Quick Start save shows `script-casting`), the **studio name**, and the **boss/owner name** (`crossover`, `big boss`; the studio name is
+empty/absent in the tutorial saves and is typed in at the end of the tutorial). A section marker (`[HEADER]` etc.) is a length-prefixed string `"\n[HEADER]\n"` (`Save_SectionMarker`, `004b1790`).
 
 ## Value encodings seen
 
@@ -240,7 +256,7 @@ the cash drop) but which building the 3,000.00 is, is not recorded in the spent 
 ## What we do not know
 
 **Container**
-* The prefix `8ab37c01 04000000 0a000000 0a`: `04000000`/`0a000000` are probably a version/length pair; not tied to the `"ver17"` check.
+* The prefix `8ab37c01 04000000 0a000000 0a`: version-string hash (`ver18`), the constant `DAT_00e51454` (= 4, role unknown), then the first section marker `0a000000 "\n[HEADER]\n"` (the length 10 plus the text; the `0a` byte is its leading newline). Settled by `Savegame_SerializeToBuffer` (`004b2980`).
 * The six header u32s `(23, 54, 1, 23, 11, 2026)`: they track the real-world save time in all three saves (hour 23, minute 54/55/57, day 23, month 11, year 2026),
   but the third word (always 1) and the exact order are guesses.
 * The u32 after `[OBJECTS]` (7 in these saves) and the stray bytes after each `[/OBJ]` are not decoded; the parser ignores them.
@@ -398,3 +414,29 @@ Python's `date.toordinal()`**: 701143.75 = 31 Aug 1920; it increases with the fi
 `PProject`, `PStaff`, `CreditAs` (the character or job name, empty for the director), `CreditIs` (the person's name, with a constant `08000000` tail), and a kind field `5da19cf3`: 2 = actor
 (star or extra), 3 = director, 7 = camera operator, 8 = sound recordist, 12 = clapperboard (the numeric kinds are crew role types; only these five seen). The project lists its credits in a `Credits` reference list.
 The 7 credits belong to the released film `McGun In The Ninetieth Century` (project 1579): director Allison Coles, actors Jeremie Texier ("The Sarge"), Helen Farrer ("Mrs. Kowalski"), extra Kevin Storrie ("Roy Dent"), and three crew.
+
+## Where the save code sits (call graph, 2026-11-24)
+
+`tools/callgraph.py <name|addr> --down N --up N` prints direct callees/callers from the decompiled export (virtual calls are invisible). Entry points and what the unnamed
+neighbours turned out to be (31 names added in `renames.csv`, evidence there):
+
+```
+Game_Tick* (6 states) -> SaveLoad_PumpRequests (004b3ae0)           autosave timer ("autosave.jad"); event 0x209 = save, 0x231 and 0x259 = load
+  save: Savegame_SaveToDisk (004b37e0)  -> Savegame_SerializeToBuffer (004b2980) -> Savegame_WriteBufferToFile (004b1910) -> GameFile_Open/Write
+          sections: Savegame_WriteHeaderSection (004b28b0) / Save_WriteStatics (009903d0) / every registered object (Serialization_WriteObjectFooter, 153 callers) / Save_ProcessDeferredPointers
+  load: Savegame_LoadAndRestoreGame (004b3550) -> Savegame_ReadFileToBuffer (004b1330) -> Savegame_LoadFromDisk (004b2b40)
+          Save_RunPreLoadCallbacks -> header (CSaveGameHeader vtable slot 5) -> SLVAR_LoadOrSaveStatics -> Save_LoadObjectList (0098cf50)
+          -> Save_LoadObjectByType (0098b940, matches the RTTI name against a registry; "Have you SLREGISTERed it?") -> Save_RemapPointers (0098b750)
+          -> Save_PostLoadObjects (0098bb60, vtable slot 6 of each object)
+  files: GameFile_* (009f3cb0..009f3e50) over File_* (00a100d0..00a102d0), thin null-checked fopen/fread/fwrite/ftell wrappers
+```
+
+Direction is one global (`DAT_010583e0`: 0 = write, 1 = read), so each class's serializer is a single function used both ways. **153 functions call
+`Serialization_WriteObjectFooter`: these are the per-class serializers** (143 have a known class from the RTTI attribution, 8 none, 2 tier B; only 10 had a name before this pass).
+They are the complete list of saveable classes, and each lists its variables by name, which is why the field-name hash table resolves 92% of the tags.
+
+**Source file names.** The `SLVAR` macro and the asserts embed the original path (`C:\movies\dev\TheMovies\Mood.cpp`) and a line number in the registering function, so the binary tells
+us the original source file of every function that registers save fields or asserts. `tools/source_files.py` extracts them to `docs/generated/source_files.csv` (101 functions, 88 files) and
+`source_file_ranges.csv`. The anchors never overlap (no file has another file's anchor inside its span) and run in **alphabetical file order** through 0x00400000-0x006xxxxx (`Addiction`, `AIResearchSchedule`,
+`ChemistryManager`, `Credit`, `Finance`, `FixedAssetCosts`, `Gear`, ...), so an unnamed function between two anchors belongs to a file that sorts between their names. This is a second, independent
+way to attribute the 30,000 unnamed functions beyond the class attribution. Not yet used.

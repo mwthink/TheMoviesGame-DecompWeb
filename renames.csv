@@ -1943,3 +1943,34 @@ address,old_name,new_name,evidence
 005b0e90,FUN_005b0e90,CStudioAI_SetPRLevel,stores the float at this+0x288 (the studio's marketing/PR level read by CStudioAI_MakeMovie)
 005c48c0,FUN_005c48c0,CProject_BuildGenreSet,"constructs a GenreSet, sets its pending genre to CProject_GetPrimaryGenre and fills the key words; the packed multiset key of GenreSet_GetKey"
 005761e0,FUN_005761e0,CStaff_RecordStuntResult,"unless stunt mode flag 2 is set, increments one of five counters at +0x7ec..+0x7fc by which 0.2-wide band the value falls in, and the matching counter at +0x800..+0x810 when the second argument is set (the stunt success/failure statistics)"
+004b3ae0,FUN_004b3ae0,SaveLoad_PumpRequests,"called from every Game_Tick* state: checks the autosave timer (autosave.jad, AutosaveSystem_TriggerAutosave), then drains the event queue; event 0x209 calls Savegame_SaveToDisk, 0x231 and 0x259 call Savegame_LoadAndRestoreGame"
+004b1330,FUN_004b1330,Savegame_ReadFileToBuffer,"shows ""Loading Game"", opens the save path through GameFile_Open mode 0, allocates GameFile_GetSize bytes, GameFile_Read, hands the block to SaveBuffer_Attach"
+004b1910,FUN_004b1910,Savegame_WriteBufferToFile,"opens the save path through GameFile_Open, writes SaveBuffer_GetData/GetSize with GameFile_Write, posts an event on failure"
+004b2980,FUN_004b2980,Savegame_SerializeToBuffer,"writes the version tag then the sections in order: [HEADER] (Savegame_WriteHeaderSection), [STATICS] (Save_WriteStatics), [OBJECTS] (every registered object, Save_ProcessDeferredPointers), each closed by its [/X] marker"
+004b28b0,FUN_004b28b0,Savegame_WriteHeaderSection,"builds a CSaveGameHeader, fills it (SaveGameHeader_FillFromGameState), picks a random loading-hint string and calls the header save method (vtable slot 1)"
+004b0d10,FUN_004b0d10,SaveGameHeader_FillFromGameState,"+0x28 = game date global, +0x64 = player studio capital * 2^-23, +0x2c..+0x40 = wall clock via strftime+wtol (hour, minute, weekday, day, month, year), +0xa8 = studio field /3600000, studio name strings"
+004b4340,FUN_004b4340,SaveGameHeader_Write,"vtable slot 1 of CSaveGameHeader: Save_WriteFloat +0x28 and +0x64, six Save_WriteInt32 (+0x2c..+0x40), three WStrings (+0x44 +0x68 +0x88), float +0xa8, two ints, WString +0xb4, byte +0xd4, then a counted list of strings"
+004aff80,FUN_004aff80,Savegame_IsSupportedVersionHash,"hashes the two strings of the table at 00e514b8 (stride 0x20) with Saveable_HashVariableName and returns 1 when the loaded tag equals either; the writer's tag in real saves is hash(""ver18"")"
+004b1790,FUN_004b1790,Save_SectionMarker,"takes a section name; when saving (DAT_010583e0==0) writes the length-prefixed string ""\n<name>\n"" (byte-checked against the file prefix 0a000000 ""\n[HEADER]\n""); when loading reads one and recurses until it matches (skips unknown lines)"
+009f3c70,FUN_009f3c70,Saveable_HashMatches,same hash as Saveable_HashVariableName (h*0x17 + (c & ~0x20)) compared against an int
+009f3cb0,FUN_009f3cb0,GameFile_Close,fclose through File_Close then zero the handle and size
+009f3ce0,FUN_009f3ce0,GameFile_Read,"File_Read of param_2 bytes, true when the full count came back"
+009f3d10,FUN_009f3d10,GameFile_Write,"File_Write of param_2 bytes, true when the full count was written"
+009f3d40,FUN_009f3d40,GameFile_GetSize,returns the size field at +4
+009f3d60,FUN_009f3d60,GameFile_Destroy,"closes the handle, frees the path string"
+009f3dd0,FUN_009f3dd0,GameFile_Init,"zeroes handle/size, builds the path string (small-string capacity 10)"
+009f3e50,FUN_009f3e50,GameFile_Open,"mode 0 = read (File_OpenPath with the read mode string, stores File_GetLength), 1 = write, 2 = append"
+00a100d0,FUN_00a100d0,File_Close,null-checked _fclose
+00a100f0,FUN_00a100f0,File_Read,null-checked _fread
+00a10110,FUN_00a10110,File_Write,null-checked _fwrite
+00a10170,FUN_00a10170,File_GetLength,"ftell, fseek to end, ftell, fseek back"
+00a102d0,FUN_00a102d0,File_OpenPath,"maps mode string first char w -> L""w+b"", a -> L""a+b"", else L""rb""; tries the wide open then a narrow fallback"
+00989600,FUN_00989600,SaveReader_SkipToObjectEnd,"scans the buffer past the next ""\n[/OBJ]\n"" (used to skip an unregistered type)"
+009896a0,FUN_009896a0,SaveReader_CheckVarMarker,"reads 3 bytes at the cursor and compares with ""\n#X"" (the per-variable marker)"
+00989490,FUN_00989490,SaveBuffer_Attach,"stores data pointer and size, cursor 0"
+00989400,FUN_00989400,SaveBuffer_Init,"zeroes data, capacity and size"
+0098b750,FUN_0098b750,Save_RemapPointers,"prints ""Remapping N Pointers..."", for each pending pointer looks the saved object id up in the id->object table (DAT_01058434) and stores the live pointer, bumping the refcount at +0x48"
+0098b940,FUN_0098b940,Save_LoadObjectByType,"walks the registered-type table (DAT_01058478, stride 10 words) comparing the RTTI name; on a miss logs ""Failed To match type when loading ... Have you SLREGISTERed it?"" and skips with SaveReader_SkipToObjectEnd; reports progress when the cursor moved 0.25 of the file"
+0098bb60,FUN_0098bb60,Save_PostLoadObjects,"drains the loaded-object list (DAT_01058404): calls vtable slot 6 (post-load), releases the temporary refcount, then reports progress 1.0"
+0098cf50,FUN_0098cf50,Save_LoadObjectList,"reads [OBJ] entries until ""\n[/OBJECTS]\n"": per entry the length, the RTTI name, then Save_LoadObjectByType; logs ""**Finished Loading Objects***"""
+0098c0d0,FUN_0098c0d0,Save_RunPreLoadCallbacks,calls every function pointer in the vector DAT_010584e8..DAT_010584ec

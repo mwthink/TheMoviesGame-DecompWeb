@@ -49,7 +49,7 @@ Not yet done: the DJ-era selection logic, and where the clip-name to event-name 
 
 Re-checked against the export; the earlier conclusions hold.
 
-- `Savegame_SaveToDisk` (`004b37e0`), `Savegame_LoadFromDisk` (`004b2b40`, `decomp_0007.c`). Global `DAT_010583e0` is the direction flag (0 = write, 1 = read). The load path sets it to 1 and reads bracketed text sections in order: `[HEADER]`, `[STATICS]`, `[OBJECTS]`. It compares the save version against the literal `"ver17"`.
+- `Savegame_SaveToDisk` (`004b37e0`), `Savegame_LoadFromDisk` (`004b2b40`, `decomp_0007.c`). Global `DAT_010583e0` is the direction flag (0 = write, 1 = read). The load path sets it to 1 and reads bracketed text sections in order: `[HEADER]`, `[STATICS]`, `[OBJECTS]`. It compares the save version hash against a two-entry table; the file prefix written by this build is `hash("ver18")` (see `docs/SAVE_FORMAT.md`).
 - **`[STATICS]`:** `SLVAR_LoadOrSaveStatics` (`0098d400`, `decomp_0043.c`) processes static vars, static lists and static arrays, matching the log strings `" Static vars"`, `" Static lists"`, `" Static arrays"`. Static vars carry a type tag 0-6, dispatched through a `switch`.
 - **`[OBJECTS]`:** each object is written with its type name, then a factory lookup by name. If the name is unknown, the log says `"Failed To match type when loading ... Attempting to scan past. Have you SLREGISTERed it?"` (`decomp_0043.c:4876`), and loading skips forward instead of failing. So the framework's registration macro is `SLREGISTER`.
 - The registry of registered classes is filled by static constructors at startup, so it can't be listed statically.
