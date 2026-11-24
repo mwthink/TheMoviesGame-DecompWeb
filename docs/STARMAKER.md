@@ -110,3 +110,7 @@ Slider hover texts from the user (2026-11-24): "Blend between head shapes", "Ble
 
 Interesting corollary: the baked `star.hd` is the head with the sliders applied to A, so a reimplementation does not need the slider code to *load* a star, only to build one.
 
+### The "CrazySliders" save **[read]**
+
+Nine advanced sliders at an extreme (value 0 or 1, neutral 0.5), the rest neutral, everything else as Baseline: slider 0 `nose_length` 1.0, 1 `nose_width` 0, 25 `jaw_chin_width` 0, 29 `cheek_front_in` 0, 31 `cheek_side_in` 1, 36 `brow_height` 0, 39 `eyebrow_outer` 1, 41 `head_length` 1, 42 `head_height` 0 (index = position in `starmaker.ini`; the names are those of the ini and fit the face areas, but only slider 0 has been confirmed on its own). Header words differ from Baseline only in the file size. In `star.hd` 457 vertices move, by at most 22 mm; the 136 vertices of the `nose_length` save are all among them. Not a pure per-axis effect: `dx` (x is front/back) is up to 15 mm at the back of the skull (head length) but also a few mm on the face, where the x-axis slider cannot be the cause alone, so a slider moves its control point along its axis and the surrounding mesh follows (a smooth deformation) with some cross-axis components. The per-slider fields cannot be separated from one combined save: one more save per slider, or the code that applies them (`0x4154a0`, `0x442cb0`), is needed.
+
