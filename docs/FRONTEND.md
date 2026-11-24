@@ -1,16 +1,37 @@
 # The main menu (WFrontEnd)
 
-Status: read from the decompile and the disassembly, ported to `src/game/frontend/FrontEnd.*` with tests. Nothing here has been compared
+Status: read from the decompile, the disassembly and the movie files' strings, ported to `src/game/frontend/FrontEnd.*` with tests. Nothing here has been compared
 with the running game; the only runtime evidence is the boot trace in BOOT.md (the class is created at 53.9 s and `WFrontEnd_Tick` first
 runs at 60.9 s). Ghidra drops arguments in several of these functions, so a few were recovered from the disassembly and say so.
 
 ## How it is built
 
-The menu is a **Flash movie** (the UI layer is the `LSWF*` classes; `FUN_00692A90` is called on a window whose Flash object exists, see
-the check on `DAT_0104DAE4+0x358`). The buttons call into the game by name. `WFrontEnd` registers **35 `Extern*` callbacks**
-(`WFrontEnd_RegisterExternCallbacks`, 0x692A90, through `FUN_0087DE50(name, this, handler)`), fills the captions and `$command` names
-(`WFrontEnd_SetupMenuItems`, 0x693C80), and reacts to events (`WFrontEnd_OnEvent`, 0x690F10). `WFrontEnd_Tick` (0x6921C0) runs the state
-machine every frame. The object is 0x718 bytes, created lazily by `WFrontEnd_GetOrCreate` (0x695DA0) into `DAT_0104DAFC`.
+The menu is a **Flash movie**, played by Lionhead's own SWF renderer. What was checked:
+
+- The movies are the `.mfl` files in `data\ui\flash\` inside the pak archives (`MISC0000.pak`). They are **ordinary SWF files**: `frontend.mfl`
+  starts with the bytes `FWS` and version 6, and all 86 distinct `.mfl` files carry `FWS` with version 4, 5 or 6 (uncompressed SWF). Lionhead
+  only renamed the extension. The header's declared length does not match the file (628,899 against 28,031 for the first `frontend.mfl`);
+  a likely reason is that the bitmaps were moved out into the `data\textures\flash\flash_<hash>.dds` textures, but that is a guess.
+- The player is Lionhead's, not Adobe's: the `LSWF::*` classes (`LSWFFile`, `LSWFMovie`, `LSWFShape`, `LSWFEditText`, ...), with
+  `LSWFShape_ParseDefineShape` reading SWF `DefineShape` data, plus `SWFCache`, `CSWFPlayer` and `CFlashScaler`. Error strings such as
+  `LSWF Error: Unable to find variable %s` show it runs ActionScript variables. No Adobe Flash Player is involved.
+- The movie calls the game by name. The ActionScript strings in `frontend.mfl` include `ExternEnterMain`, `ExternStartNewGame`,
+  `ExternCredits`, `ExternQuitGame` and so on: 20 of the 35 registered names appear in it, and `ExternKillWin`, `ExternWin` (which
+  `WFrontEnd` does not register) too. The other menu-like movies are `frontend2.mfl`, `frontend_bak.mfl` (older copies), `installer.mfl`
+  and `pause.mfl` (the in-game menu: it calls `ExternResume`, `ExternSave`, `ExternQuitGame`...). `tools/mfl_callbacks.py` reproduces this (extract first with `tools/pak_extract.py extract <Data/pak> data/pak_ui '*.mfl' --tree`; the output stays under the gitignored `data/`).
+- The same mechanism runs through the whole UI: 17 of the 86 movies mention callback names, 21 distinct `cb_*` names (build menus,
+  league tables, picture-in-picture clips, ...) and 25 distinct `Extern*` names. Each window registers the callbacks its movie calls
+  (`FUN_0087DE50`), so the registration functions of the other windows are a map from UI to game code that has not been walked.
+- **Thirteen registered callbacks appear in no movie**: the eight settings steppers, the four volume buttons and `ExternStartSandbox`.
+  They look vestigial or are driven some other way; the options are separate native windows (`WGameplayOptions`, `WSandboxOptions`, ...).
+- Only the strings were read. The ActionScript bytecode itself was not decoded, so which button calls which name, and with what
+  arguments, is not known; and `.mfl` is not proven to be exactly SWF (it has the SWF signature and SWF-shaped strings, no more).
+
+`WFrontEnd` registers **35 `Extern*` callbacks** (`WFrontEnd_RegisterExternCallbacks`, 0x692A90, through `FUN_0087DE50(name, this,
+handler)`), fills the captions and `$command` names (`WFrontEnd_SetupMenuItems`, 0x693C80) and reacts to events
+(`WFrontEnd_OnEvent`, 0x690F10). The registration runs only when the movie object exists (the check on `DAT_0104DAE4+0x358`).
+`WFrontEnd_Tick` (0x6921C0) runs the state machine every frame. The object is 0x718 bytes, created lazily by `WFrontEnd_GetOrCreate`
+(0x695DA0) into `DAT_0104DAFC`.
 
 Most callbacks do one thing: `EventManager_PostEvent(DAT_0104917C, id, 0, 0)`. Everything that starts a game goes through an event id.
 
@@ -97,8 +118,8 @@ non-creating one (`Fullscreen`). The audio manager is `Audio_GetInstance()` (`DA
   radii around a point, calling `FUN_009B3A70`).
 - `FUN_006E2350`, which `NewGame_Start` runs for modes 0, 1 and 3, is where a game is actually set up; it reads `CompletedStuntTutorial` and
   `CompletedNewGameTutorial`. Not read.
-- The constructor (`WFrontEnd_Constructor`, 0x695460) loads `ui/minspec_frontend.dds` for tier < 2 and a Flash object named `frontend`
-  with the `filmstrips_win` clip otherwise; the rest of it is unread. `data/intro/frontend_intro.wmv` is not referenced by any string in the
+- The constructor (`WFrontEnd_Constructor`, 0x695460) loads `ui/minspec_frontend.dds` for tier < 2 and the `frontend` movie
+  with its `filmstrips_win` clip otherwise (that clip name is also in `frontend.mfl`); the rest of it is unread. `data/intro/frontend_intro.wmv` is not referenced by any string in the
   executable, so it may be unused.
 - **Nothing was tested at runtime.** The port checks the logic against my reading of the code. A real test would record the state
   and the events while clicking through the menu under Wine (for example with the coverage tracer's markers around each button press).
