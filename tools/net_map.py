@@ -85,19 +85,36 @@ def layer(a):
     if proto_re.search(b): return 'protocol'
     if http_re.search(b): return 'http'
     return None
+# glue vs shared: a non-seed member is shared when something that is not net or UI also calls it (STL string/container
+# helpers, allocators, ...), and sharedness flows down to what a shared function calls. Glue must still reach a seed
+# without going through a shared function.
+lay = {a: layer(a) for a in comp}
+shared = set()
+for a in comp:
+    if lay[a]: continue
+    outs = [c for c in up.get(a, ()) if c not in comp]
+    if any(c not in consumers and not isui(c) for c in outs) or 'too long' in funcs[a]: shared.add(a)
+fr = list(shared)
+while fr:
+    a = fr.pop()
+    for c in down[a]:
+        if c in comp and not lay[c] and c not in shared: shared.add(c); fr.append(c)
+dist = {a: 0 for a in comp if lay[a]}
+q = collections.deque(dist)
+while q:
+    a = q.popleft()
+    for c in list(down[a]) + list(up.get(a, ())):
+        if c in comp and c not in shared and c not in dist: dist[c] = dist[a] + 1; q.append(c)
 rows = []
 for a in sorted(comp, key=I):
-    st = 'B' if inB(a) else 'A'; ly = layer(a)
-    if ly is None:
-        outs = [c for c in up.get(a, ()) if c not in comp]
-        ly = 'shared' if any(c not in consumers and not isui(c) for c in outs) and (st == 'A' and not outs == []) else 'glue'
-        if 'too long' in funcs[a]: ly = 'shared'
-    ev = ''
+    st = 'B' if inB(a) else 'A'; ly = lay[a]
+    if ly is None: ly = 'shared' if a in shared else ('glue' if a in dist else 'loose')
     m = api_names(funcs[a])
     if m: ev = 'calls ' + ','.join(m)
     else:
         s = re.findall(r'"([^"\n]{3,40})"', funcs[a])
         ev = ('string ' + s[0]) if s else ''
+    if not up.get(a): ev = (ev + ' ' if ev else '') + '[no direct callers]'
     rows.append((a, disp[a], size[a], st, ly, ev, cls.get(a, '')))
 for a in sorted(ui, key=I):
     f = next((n for n, p in feat if re.search(p, funcs[a])), '')

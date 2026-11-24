@@ -2,25 +2,25 @@ addr,name,size,stack,layer,evidence,class
 00963400,FUN_00963400,17,A,glue,,
 00963420,FUN_00963420,19,A,glue,,
 009634b0,FUN_009634b0,53,A,shared,,
-009634bb,FUN_009634bb,49,A,glue,,
-00963570,FUN_00963570,16,A,glue,,
+009634bb,FUN_009634bb,49,A,loose,[no direct callers],
+00963570,FUN_00963570,16,A,loose,[no direct callers],
 00963590,FUN_00963590,31,A,glue,,
 009635e0,FUN_009635e0,76,A,glue,,
-00963800,FUN_00963800,40,A,glue,,
-00963870,FUN_00963870,29,A,glue,,
+00963800,FUN_00963800,40,A,shared,,
+00963870,FUN_00963870,29,A,shared,,
 009638e0,FUN_009638e0,26,A,shared,,
-00963930,FUN_00963930,65,A,glue,,
-00963c90,FUN_00963c90,44,A,glue,,
+00963930,FUN_00963930,65,A,shared,,
+00963c90,FUN_00963c90,44,A,loose,,
 00963e10,FUN_00963e10,18,A,glue,,
-00963e30,FUN_00963e30,22,A,glue,,
+00963e30,FUN_00963e30,22,A,shared,,
 00963ea0,FUN_00963ea0,34,A,shared,,
-00963f00,FUN_00963f00,13,A,glue,,
-00963f60,FUN_00963f60,15,A,glue,,
-00963f80,FUN_00963f80,13,A,glue,,
+00963f00,FUN_00963f00,13,A,loose,[no direct callers],
+00963f60,FUN_00963f60,15,A,glue,[no direct callers],
+00963f80,FUN_00963f80,13,A,loose,[no direct callers],
 00963fa0,FUN_00963fa0,74,A,shared,,
-00964090,FUN_00964090,16,A,glue,,
-009640b0,FUN_009640b0,21,A,glue,,
-00964110,FUN_00964110,21,A,glue,,
+00964090,FUN_00964090,16,A,glue,[no direct callers],
+009640b0,FUN_009640b0,21,A,shared,,
+00964110,FUN_00964110,21,A,glue,[no direct callers],
 00964150,FUN_00964150,21,A,glue,,
 009641a0,FUN_009641a0,139,A,protocol,string X-MoviesContent-Length,
 00964450,FUN_00964450,83,A,shared,,
@@ -28,7 +28,7 @@ addr,name,size,stack,layer,evidence,class
 00964590,FUN_00964590,204,A,http,string Content-Type,
 00964a70,FUN_00964a70,282,A,protocol,string X-MoviesContent-Rav0,
 009651a0,FUN_009651a0,49,A,glue,string %02x,
-00965220,FUN_00965220,13,A,glue,,
+00965220,FUN_00965220,13,A,shared,,
 009652c0,FUN_009652c0,41,A,glue,,
 00965340,FUN_00965340,16,A,glue,,
 00965360,FUN_00965360,44,A,glue,,
@@ -47,32 +47,32 @@ addr,name,size,stack,layer,evidence,class
 00966120,FUN_00966120,54,A,protocol,string MVX301:,
 00966350,FUN_00966350,12,A,glue,,
 00966370,FUN_00966370,12,A,glue,,
-00966500,FUN_00966500,37,A,glue,,
+00966500,FUN_00966500,37,A,shared,,
 009666a0,FUN_009666a0,13,A,glue,,
 009666d0,FUN_009666d0,13,A,glue,,
-009667a0,FUN_009667a0,16,A,glue,,
-009667c0,FUN_009667c0,26,A,glue,,
+009667a0,FUN_009667a0,16,A,loose,[no direct callers],
+009667c0,FUN_009667c0,26,A,loose,,
 009668e0,FUN_009668e0,14,A,glue,,
 00966910,FUN_00966910,15,A,glue,,
-00966940,FUN_00966940,41,A,glue,,
+00966940,FUN_00966940,41,A,shared,,
 009669e0,FUN_009669e0,12,A,shared,,
-00966a00,FUN_00966a00,12,A,glue,,
-00966a20,FUN_00966a20,19,A,glue,,
-00966a50,FUN_00966a50,26,A,glue,,
-00966ab0,FUN_00966ab0,19,A,glue,,
-00966ae0,FUN_00966ae0,41,A,glue,,
-00966b70,FUN_00966b70,12,A,glue,,
+00966a00,FUN_00966a00,12,A,loose,,
+00966a20,FUN_00966a20,19,A,loose,,
+00966a50,FUN_00966a50,26,A,loose,,
+00966ab0,FUN_00966ab0,19,A,loose,,
+00966ae0,FUN_00966ae0,41,A,loose,,
+00966b70,FUN_00966b70,12,A,loose,,
 00966b90,FUN_00966b90,34,A,glue,,
 00966bf0,FUN_00966bf0,78,A,glue,,
 00966d90,FUN_00966d90,17,A,glue,,
 00966dc0,FUN_00966dc0,17,A,glue,,
 00966e20,FUN_00966e20,59,A,shared,,
 00966ef0,FUN_00966ef0,45,A,glue,,
-00966fd0,FUN_00966fd0,16,A,glue,,
+00966fd0,FUN_00966fd0,16,A,glue,[no direct callers],
 00967000,FUN_00967000,89,A,glue,string null/,
-00967130,FUN_00967130,81,A,glue,,
-009672d0,FUN_009672d0,67,A,glue,,
-009673f0,FUN_009673f0,60,A,glue,,
+00967130,FUN_00967130,81,A,loose,,
+009672d0,FUN_009672d0,67,A,loose,,
+009673f0,FUN_009673f0,60,A,loose,,
 009674e0,FUN_009674e0,30,A,shared,string vector<T> too long,
 00967550,FUN_00967550,107,A,glue,,
 00967730,FUN_00967730,45,A,glue,,
@@ -87,39 +87,39 @@ addr,name,size,stack,layer,evidence,class
 00968400,FUN_00968400,36,A,glue,,
 00968530,FUN_00968530,36,A,glue,,
 00968800,FUN_00968800,81,A,glue,,
-00968970,FUN_00968970,125,A,glue,,
+00968970,FUN_00968970,125,A,glue,[no direct callers],
 00968bc0,FUN_00968bc0,131,A,glue,,
 00968dd0,FUN_00968dd0,131,A,glue,,
 00968fe0,FUN_00968fe0,131,A,glue,,
 009691f0,FUN_009691f0,19,A,glue,,
 009692e0,FUN_009692e0,27,A,glue,,
-00969330,FUN_00969330,55,A,transport,string Iphlpapi.dll,
+00969330,FUN_00969330,55,A,transport,string Iphlpapi.dll [no direct callers],
 00969450,FUN_00969450,42,A,glue,,
 009694c0,FUN_009694c0,83,A,transport,string wininet.dll,
 00969620,FUN_00969620,48,A,glue,,
 00969740,FUN_00969740,55,A,glue,,
-00969a30,FUN_00969a30,11,A,glue,,
+00969a30,FUN_00969a30,11,A,shared,,
 00969ba0,FUN_00969ba0,44,A,transport,"calls __WSAFDIsSet,select#",
 00969c50,FUN_00969c50,38,A,transport,"calls __WSAFDIsSet,select#",
 00969cf0,FUN_00969cf0,37,A,transport,"calls __WSAFDIsSet,select#",
 00969d90,FUN_00969d90,24,A,transport,"calls WSAGetLastError#,send#",
 00969de0,FUN_00969de0,16,A,transport,calls ioctlsocket#,
-0096a050,FUN_0096a050,12,A,glue,,
+0096a050,FUN_0096a050,12,A,shared,,
 0096a0f0,FUN_0096a0f0,57,A,shared,,
 0096a410,FUN_0096a410,17,A,shared,,
 0096a500,FUN_0096a500,22,A,glue,,
 0096a5b0,FUN_0096a5b0,18,A,glue,,
-0096a5d0,FUN_0096a5d0,13,A,glue,,
+0096a5d0,FUN_0096a5d0,13,A,glue,[no direct callers],
 0096a5f0,FUN_0096a5f0,17,A,glue,,
 0096a710,FUN_0096a710,87,A,transport,"calls __WSAFDIsSet,select#",
 0096a8d0,FUN_0096a8d0,18,A,glue,,
 0096a940,FUN_0096a940,18,A,glue,,
-0096a970,FUN_0096a970,13,A,glue,,
-0096a9e0,FUN_0096a9e0,17,A,glue,,
+0096a970,FUN_0096a970,13,A,glue,[no direct callers],
+0096a9e0,FUN_0096a9e0,17,A,shared,,
 0096aa40,FUN_0096aa40,29,A,transport,calls send#,
 0096aab0,FUN_0096aab0,26,A,glue,,
-0096aaf0,FUN_0096aaf0,15,A,glue,,
-0096ab60,FUN_0096ab60,38,A,glue,,
+0096aaf0,FUN_0096aaf0,15,A,glue,[no direct callers],
+0096ab60,FUN_0096ab60,38,A,shared,,
 0096abe0,FUN_0096abe0,75,A,transport,"calls gethostbyname#,inet_addr#",
 0096ad80,FUN_0096ad80,30,A,shared,string vector<T> too long,
 0096adf0,FUN_0096adf0,35,A,shared,string list<T> too long,
@@ -141,48 +141,48 @@ addr,name,size,stack,layer,evidence,class
 0096bce0,FUN_0096bce0,68,A,glue,,
 0096be00,FUN_0096be00,50,A,transport,calls WSAStartup#,
 0096bf10,FUN_0096bf10,30,A,transport,"calls closesocket#,recv#,shutdown#",
-0096bfb0,FUN_0096bfb0,306,A,transport,"calls closesocket#,send#,sendto#",
+0096bfb0,FUN_0096bfb0,306,A,transport,"calls closesocket#,send#,sendto# [no direct callers]",
 0096c410,FUN_0096c410,130,A,transport,"calls WSAGetLastError#,__WSAFDIsSet,closesocket#,recv#,recvfrom#,select#",
-0096c8f0,FUN_0096c8f0,69,A,glue,,
+0096c8f0,FUN_0096c8f0,69,A,shared,,
 0096ca20,FUN_0096ca20,46,A,glue,,
-0096cc90,FUN_0096cc90,16,A,glue,,
+0096cc90,FUN_0096cc90,16,A,loose,[no direct callers],
 0096cdf0,FUN_0096cdf0,41,A,glue,,
 0096ce70,LHHttp_ParseURL,87,A,http,string http://,LHHttp
-0096cf90,FUN_0096cf90,12,A,glue,,LHHttp
-0096cfa0,FUN_0096cfa0,12,A,glue,,LHHttp
-0096cfb0,FUN_0096cfb0,12,A,glue,,LHHttp
-0096d020,FUN_0096d020,32,A,glue,,LHHttp
+0096cf90,FUN_0096cf90,12,A,glue,[no direct callers],LHHttp
+0096cfa0,FUN_0096cfa0,12,A,glue,[no direct callers],LHHttp
+0096cfb0,FUN_0096cfb0,12,A,glue,[no direct callers],LHHttp
+0096d020,FUN_0096d020,32,A,shared,,LHHttp
 0096d0f0,FUN_0096d0f0,20,A,glue,,LHHttp
-0096d120,FUN_0096d120,20,A,glue,,LHHttp
+0096d120,FUN_0096d120,20,A,shared,,LHHttp
 0096d150,FUN_0096d150,36,A,glue,,LHHttp
-0096d1d0,FUN_0096d1d0,25,A,glue,,LHHttp
-0096d220,FUN_0096d220,12,A,glue,,LHHttp
+0096d1d0,FUN_0096d1d0,25,A,shared,,LHHttp
+0096d220,FUN_0096d220,12,A,shared,,LHHttp
 0096d260,FUN_0096d260,16,A,glue,,LHHttp
-0096d660,FUN_0096d660,22,A,glue,,LHHttp
+0096d660,FUN_0096d660,22,A,shared,,LHHttp
 0096d6e0,FUN_0096d6e0,18,A,glue,,LHHttp
-0096d700,FUN_0096d700,13,A,glue,,LHHttp
+0096d700,FUN_0096d700,13,A,loose,[no direct callers],LHHttp
 0096d720,FUN_0096d720,17,A,glue,,LHHttp
 0096d750,FUN_0096d750,17,A,glue,,LHHttp
 0096d790,FUN_0096d790,15,A,glue,,LHHttp
 0096d7c0,FUN_0096d7c0,44,A,glue,,LHHttp
-0096d870,FUN_0096d870,34,A,glue,,LHHttp
+0096d870,FUN_0096d870,34,A,shared,,LHHttp
 0096d8f0,FUN_0096d8f0,55,A,glue,,
-0096d970,FUN_0096d970,39,A,glue,,LHHttp
+0096d970,FUN_0096d970,39,A,shared,,LHHttp
 0096da00,FUN_0096da00,28,A,glue,,LHHttp
 0096da50,FUN_0096da50,20,A,glue,,LHHttp
 0096da80,FUN_0096da80,47,A,glue,,LHHttp
-0096daf0,FUN_0096daf0,13,A,glue,,LHHttp
-0096db50,FUN_0096db50,16,A,glue,,LHHttp
-0096db70,FUN_0096db70,15,A,glue,,LHHttp
+0096daf0,FUN_0096daf0,13,A,loose,[no direct callers],LHHttp
+0096db50,FUN_0096db50,16,A,loose,[no direct callers],LHHttp
+0096db70,FUN_0096db70,15,A,glue,[no direct callers],LHHttp
 0096dbb0,FUN_0096dbb0,16,A,glue,,LHHttp
-0096dbe0,FUN_0096dbe0,49,A,glue,,LHHttp
-0096dcb0,FUN_0096dcb0,23,A,glue,,LHHttp
-0096dcf0,FUN_0096dcf0,33,A,glue,,LHHttp
+0096dbe0,FUN_0096dbe0,49,A,shared,,LHHttp
+0096dcb0,FUN_0096dcb0,23,A,shared,,LHHttp
+0096dcf0,FUN_0096dcf0,33,A,shared,,LHHttp
 0096dd80,FUN_0096dd80,35,A,shared,string list<T> too long,LHHttp
 0096de20,FUN_0096de20,35,A,shared,string list<T> too long,LHHttp
-0096dec0,FUN_0096dec0,24,A,glue,,LHHttp
-0096df20,FUN_0096df20,128,A,glue,,LHHttp
-0096e270,FUN_0096e270,95,A,glue,,LHHttp
+0096dec0,FUN_0096dec0,24,A,shared,,LHHttp
+0096df20,FUN_0096df20,128,A,shared,,LHHttp
+0096e270,FUN_0096e270,95,A,shared,,LHHttp
 0096e440,FUN_0096e440,41,A,glue,,LHHttp
 0096e580,FUN_0096e580,21,A,glue,,LHHttp
 0096e600,FUN_0096e600,18,A,glue,,LHHttp
@@ -198,41 +198,41 @@ addr,name,size,stack,layer,evidence,class
 0096f9f0,FUN_0096f9f0,61,A,glue,,
 00970010,FUN_00970010,22,A,glue,,
 009700d0,FUN_009700d0,18,A,glue,,
-009700f0,FUN_009700f0,13,A,glue,,
+009700f0,FUN_009700f0,13,A,glue,[no direct callers],
 00970110,FUN_00970110,17,A,glue,,
 00970150,FUN_00970150,17,A,glue,,
 00970330,FUN_00970330,28,A,glue,,
 009703a0,FUN_009703a0,28,A,glue,,
-00970450,FUN_00970450,13,A,glue,,
+00970450,FUN_00970450,13,A,glue,[no direct callers],
 009704d0,FUN_009704d0,17,A,glue,,
-00970520,FUN_00970520,15,A,glue,,
+00970520,FUN_00970520,15,A,glue,[no direct callers],
 009705b0,FUN_009705b0,109,A,glue,,
-009707a0,FUN_009707a0,16,A,glue,,
+009707a0,FUN_009707a0,16,A,glue,[no direct callers],
 009708a0,FUN_009708a0,35,A,shared,string list<T> too long,
 00970940,FUN_00970940,35,A,shared,string list<T> too long,
 00970ae0,FUN_00970ae0,45,A,glue,,
-00970bb0,FUN_00970bb0,29,A,glue,,
-00970d00,FUN_00970d00,23,A,glue,,
+00970bb0,FUN_00970bb0,29,A,glue,[no direct callers],
+00970d00,FUN_00970d00,23,A,loose,[no direct callers],
 00970e50,FUN_00970e50,165,A,glue,,
-00971190,FUN_00971190,16,A,glue,,
+00971190,FUN_00971190,16,A,glue,[no direct callers],
 00a9f9d0,FUN_00a9f9d0,32,B,transport,calls WSAGetLastError,
 00abc330,FUN_00abc330,51,B,transport,calls gethostname,
-00ac61b0,FUN_00ac61b0,17,B,glue,,
-00ac6280,FUN_00ac6280,28,B,glue,,
-00ac62e0,FUN_00ac62e0,26,B,glue,,
+00ac61b0,FUN_00ac61b0,17,B,shared,,
+00ac6280,FUN_00ac6280,28,B,glue,[no direct callers],
+00ac62e0,FUN_00ac62e0,26,B,glue,[no direct callers],
 00ac64b0,FUN_00ac64b0,21,B,glue,,
 00ac65b0,FUN_00ac65b0,94,B,transport,"calls gethostbyname,getservbyname,htonl,htons,inet_addr",zlib
 00ac67a0,FUN_00ac67a0,35,B,transport,"calls gethostbyaddr,ntohs",zlib
 00ac6870,FUN_00ac6870,25,B,transport,calls WSAStartup,
-00ac68f0,FUN_00ac68f0,16,B,glue,,
+00ac68f0,FUN_00ac68f0,16,B,glue,[no direct callers],
 00ac6910,FUN_00ac6910,19,B,transport,calls WSACleanup,
-00ac6a10,FUN_00ac6a10,31,B,transport,calls htons,
-00ac6b20,FUN_00ac6b20,20,B,transport,calls getsockname,
+00ac6a10,FUN_00ac6a10,31,B,transport,calls htons [no direct callers],
+00ac6b20,FUN_00ac6b20,20,B,transport,calls getsockname [no direct callers],
 00ac6b90,FUN_00ac6b90,15,B,transport,calls closesocket,
-00ac6d60,FUN_00ac6d60,29,B,glue,,
+00ac6d60,FUN_00ac6d60,29,B,glue,[no direct callers],
 00ac6dd0,FUN_00ac6dd0,20,B,transport,calls getsockname,
 00ac6e40,FUN_00ac6e40,20,B,transport,calls getpeername,
-00ac6eb0,FUN_00ac6eb0,21,B,transport,calls send,
+00ac6eb0,FUN_00ac6eb0,21,B,transport,calls send [no direct callers],
 00ac6f90,FUN_00ac6f90,30,B,transport,"calls closesocket,recv",
 00489ea0,FUN_00489ea0,30,A,ui,ui_only ,COnlineLeagueTableEntry
 00489f40,FUN_00489f40,42,A,ui,ui_only ,COnlineLeagueTableEntry
