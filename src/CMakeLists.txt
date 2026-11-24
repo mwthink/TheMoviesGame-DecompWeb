@@ -24,6 +24,7 @@ add_library(otm_game
     game/staff/StarRating.cpp
     game/staff/StaffTuningLoader.cpp
     game/boot/IntroSequence.cpp
+    game/boot/CommandLine.cpp
     game/character/AnmFile.cpp
     game/character/MshFile.cpp
     game/character/HeadFile.cpp
@@ -97,3 +98,7 @@ set_tests_properties(character PROPERTIES
     ENVIRONMENT "OTM_GAME_DATA=${CMAKE_CURRENT_SOURCE_DIR}/../data/game_data"
     SKIP_RETURN_CODE 77)
 
+# The command-line switches (-reenter, -editor, -download, -safemode); docs/BOOT.md.
+add_executable(command_line_test tests/CommandLineTest.cpp)
+target_link_libraries(command_line_test PRIVATE otm_game)
+add_test(NAME command_line COMMAND command_line_test)
