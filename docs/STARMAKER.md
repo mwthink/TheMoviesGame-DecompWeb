@@ -80,8 +80,8 @@ The editor's load function `FUN_004043eb` (StarMaker `0x4043eb`; `param_1` is th
 |---|---|---|
 | 0x00 | u32 | 2 (version) |
 | 0x04 | u32 | 402 (file size) |
-| 0x08 | u32 | differs per save (hash or id of the save) **[guess]** |
-| 0x0c | u32 | 1 here (male?) **[guess]** |
+| 0x08 | u32 | differs per save (an id or hash) **[guess]** |
+| 0x0c | u32 | gender: 1 male, 0 female **[read, "BaselineActress" save]** (its other changes: `head_f_white_jane.hd`, `hair_20s_f1.msh`; the attribute floats are the same as the male Baseline) |
 | 0x10 | 14 x f32 | the star attributes, in the order of the `SM_STAT_*` rows: Looks (0x10), Trimness (0x14), Chest/Breast size, Action, Comedy, Horror, Romance, Sci-Fi, Stress, Boredom, Drink/Food, Mood upper, Mood lower. DaveJohn: Looks 0.3 (bar about a quarter full), Trimness 1.0 (bar full); Baseline: Looks 0, Trimness 1.0. The row order of the last six is **[guess]** |
 | 0x48 | char[32] | first head file (`head_m_white_joe.hd`) |
 | 0x68 | char[32] | second head file, empty when none was picked |
@@ -92,7 +92,7 @@ The editor's load function `FUN_004043eb` (StarMaker `0x4043eb`; `param_1` is th
 | 0xb4 | f32 | age slider; **age in years = slider x 47 + 18** (`FUN_00427130`), so 18 to 65. DaveJohn 0.48 = 41 **[read]** |
 | 0xb8 | u32 | **hair colour index** (the 6 swatches; the "HairColor" save has 3). Goes to `FUN_00428200` (`this+0x70`) **[read, checked by a save]** |
 | 0xbc, 0xc0, 0xc4, 0xc8, 0xcc | 5 x u32 | makeup choices, one list each, in the on-screen order Eyebrows, Eye Makeup, Color, Facial Hair, Lipstick. The slider position is `(index + 0.5) / list size` (the colour one uses `index - 1`). DaveJohn 30, 7, 10, 4, 0 (eyebrows at the right end, makeup in the middle, colour 0.75, facial hair 0.2, lipstick 0) **[read]**; Baseline 1, 0, 1, 0, 0 |
-| 0xd0 | 43 x f32 | the advanced face sliders (0.5 = neutral) in the order of `starmaker.ini` **[guess for the order]** |
+| 0xd0 | 43 x f32 | the advanced face sliders (0.5 = neutral) in the order of `starmaker.ini`. The "AdvanceSlider" save has only `0xd0` (the first, `nose_length`) changed, to 1.0 **[read for the first slider; the rest of the order is a guess]** |
 | 0x17c | u32 | 0 |
 | 0x180 | UTF-16 | the star name, NUL terminated (the file ends there: 402 = 0x180 + 2 x (length + 1)) |
 
@@ -103,3 +103,10 @@ Saves "HairColor" and "EyeColor" differ from Baseline only in those two fields (
 Not checked: how the 43 slider values and the makeup choices turn into geometry and textures (`FUN_00428500` applies the makeup choices; the slider code `0x4154a0` is still unread), and the hash at `0x08`.
 
 Slider hover texts from the user (2026-11-24): "Blend between head shapes", "Blend between skin tones", "Choose Eye Color", "Change Age" (left end reads 18); the head pickers open a grid titled "Give your Star a new head." (`SM_BROWSER_HEADS`). All of them are in `starmaker.lhts` under `SM_TOOLTIP_*`.
+
+### Advanced slider effect on `star.hd` (the "AdvanceSlider" save against Baseline) **[read]**
+
+`nose_length` at 1.0 (the neutral value is 0.5): the `star.hd` header words are identical to Baseline's, only array A changes (136 vertices of the 996; B and C differ by float noise of 1e-6). The vertices move **only along z** (up), downwards, by at most 5.3 mm; the displacement is largest (3 to 5 mm) within 2 cm of a centre at about (0.178, -0.003, 1.698) in the head's own coordinates, falling smoothly to 0.1 mm at 6 cm, so a local falloff around a control point, not a per-vertex table. This fits the `starmaker.ini` entry `[nose_length] [1][2]`: the second number is the **axis** (0 x, 1 y, 2 z; nose width `[4][1]` is y, the head faces +x with z up), and the first number (1, 4, 7 ... in steps of 3) is a position in a vector of 3-float control points (43 sliders x 3 floats = 129, plus a leading entry; `teeth_move_in_out` is 130 **[guess]**). `FUN_00406354` parses the ini (`FUN_004062b1` makes a slider with the two numbers; the slider object keeps the second at +0x38); where the control-point vector is applied to the mesh (the falloff and the centres) is not read yet: look for the user of the sliders' values rather than their creator, probably in `0x4154a0` or `0x442cb0`.
+
+Interesting corollary: the baked `star.hd` is the head with the sliders applied to A, so a reimplementation does not need the slider code to *load* a star, only to build one.
+
