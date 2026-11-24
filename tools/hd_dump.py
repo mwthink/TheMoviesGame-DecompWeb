@@ -12,13 +12,15 @@ FUN_009db5f0 (the morph itself):
     0x94   three arrays, each 996 vertices x 6 floats (x, y, z, nx, ny, nz): A = the head's base shape, B and C = deltas
            996 = 760 + 58 + 178 = the vertices of generic_head.msh in file order (checked: A lies within 2.4 cm of the generic head, 6 mm on average)
 
-    vertex = A + p4 * B + p5 * C                             one head
-    vertex = (1 - mix) * (A0 + p4 * B0 + p5 * C0) + mix * (A1 + p4 * B1 + p5 * C1)    two heads (Head[0], Head[1], HeadMix of a saved person)
+    vertex = A + weight * B + age * C                        one head
+    vertex = (1 - mix) * (A0 + weight * B0 + age * C0) + mix * (A1 + weight * B1 + age * C1)    two heads (Head[0], Head[1], HeadMix of a saved person)
     normals use the same sum and are normalised afterwards.
 
-What p4 and p5 are: the game calls this with values from CharacterModel_SetAgeMorph (0 below 30 years, +0.025 per year up to 1.0 at 70) and
-CharacterModel_SetWeightMorph (0 at 60 kg, +0.025 per kg up to 1.0 at 100 kg) but the decompiler lost which of the two is p4 and which p5:
-this reads p4 = age, p5 = weight (an assumption; the deltas are small, 1 to 4 cm at most).
+weight and age are the amounts from CharacterModel_SetWeightMorph (0 at 60 kg, +0.025 per kg up to 1.0 at 100 kg; stored at +0x120 of the model) and
+CharacterModel_SetAgeMorph (0 below 30 years, +0.025 per year up to 1.0 at 70; stored at +0x11c). B is the weight morph and C the age morph: read from the
+raw instructions of the call in StarMaker.exe (0x442ea6-0x442eea; the decompiler drops the float arguments): it pushes the model's +0x11c as the last float
+argument and +0x120 before the head mix, and the function multiplies its second array (B) by the first of those two floats and its third (C) by the last. (An earlier version of this file had the two the other
+way round, as an assumption.) The deltas are small, 1 to 4 cm at most.
 """
 import math
 import struct
@@ -39,7 +41,7 @@ def parse(data):
 
 
 def age_weight(age_years, weight_kg):
-    """CharacterModel_SetAgeMorph / SetWeightMorph: the two morph amounts for an age in years and a weight in kg."""
+    """CharacterModel_SetAgeMorph / SetWeightMorph: returns (age amount, weight amount) for an age in years and a weight in kg."""
     a = 0.0
     if age_years >= 18.0 and age_years >= 30.0:
         a = max(0.0, min(1.0, (min(age_years, 70.0) - 30.0) * 0.025))
@@ -47,8 +49,8 @@ def age_weight(age_years, weight_kg):
     return a, w
 
 
-def shape(hd, p4, p5):
-    return [[hd["A"][i][k] + p4 * hd["B"][i][k] + p5 * hd["C"][i][k] for k in range(6)] for i in range(N)]
+def shape(hd, weight, age):
+    return [[hd["A"][i][k] + weight * hd["B"][i][k] + age * hd["C"][i][k] for k in range(6)] for i in range(N)]
 
 
 def norm(v):
@@ -56,12 +58,12 @@ def norm(v):
     return [v[0] / n, v[1] / n, v[2] / n]
 
 
-def morph(hd0, p4=0.0, p5=0.0, hd1=None, mix=0.0):
+def morph(hd0, weight=0.0, age=0.0, hd1=None, mix=0.0):
     """Return 996 (x, y, z, nx, ny, nz) tuples in the vertex order of generic_head.msh."""
-    s0 = shape(hd0, p4, p5)
+    s0 = shape(hd0, weight, age)
     if hd1 is None or mix == 0.0:
         return [tuple(v[:3]) + tuple(norm(v[3:6])) for v in s0]
-    s1 = shape(hd1, p4, p5)
+    s1 = shape(hd1, weight, age)
     out = []
     for a, b in zip(s0, s1):
         p = [(1 - mix) * a[k] + mix * b[k] for k in range(3)]

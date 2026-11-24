@@ -99,8 +99,8 @@ def build_person(paks, cos, head, hair, who, out, age=None, weight=None, head2=N
     else:
         print("head file %s not found; using the generic head" % head)
     if hd0 and morph_head:
-        p4, p5 = hd_dump.age_weight(age if age is not None else 25.0, weight if weight is not None else 70.0)
-        shape = hd_dump.morph(hd0, p4, p5, hd1, mix)
+        age_amt, weight_amt = hd_dump.age_weight(age if age is not None else 25.0, weight if weight is not None else 70.0)
+        shape = hd_dump.morph(hd0, weight_amt, age_amt, hd1, mix)
         m = msh_dump.parse(open(gh, "rb").read())
         i = 0
         for node in m["nodes"]:
@@ -125,7 +125,7 @@ def build_person(paks, cos, head, hair, who, out, age=None, weight=None, head2=N
                     w = t * t * (3 - 2 * t)
                     prims[pi]["verts"][j] = tuple(o[c] + w * (v[c] - o[c]) for c in range(3)) + tuple(v[3:])
         parsed[gh] = m
-        print("%s: head morph %s age %.1f -> %.2f, weight %.1f kg -> %.2f%s" % (who, head, age if age is not None else 25.0, p4, weight if weight is not None else 70.0, p5,
+        print("%s: head morph %s age %.1f -> %.2f, weight %.1f kg -> %.2f%s" % (who, head, age if age is not None else 25.0, age_amt, weight if weight is not None else 70.0, weight_amt,
                                                                               (", mixed %.2f with %s" % (mix, head2)) if hd1 else ""))
     if hair and paks.find(hair):
         meshes.append(paks.find(hair))
