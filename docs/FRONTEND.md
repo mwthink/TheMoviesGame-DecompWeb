@@ -119,7 +119,7 @@ constructor) sets the defaults. Ported as `src/game/sandbox/SandboxOptions.*` wi
 | # | default | meaning (read from its readers) | set by |
 |---|---|---|---|
 | 0 | -1.0 | start decade, `(year - 1900) / 10`; the start-date setter (`FUN_008098C0`) turns it back into `decade * 10 + 1900` | `Campaign_Begin` |
-| 1 | 0 | **Stars Don't Misbehave** (the row's help text: whether stars' emotions and moods change or stay constant). When set: `CMood_Recalculate` (`FUN_004767D0`) is skipped, so the mood stays as it is; the two mood floats at `+0x8C` and `+0x90` are held at 0 (`MoodStat8C_Set`, `MoodStat90_Set`, `MoodStat8C/90_AddScaledByNoWorries` and the indexed `AddictionState` setter; increases are normally scaled by the No Worries award bonus, index 4); a character's top desire counts as 0 (`TMCharacter_GetTopDesireValue`), and `TMCharacter_SortResidentDesires` compares against 0 instead of the current top desire. What the stats at `+0x8C` and `+0x90` are is not known (`AddictionState` and `MoodStat` are the project's older, unverified names) | sandbox, row "Stars Don't Misbehave" (`+0x77E`) |
+| 1 | 0 | **Stars Don't Misbehave** (the front end calls the same setting "Stars Misbehave"; the help text says whether stars' emotions and moods change or stay constant). When set: `CMood_Recalculate` is skipped, so the mood stays as it is; the work bar's **Stress** and **Boredom** are held at 0 (`CWorkBar_SetStress`, `CWorkBar_SetBoredom`, `CWorkBar_AddStress`, `CWorkBar_AddBoredom`); the star's **addiction levels** are held at 0 (`AddictionState_SetLevel`); and a character's top desire counts as 0 (`TMCharacter_GetTopDesireValue`, `TMCharacter_SortResidentDesires`). See "Stress, boredom and addiction" below | sandbox, row "Stars Don't Misbehave" (`+0x77E`) |
 | 2 | 0 | **Buildings Don't Decay**: when above 0, `CAsset_UpdateConditionAndDisrepair` sets the condition to 1.0 and clears the disrepair flags | row "Buildings Don't Decay" (`+0x77F`, inverted: option = (byte == 0)) |
 | 3 | 0 | **Instant Movie-making**: when above 0, `ShootController_BeginTake` rolls the stunt outcome once and ends the take at once (`ShootController_EndTake`), and `CProject_SetPreProdFactor` forces the factor to 1.0 | row "Instant Movie-making" (`+0x77D`) |
 | 4 | 0 | **unused**: `DesireWriteScript_UpdateProgress` skips its "Writing" progress when it is above 0, but nothing in the executable sets it (the only callers of `CSandbox_SetOption` are `WFrontEnd_OnEvent`, `WProfileScreen_OnConfirm` and `SaveLoad_PumpRequests`, and none passes 4) | nothing; there is no sandbox row for it |
@@ -145,6 +145,27 @@ plus the start year and starting money (`SANDBOXOPTIONS_YEARUP/DOWN`, `MONEYUP/D
 the stunt rows are in `stringdatabase_addon1.lhts`. When the profile screen is confirmed in sandbox mode, it copies the six bytes into options 1, 2, 5, 3, 8, 7
 (the order of `CSandbox_SetOption` calls: 6 = 2.0 first, then 1, 2, 5, 3, 8, 7); it does not reset the others first. The window's
 Tick tests `+0x780` together with a widget at `+0x460` (presumably the Stunt Injuries row, so injuries would only be offered while stuntmen are on; not confirmed).
+
+**Stress, boredom and addiction** (option 1). The two floats I first called "mood stats" at `+0x8C` and `+0x90` are the **Stress** and **Boredom** of a
+star's **`CWorkBar`** (`TM::CWorkBar`, 204 bytes). `CWorkBar_RegisterSaveFields` saves `Stress`, `Boredom`, `StressThreshold`, `BoredomThreshold`,
+`OriginalStressThreshold`, `OriginalBoredomThreshold` and `POwner` relative to a sub-object at `this+0x64`, so its `+0x28`, `+0x2C`, `+0x40`, `+0x44`,
+`+0x48`, `+0x4C` are the absolute `+0x8C`, `+0x90`, `+0xA4`, `+0xA8`, `+0xAC`, `+0xB0` (the same shift explains why `CMood`'s `UpperThreshold`
+is read at `+0x10C`). The game's text names them: `HUD_STRESS`, `HUD_BOREDOM`, and the **No Worries** award bonus (`AWARDSNEW_BONUS_DESC_NOWORRIES`: "Boosts
+your Stars' immunity to boredom and stress"), which is bonus index 4 and scales *positive* deltas in `CWorkBar_AddStress` and `CWorkBar_AddBoredom`. Both values
+are clamped 0..1. `StressSuspended` and `BoredomSuspended` (`DAT_010491D4`, `DAT_010491D5`, also saved) make the getters return 0. A value is "over its
+threshold" in `CWorkBar_IsStressedOut` and `CWorkBar_IsBored`. Tasks change them in pairs (the large `FUN_00475B30`, with the task names `task_builder`,
+`task_repairman`, `task_janitor`, and `FUN_004758F0`), and `CStar_AddWorkBarStress` / `CStar_AddWorkBarBoredom` are the star's wrappers.
+What the thresholds do is in the front-end tutorial text (`FRONTEND_SPLASHSCREEN_70`): when a star's boredom or stress levels pass their thresholds they can start
+eating or drinking excessively, may abandon a shoot to look for food or booze, and `CMood` has the quit states (`BConsideringQuitting`, `BThreateningToQuit`,
+`BHasQuit`, `QuitThreatEnd`). Holding both at 0 keeps them away from every threshold. These are not the same thing as `CStar_AddBoredom`, which feeds a time-decaying
+value for the audience's boredom with a star (`boredomhalflife` and `boredomboost` in `global.ini`).
+
+The **addiction levels** are a different class, `AddictionState` (the `+0x8C` offset is a coincidence): `AddictionState_SetLevel(index, value)` clamps to 0..1 and stores at
+`+0x8C + 4*index`, and `AddictionState_AddScaledByPartyOn(index, delta)` first scales a positive delta by the **Party On** award bonus (index 8: "Allows your Stars to
+eat and drink without fear of addiction"). `FUN_00588F90` seeds four of them randomly when a star is created, so the four bars on the health screen are the likely
+candidates (`HEALTHGUI_ALCOHOL` Alcoholism, `HEALTHGUI_ANGER` Anger, `HEALTHGUI_OVEREAT` Over Eating, `HEALTHGUI_SEXUAL` Sexual Addiction, with a
+`HEALTHGUI_WAYWARDNESS` total, which is also the front end's name for the sandbox option, `FRONTEND_SANDBOX_WAYWARDNESS`). Which index is which was not determined,
+and the object has six floats (`+0x8C` to `+0xA0`) of which the star creation uses four.
 
 **Health** (option 7). The float that option 7 pins is the character's **health**, 0..1 with 1.0 healthy, read through vtable slot `0x1E4` and changed through slot `0x1E8`. It lives at `+0xBC0` in `CStar`, `+0xA84` in `CExtra` and `+0xA90` in `CWannabe`; `CStaff` returns a constant 1.0. Slot 132 and 133 are looks and sex appeal. The function names `*_GetAmbitionLevel`, `*_ApplyAmbitionDelta` and `*_PropagateAmbitionToWidget` were wrong: the first two are health (the hospital room raises it to a cap, `ShootController_ApplyStuntConsequences` lowers it with `-healthLoss`, `awardsbonuses.ini` says `health = health - damage * thick_skin_factor`, and `Tannoy_StuntPersonInjured` fires `TANNOY_STUNT_PERSON_INJURED` when it falls below `DAT_00E53304`), and the last set the character model's age and weight morphs. They are renamed in `renames.csv`.
 

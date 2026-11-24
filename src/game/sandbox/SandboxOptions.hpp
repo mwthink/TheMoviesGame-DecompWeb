@@ -15,7 +15,7 @@ namespace otm::sandbox {
 // The option array at CSandbox +0x60, nine floats.
 enum class Option : int {
     StartDecade = 0,        // (startYear - 1900) / 10; -1.0 until a year is chosen. Read by the start-date setter: decade * 10 + 1900
-    StarsDontMisbehave = 1, // != 0: CMood_Recalculate is skipped (moods stay put), two mood floats (+0x8C, +0x90) are held at 0, and a character's top desire counts as 0
+    StarsDontMisbehave = 1, // != 0: CMood_Recalculate is skipped (moods stay put), the work bar's Stress and Boredom and the star's addiction levels are held at 0, and a character's top desire counts as 0
     BuildingsDontDecay = 2, // > 0: an asset's condition is held at 1.0 and its disrepair flags are cleared
     InstantMovie = 3,       // > 0: a take ends as soon as it begins (the stunt outcome is rolled once) and the pre-production factor is 1.0
     Unused = 4,             // nothing ever sets it; DesireWriteScript_UpdateProgress would skip the "Writing" progress if it were > 0
