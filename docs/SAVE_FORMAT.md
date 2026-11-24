@@ -174,9 +174,11 @@ Everything below was found in the archives and the meshes parsed:
 The `.inf` next to a facility mesh holds named locator points (door, staff spots, `_fp_*` points) and a `thumbnail` entry. `lot.ini` lists three lot sizes
 (`192,128`, `256,192`, `300,224`); their unit is not established.
 
-**Footprints.** Each mesh carries flat collision/placement polygons and, for facilities, one floor polygon per room (`docs/MSH_FORMAT.md`). Which polygon
-the game uses as the placement footprint is not established, and the save's occupancy bitmap does **not** mark where placed buildings stand (the gatehouse
-and catering footprints have no bits set under them), so the grid cannot be reconstructed from the save plus the meshes alone yet.
+**Footprints.** Each mesh carries flat collision/placement polygons and, for facilities, one floor polygon per room (`docs/MSH_FORMAT.md`). The code builds an asset's
+footprint from the mesh's `b15_02` polygon (bounding box if absent), rasterized at **0.5 world units per cell**, and tests it against a finer runtime **lot cell grid**
+(`docs/MSH_FORMAT.md`, "Placement footprint in the code"). The save's 256 x 256 bitmap is only the coarse 2-unit static blocked seed of that grid; placed buildings are
+not in it (the gatehouse and catering footprints have no bits set under them). So the live footprint of an asset = its `SourcePath` mesh's `b15_02` polygon, rotated by `MyAngle`
+and placed at `POSITION`; that can be reconstructed from the save plus the paks, and the grid itself cannot be read from the save alone.
 
 **Ground textures.** The 7 names in `TMLandscape` are `.dds` files in `TEX_ALL0000.pak`, each added `land_` + the name in lower case:
 `land_sand00`, `land_grass00`, `land_grass02`, `land_grass01`, `land_earth00`, `land_tarmac00` (256x256 DXT1 with 9 mips) and `land_sidewalk02` (128x128).
