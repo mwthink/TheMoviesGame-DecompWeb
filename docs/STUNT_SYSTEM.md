@@ -86,6 +86,8 @@ character.vslot_0x1e8(-healthLoss)                 // AdjustHealth
 then the Tannoy announces **`TANNOY_STUNT_SCENE_SUCCESS` or `TANNOY_STUNT_SCENE_FAILURE`** (text/audio keys; only in normal play, i.e. when the global flag at `DAT_0104a974+0x6c` is not negative).
 So a stunt performed by a skilled actor on an easy stunt costs only about 0.10 health even on failure; an unskilled actor on a hard stunt can lose up to 0.80.
 
+The slots are `*_GetHealth` (`0x1E4`) and `*_ApplyHealthDelta` (`0x1E8`); the project's older names said ambition, which was wrong. A negative delta is first scaled by the Thick Skin award bonus (`awardsbonuses.ini`: `health = health - damage * thick_skin_factor`, 0.8), the result is clamped to 0..1, and for the player's studio `TANNOY_STUNT_PERSON_INJURED` is announced when health falls below the threshold. In a sandbox game the **Stunt Injuries** option (`CSandbox` option 7) makes the health setters store 1.0, so none of this can lower it; the **Stuntmen** option (8) switches the stunt paths off. See FRONTEND.md, "The nine start options".
+
 **Stunt school training** (`StuntTraining_ApplyExperience`, run for the stunt-training desire): `match = 1 - |sessionLevel - StuntsTrait|` (how well the session's level fits the trainee), range = `[training]` success (-0.04 .. +0.04) or failure (-0.03 .. +0.03);
 `xp = (clamp01(max) - min) * match + min`; x award-bonus-0xF multiplier when active; `xp = max(xp, stuntxpincreasemin = 0.005)` (so training never lowers skill); **if health < healththreshold: xp x `lowhealthmultiplier` (0.1)**; `Stunts` trait += xp.
 

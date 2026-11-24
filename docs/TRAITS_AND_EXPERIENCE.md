@@ -80,7 +80,7 @@ Then `QualityCalc_LikenessFactor` turns it into the performance multiplier: **`0
 * A 40-unit weight gap alone: 0.1*0.4 = 0.04 -> 0.996.
 * Only a total mismatch in every term reaches the 0.9 floor (-10%); everyday mismatches cost 1-5%. Compared with the star doing the stunt themselves (1.1), a good double (likeness near 1.0 -> 1.0) is still **-9%**.
 * Likeness never influences the stunt success roll (section 2 of `STUNT_SYSTEM.md`), only the movie quality score.
-(The stats behind slots 132/133: for stars `character+0xBC4` / `+0xBC8`, for extras `+0xA88` / `+0xA8C`; plain `CStaff` returns 0. The earlier project labels "ambition target/cap" for these two getters were wrong - the likeness code and the factor names show they are looks and sex appeal; the third stat of that float cluster, slot 121 at `+0xBC0`, keeps its old "ambition level" label unverified.)
+(The stats behind slots 132/133: for stars `character+0xBC4` / `+0xBC8`, for extras `+0xA88` / `+0xA8C`; plain `CStaff` returns 0. The earlier project labels "ambition target/cap" for these two getters were wrong - the likeness code and the factor names show they are looks and sex appeal; the third stat of that float cluster, slot 121 at `+0xBC0`, is **health**, not "ambition level": see FRONTEND.md, "The nine start options", "Health".)
 
 ## 4. Movie quality tuning (`Data\releasing_movies.ini`) **[data]** (loaded by `QualityCalc_LoadTuningData`, `ReleaseCalc_LoadTuningData`)
 `[min_max]` multipliers (each factor is mapped linearly between min and max): star genre experience 0.8-1.2, star mood 0.8-1.2, stars' genre fit 0.9-1.1, star relationship 0.8-1.2 (range width 0.5), star ratings of cast 0.8-1.2, set repair value 0.9-1.0, crew 0.9-1.1, **unspread performance 0.75-1.5**, public interest 1.0-1.4, era fit 0.8-1.0, technology 0.7-1.0, genre popularity 0.9-1.2.
@@ -91,6 +91,6 @@ The final quality/success formulas live in the release calculator (`CQualityRati
 The trait map, experience table and genre experience gains of sections 1-2 are reimplemented in `src/game/staff/Traits`; the star rating combination (`docs/MOVIE_SUCCESS.md` 3ab) in `src/game/staff/StarRating`.
 
 ## 5. Open items
-* The meaning of the combined health value (`character vslot 0x1E4`) and the writers of the other traits in the container.
+* The writers of the other traits in the container. (Slot `0x1E4` is health, set up in FRONTEND.md, "The nine start options", "Health".)
 * The release calculator (`QualityCalc` object ctor `CQualityRating_Constructor`) that combines the `[min_max]` factors into movie quality and box-office success, (likeness is decoded in section 3b).
 * The three component ids (1, 3, 2) in the take score - presumably the movie's first three shots/scene slots.
