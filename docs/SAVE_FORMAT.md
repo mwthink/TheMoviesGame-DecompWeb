@@ -92,7 +92,7 @@ Counts are for the fresh-studio save (the tutorial saves add the tutorial scaffo
   `ResearchStartDate`, `DateAvailableToAll`. A fresh studio has 3 available (`startup`, plus two DLC trees).
 * `CAIResearchSchedule` (4) + `CAIInterpolatedValue` (8, per-era `AverageValue1900/2000`): the AI studios' research pacing.
 * `CSITTSystemState`: UI/tutorial flags (`BIsTutorialSkipped`, `BDrawBankBalance`, `BEnableSellRoom`, `BEnablePostProdRoom`, queue closed map…).
-* `CSandbox` (9 `Option[x]`): the sandbox/new-game option toggles.
+* `CSandbox` (9 `Option[x]`): the sandbox/new-game options, floats at `+0x60`: start decade, stars-don't-misbehave, buildings-don't-decay, instant movie, an unused slot, instant build, game type (0 tutorial, 1 new game, 2 sandbox, 3 add-on quick start), stunt injuries off, stuntmen off (docs/FRONTEND.md, "The nine start options").
 * `CThresholdPackage` (21, 126 `Values[x]` each) and `CExperience` (21): per-person trait-threshold and experience tables
   (`docs/TRAITS_AND_EXPERIENCE.md`).
 

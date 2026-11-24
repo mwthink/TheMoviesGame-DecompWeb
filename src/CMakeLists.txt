@@ -26,6 +26,7 @@ add_library(otm_game
     game/boot/IntroSequence.cpp
     game/boot/CommandLine.cpp
     game/frontend/FrontEnd.cpp
+    game/sandbox/SandboxOptions.cpp
     game/character/AnmFile.cpp
     game/character/MshFile.cpp
     game/character/HeadFile.cpp
@@ -108,3 +109,8 @@ add_test(NAME command_line COMMAND command_line_test)
 add_executable(front_end_test tests/FrontEndTest.cpp)
 target_link_libraries(front_end_test PRIVATE otm_game)
 add_test(NAME front_end COMMAND front_end_test)
+
+# The nine start options (CSandbox Option[0..8]) and the sandbox checkboxes; docs/FRONTEND.md.
+add_executable(sandbox_options_test tests/SandboxOptionsTest.cpp)
+target_link_libraries(sandbox_options_test PRIVATE otm_game)
+add_test(NAME sandbox_options COMMAND sandbox_options_test)

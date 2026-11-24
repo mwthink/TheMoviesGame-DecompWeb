@@ -88,25 +88,68 @@ in `WProfileScreen_OnConfirm` (0x6E1220):
 
 1. The two names are copied out (`FUN_004036D0`), `DAT_010503D0` takes the checkbox at `+0x539`, and `DAT_010503D1` takes `DAT_0104DD04`.
 2. Mode 0 with config `Played Basics` false becomes mode 2 (and `DAT_010503D2 = 1`): a first-time player gets the tutorial.
-3. By mode, each case resets or sets the **campaign start parameters** and calls `Campaign_Begin`:
+3. By mode, each case resets or sets the **start options** (the `CSandbox` option array) and calls `Campaign_Begin`:
 
-| mode | game | start parameters (`CampaignParams_Set(index, value)`, array at `DAT_0104A974+0x60`) |
+| mode | game | start options (`CSandbox_SetOption(index, value)`, the array at `DAT_0104A974+0x60`; see "The nine start options") |
 |---|---|---|
-| 0 | new game | `FUN_00422250()`, `CampaignParams_ResetIfAny`, [6] = 1.0, `Campaign_Begin(+0x52C, +0x530, 0)`; then, unless "Skip Front End" is set, `Game+8 = 1` |
+| 0 | new game | `FUN_00422250()`, `CSandbox_ResetOptionsIfAny`, [6] = 1.0, `Campaign_Begin(+0x52C, +0x530, 0)`; then, unless "Skip Front End" is set, `Game+8 = 1` |
 | 1 | sandbox | `FUN_00422250()`, [6] = 2.0, six sandbox options copied from the sandbox options object `DAT_0104DE3C` (bytes `+0x77C`..`+0x781`) into [1], [2], [5], [3], [8], [7], then `Campaign_Begin` |
 | 2 | Basics tutorial | reset, [6] = 0, `Campaign_Begin(.., .., 1)`, `Game+8 = 0`, and config `Played Basics` is set to `"1"` |
 | 3 | add-on quick start | [6] = 3.0, the stored names are used, `DAT_0104DE24` takes the flag at `+0x538` |
 
 `WFrontEnd_OnEvent` runs the same tutorial sequence directly (without the profile screen) for the Tutorial button and for New Game
-before the Basics have been played. Parameter [0] is the start decade, `(startYear - 1900) / 10`, and the defaults are [0] = -1.0,
-[1..5] = 0, [6] = 1.0 (`CampaignParams_ResetDefaults`, 0x4AF370).
+before the Basics have been played. The defaults are in `CSandbox_ResetOptions` (0x4AF370) and every option is explained in the next section.
+
+## The nine start options (`CSandbox`)
+
+`DAT_0104A974` is the **`CSandbox` singleton** (`TM::CSandbox`, persistence name `PSandbox`, 0x84 bytes, created at static initialisation by
+`SandboxMode_Constructor`). I first called it "campaign parameters": it is the whole game-setup object. Its nine floats at `+0x60` are registered as
+`Option[x]` (`CSandbox_RegisterSaveVariables`, 0x4AF720), so they are **saved with every game** (SAVE_FORMAT.md lists "CSandbox (9 `Option[x]`)").
+`CSandbox_SetOption(index, value)` writes one, `CSandbox_GetOption(index)` reads one, and `CSandbox_ResetOptions` (0x4AF370, also run by the
+constructor) sets the defaults. Ported as `src/game/sandbox/SandboxOptions.*` with tests.
+
+| # | default | meaning (read from its readers) | set by |
+|---|---|---|---|
+| 0 | -1.0 | start decade, `(year - 1900) / 10`; the start-date setter (`FUN_008098C0`) turns it back into `decade * 10 + 1900` | `Campaign_Begin` |
+| 1 | 0 | **Stars Don't Misbehave**: when set, the `AddictionState` setter writes 0 instead of the value, and the same test is made in `MoodStat8C_AddScaledByNoWorries`, `MoodStat90_AddScaledByNoWorries`, `TMCharacter_SortResidentDesires` and three more functions (what they do with it was not read) | sandbox, row "Stars Don't Misbehave" (`+0x77E`) |
+| 2 | 0 | **Buildings Don't Decay**: when above 0, `CAsset_UpdateConditionAndDisrepair` sets the condition to 1.0 and clears the disrepair flags | row "Buildings Don't Decay" (`+0x77F`, inverted: option = (byte == 0)) |
+| 3 | 0 | **Instant Movie-making**: when above 0, `ShootController_BeginTake` rolls the stunt outcome once and ends the take at once (`ShootController_EndTake`), and `CProject_SetPreProdFactor` forces the factor to 1.0 | row "Instant Movie-making" (`+0x77D`) |
+| 4 | 0 | **unused**: `DesireWriteScript_UpdateProgress` skips its "Writing" progress when it is above 0, but nothing in the executable sets it (the only callers of `CSandbox_SetOption` are `WFrontEnd_OnEvent`, `WProfileScreen_OnConfirm` and `SaveLoad_PumpRequests`, and none passes 4) | nothing; there is no sandbox row for it |
+| 5 | 0 | **Buildings Instantly Constructed**: when set, `CAsset_OnPlaced` puts a placed asset straight into its built state (4) instead of under construction (1) | row "Instant Build" (`+0x77C`) |
+| 6 | 1.0 | game type: 0 tutorial, 1 new game, 2 sandbox, 3 add-on quick start; about thirty readers test it (`== 1.0 or == 3.0`, `== 2.0`, `!= 0`) | `WFrontEnd_OnEvent`, `WProfileScreen_OnConfirm`, `SaveLoad_PumpRequests` |
+| 7 | 0 | **Stunt Injuries off**: when set, three setters (`CWannabe`'s `FUN_005A0AA0`, `FUN_0056FBA0`, `FUN_005873D0`) store 1.0 instead of the value passed in, a per-person float held at full; which field it is was not identified | row "Stunt Injuries" (`+0x781`, inverted) |
+| 8 | 0 | **Stuntmen off**: when set, the stunt outcome roll (`ShootController_RollStuntOutcome`), the leads room (`CLeadsRoom_OnPersonDropped`), the script room, the movie, star and studio reviews, the release screen, the costume fiddler and the stunt tutorial popup (`WAdvMovieMaker_ShowTutorialPopupIf`, via `CSandbox_GetOption(8)`) all test it; only the stunt roll and the popup were identified as stunt code, the rest are inferred from the name of the option | row "Stuntmen" (`+0x780`, inverted) |
+
+The sandbox screen (`WSandboxOptions`, `FUN_0070D020`) has seven rows, each a label (`SANDBOXOPTIONS_*LABEL`) and a toggle handler that flips a byte with
+`x = (x == 0)`. Rows in screen order, with the byte each flips:
+
+| row | label key | byte | default |
+|---|---|---|---|
+| Instant Movie-making | `INSTANTSHOOT` | `+0x77D` | off |
+| Buildings Instantly Constructed | `INSTANTBUILD` | `+0x77C` | off |
+| Stars Don't Misbehave | `MOOD` | `+0x77E` | off |
+| Buildings Don't Decay | `DISREPAIR` | `+0x77F` | 1 (so decay is on) |
+| Start With A Ready Built Studio Lot | `CLEARLOT` | the global `DAT_0104DE24` | on |
+| Stunt Injuries (add-on) | `STUNTINJURIES` | `+0x781` | off |
+| Stuntmen (add-on) | `STUNTMEN` | `+0x780` | off |
+
+plus the start year and starting money (`SANDBOXOPTIONS_YEARUP/DOWN`, `MONEYUP/DOWN`). The strings are in `stringdatabase.lhts` (`tools/lhts.py`);
+the stunt rows are in `stringdatabase_addon1.lhts`. When the profile screen is confirmed in sandbox mode, it copies the six bytes into options 1, 2, 5, 3, 8, 7
+(the order of `CSandbox_SetOption` calls: 6 = 2.0 first, then 1, 2, 5, 3, 8, 7); it does not reset the others first. The window's
+Tick tests `+0x780` together with a widget at `+0x460` (presumably the Stunt Injuries row, so injuries would only be offered while stuntmen are on; not confirmed).
+
+Two details worth knowing. First, **defaults 7 and 8 depend on `FUN_00541F60(0)`**: `CSandbox_ResetOptions` sets both to 0 (stunts on) if it returns true and
+to 1.0 (stunts off) otherwise. `FUN_00541F60` is `return param == 0` and the call passes 0, so a normal new game has stuntmen and injuries on, while a sandbox
+game has them off unless the player ticks the rows. The `else` looks like the base game's behaviour, from before the add-on; it cannot run here. Second, in a
+sandbox with the default checkboxes options 7 and 8 are 1.0 and option 2 is 0.
 
 `Campaign_Begin(startYear, x, tutorial)` (0x4AF870) is the launch point:
 - builds the game clock (`GameClock_Constructor`) into `DAT_00E4FA4C..60`; `DAT_00E4FA4C` is the clock in days that the debugger's
   `GAME_CLOCK_STARTED` marker watches (RVA 0xA4FA4C);
 - loads a **`savedefaults/<n>` template** (the initial world and studio are built from a default save file, so the save format applies;
   see SAVE_FORMAT.md; what `<n>` is, is not decoded);
-- when `DAT_0104DE24` is set and the game type is 2.0 or 3.0, loads a second string (not decoded);
+- when `DAT_0104DE24` is set and the game type is 2.0 or 3.0, loads a second template and clears the flag. `DAT_0104DE24` is the sandbox
+  screen's **"Start With A Ready Built Studio Lot"** checkbox (default on), so the built lot is a second `savedefaults` template;
 - then runs `FUN_00467D50`, `FUN_00422750`, `GlobalStatRegistry_Get`, `FUN_008C9620`, `Money_DebugCheckRange`, `FUN_00442BE0`, `FUN_00530D90`
   and `FUN_0048F3F0`, which build the registries and the starting state. None of those was read. That is where the main game loop's
   state comes from.
@@ -194,7 +237,7 @@ non-creating one (`Fullscreen`). The audio manager is `Audio_GetInstance()` (`DA
   (the Continue tooltip text?) are unread. So is the 1.2 KB `FUN_0068F6E0`, which looks like an ambient particle spawner (random angles and
   radii around a point, calling `FUN_009B3A70`).
 - `WProfileScreen`'s own logic (the name boxes, the validation behind `PROFILESCREEN_CANCELNONAME`, the star display in `FUN_006E3400`) and the
-  eight functions `Campaign_Begin` calls are unread. The start parameters at indexes 1 to 5, 7 and 8 are not named.
+  eight functions `Campaign_Begin` calls are unread. The second `savedefaults` string that `Campaign_Begin` loads is not decoded.
 - The constructor (`WFrontEnd_Constructor`, 0x695460) loads `ui/minspec_frontend.dds` for tier < 2 and the `frontend` movie
   with its `filmstrips_win` clip otherwise (that clip name is also in `frontend.mfl`); the rest of it is unread. `data/intro/frontend_intro.wmv` is not referenced by any string in the
   executable, so it may be unused.
