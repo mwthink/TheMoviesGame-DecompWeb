@@ -336,11 +336,16 @@ The beige paved paths between the buildings (and the sidewalks of the city stree
 the in-game path network (the spine up the lot, the cross paths, paths round each building and the plaza, the street sidewalk) against screenshots of the Quick Start lot; the sidewalk texture (index 6) has no terrain cell in any save, so
 paving is not stored as paint. In the code:
 
-* `Object_SpawnSurfacePatches` (`00980c10`, called when a building is placed, with the reverse on removal) walks the mesh's named tag points (mesh + 0x48 count, 0x50-byte records, position at +0x44):
-  `_sp_pavement_0*` marks that cell as path (`FUN_009e1980`: sets the cell's bit in both bitmaps, `DAT_0105f8d8` (saved) and `DAT_0105f8dc` (transient, zeroed on loading version-2 terrain), and fixes up its paint layers);
-  `_sp_tarmac<W>_<H>` stamps a W x H block of cells (2 units each) with texture index `count - 2` (tarmac); `_sp_grass<W>_<H>` stamps grass (index 1, four passes); `_sp_sand<W>_<H>` stamps sand (index 0, four passes) then 0-3 random passes of earth (index 4).
-  Removing a building clears the path bits it set (`FUN_009e1ff0`). So the tarmac plazas, the grass and the dirt patches around each building in the terrain paint are **stamps made by that building's tags**, and its pavement cells are the path bits.
+* `Object_SpawnSurfacePatches` (`00980c10`, called when a building is placed, with the reverse on removal) walks the mesh's named tag points (parsed by `tools/msh_dump.py`, key `tags`: header flag byte 2 = count,
+  0x50 bytes each after the nodes / skeleton / node names: 32-byte name + 3x3 matrix + translation):
+  `_sp_tarmac<W>_<H>` stamps a W x H block of cells (2 units each, extending along the model's +x and +y from the tag, rotated with the asset) with texture index `count - 2` (tarmac); `_sp_grass<W>_<H>` stamps grass (index 1, four passes);
+  `_sp_sand<W>_<H>` stamps sand (index 0, four passes) then 0-3 random passes of earth (index 4); `_sp_pavement_0*` calls `FUN_009e1980` at the tag's cell (sets the cell's bit in both bitmaps, `DAT_0105f8d8` (saved) and `DAT_0105f8dc`
+  (transient, zeroed when version-2 terrain loads), and fixes up the cell's paint layers); removal clears them (`FUN_009e1ff0`).
+  **Checked against the Quick Start saves (both): the tarmac stamps match exactly, 106 of 106 cells (`_sp_tarmac_6_4` customscript, `_sp_tarmac_9_6` 3-star script office, `_sp_tarmac_7_4` production), so the tag position,
+  rotation convention and W x H axes are right.** The terrain's tarmac plazas are therefore stamps from those buildings' tags.
+  **The pavement tags are not the path network:** 39 tags on the 19 facilities, 7 sets and trailers sit a median of ~5 cells from the nearest saved path cell (random lot points: 2.4), and only 8 have any saved bit in their four corner
+  cells. In game they are doorsteps or "work areas" inside the rooms where characters stand (the player's observation; not verified in the code), so they are left out of the path render. Other tag names seen: `_sp_rotate_` (script offices).
 * The player's path tool (`terrain_path`, `terrain_pathdelete`, `is_landscaping_path` / `_antipath`, `PIP_PLACING_PATH`) sets and clears the same bits (`FUN_009e1980` with the flag `DAT_0105ef80`, anti-path = clear).
 * `FUN_00465650(gx, gy, on)` expands each set cell into the 0.5-unit placement grid, so paths are cells a new building cannot be placed on.
 
-Not checked: the tags' exact positions per mesh (the locator list of the mesh, not parsed by `msh_dump.py`), how the sidewalk is drawn at path edges, the meaning of the `DAT_0105f8dc` transient bitmap while the player is painting.
+Not checked: what the pavement tags are for (see above), how the sidewalk is drawn at path edges, the meaning of the `DAT_0105f8dc` transient bitmap while the player is painting, the `_sp_grass` / `_sp_sand` stamps (no building in these saves has one).

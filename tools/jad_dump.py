@@ -5,7 +5,7 @@
     python3 tools/jad_dump.py save.jad --class CFinance   # every field of the objects of one class
     python3 tools/jad_dump.py save.jad --lists            # the 24 global object registries from [STATICS]
     python3 tools/jad_dump.py save.jad --map [--svg out.svg]  # placed assets (SourcePath + POSITION + MyAngle), grid analysis, ASCII plan
-    python3 tools/jad_dump.py save.jad --terrain out.png [--occupancy (tints the path mask)] [--footprints DIR] [--roofs TEXDIR [--outlines] [--markers] [--no-lightmaps] [--cutaway Z]] [--rooms [--labelscale N] [--no-numbers] [--strings stringdatabase.lhts[,addon.lhts]]] [--ppu N] [--ground LANDTEXDIR [--tile UNITS]] [--no-paths] [--crop x0,y0,x1,y1]
+    python3 tools/jad_dump.py save.jad --terrain out.png [--occupancy (tints the path mask)] [--footprints DIR] [--roofs TEXDIR [--outlines] [--markers] [--no-lightmaps] [--cutaway Z]] [--rooms [--labelscale N] [--no-numbers] [--strings stringdatabase.lhts[,addon.lhts]]] [--ppu N] [--ground LANDTEXDIR [--tile UNITS]] [--no-paths] [--tags] [--crop x0,y0,x1,y1]
                                                        # ground paint + assets as a PNG (x right, y up); DIR holds ini + msh files
     python3 tools/jad_dump.py a.jad b.jad              # field-level diff (statics + objects matched by id)
 
@@ -449,6 +449,32 @@ ROOM_LABELS = {"room_ss_extras": "Create Extra", "room_ss_actors": "Create Actor
                "room_ss_fire": "Reject", "room_ss_starmaker": "(striped star-maker pad)"}
 
 
+def draw_tags(put, line, to_px, items, meshes):
+    """The mesh tag points (`_sp_*`, docs/SAVE_FORMAT.md) at each asset's placement: pavement = magenta square (one 2-unit cell centred on the tag),
+    tarmac / grass / sand stamps = the W x H block of 2-unit cells it paints (extends along the model's +x and +y from the tag), cyan / green / yellow."""
+    import math
+    cols = {"tarmac": (0, 220, 220), "grass": (60, 255, 60), "sand": (255, 230, 0)}
+    for _c, _i, apath, (x, y, _z), ang in items:
+        m = meshes.get(apath)
+        if not m:
+            continue
+        ca, sa = math.cos(ang), math.sin(ang)
+        place = lambda tx, ty: to_px(x + tx * ca - ty * sa, y + tx * sa + ty * ca)
+        for t in m.get("tags", []):
+            n, (tx, ty, _tz) = t.get("name", ""), t.get("pos", (0, 0, 0))
+            mt = re.match(r"_sp_(tarmac|grass|sand)_(\d+)_(\d+)", n)
+            if mt:
+                w, h = int(mt.group(2)), int(mt.group(3))
+                c = [place(tx + a, ty + b) for a, b in ((-1, -1), (2 * w - 1, -1), (2 * w - 1, 2 * h - 1), (-1, 2 * h - 1))]
+                for i in range(4):
+                    line(c[i], c[(i + 1) % 4], cols[mt.group(1)])
+            else:
+                col = (255, 0, 255) if n.startswith("_sp_pavement") else (255, 255, 255)
+                c = [place(tx + a, ty + b) for a, b in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+                for i in range(4):
+                    line(c[i], c[(i + 1) % 4], col)
+
+
 def draw_rooms(put, tri, line, to_px, items, meshes, k, room_data=None, label_scale=1, numbers=True, strings=None):
     """Fill each named room floor polygon (mesh parts called room_*) in its own colour at the asset's placement and label it with a number; the unnamed
     `room_` part (the whole walkable floor) is skipped. Prints a legend: number = room name per mesh."""
@@ -493,7 +519,7 @@ def draw_rooms(put, tri, line, to_px, items, meshes, k, room_data=None, label_sc
                 print(f"    {i + 1} = {n}" + (f'  "{text}"' if text else "") + (f' ("{ROOM_LABELS[n]}" seen in game)' if n in ROOM_LABELS else "") + f"  [{info}]")
 
 
-def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None, roofs=None, outlines=True, markers=True, ground=None, tile=12.0, lightmaps=True, cutaway=None, rooms=False, label_scale=1, numbers=True, strings=None, paths=True, path_tile=2.0):
+def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None, roofs=None, outlines=True, markers=True, ground=None, tile=12.0, lightmaps=True, cutaway=None, rooms=False, label_scale=1, numbers=True, strings=None, paths=True, path_tile=2.0, tags=False):
     """Top-down PNG: ground paint (cell g = round((world + 256) / 2), centred on even world coordinates), optionally the occupancy bits,
     the placed assets (red = facility, blue = ornament) and, with a directory of ini + msh files, each asset's mesh polygons rotated by
     MyAngle and moved to POSITION: b15_02 footprint = orange fill, b16_01 = yellow outline, facility room floors = cyan outline."""
@@ -607,6 +633,8 @@ def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None,
     import math
     if roofs and meshes:
         render_roofs(px, W, H, k, x0, y1, items, meshes, roofs, lightmaps, cutaway)
+    if tags:
+        draw_tags(put, line, to_px, items, meshes)
     if rooms:
         draw_rooms(put, tri, line, to_px, items, meshes, k, room_objects(p), label_scale, numbers, strings)
     for _c, _i, apath, (x, y, _z), ang in items:
@@ -744,7 +772,7 @@ def main(argv):
                          cutaway=float(cut) if cut else None, rooms="--rooms" in argv, ppu=int(ppu_arg) if ppu_arg else None,
                          label_scale=int(lscale) if lscale else 1, numbers="--no-numbers" not in argv,
                          strings=lhts.load(*strfile.split(",")) if strfile else None,
-                         paths="--no-paths" not in argv)
+                         paths="--no-paths" not in argv, tags="--tags" in argv)
         elif "--map" in argv:
             show_map(p, svg)
         elif "--lists" in argv:

@@ -137,6 +137,20 @@ def main():
                     i += 1
         if i != hd_dump.N:
             sys.exit("generic_head.msh has %d vertices, the .hd morph %d" % (i, hd_dump.N))
+        # The 58-vertex eyeball primitive is not morphed by the .hd (its A array equals the generic head) but the face and the eyelid/mouth primitive around it move
+        # by up to 5 mm, which buries the 2-3 mm proud eyeballs behind the lids (seen as dark eyes). How the game avoids that was not found in the code read; here the
+        # morph of a vertex of those two primitives fades to nothing within 6 mm of an eyeball vertex and is complete from 2.6 cm. A deviation from the file data.
+        prims = [pr for node in m["nodes"] for pr in node["prims"]]
+        if len(prims) == 3 and len(prims[1]["verts"]) == 58:
+            eyes = prims[1]["verts"]
+            orig = [pr["verts"] for pr in msh_dump.parse(open(gh, "rb").read())["nodes"][0]["prims"]]
+            for pi in (0, 2):
+                for j, v in enumerate(prims[pi]["verts"]):
+                    o = orig[pi][j]
+                    d = min(((o[0] - e[0]) ** 2 + (o[1] - e[1]) ** 2 + (o[2] - e[2]) ** 2) ** 0.5 for e in eyes)
+                    t = max(0.0, min(1.0, (d - 0.006) / 0.020))
+                    w = t * t * (3 - 2 * t)
+                    prims[pi]["verts"][j] = tuple(o[c] + w * (v[c] - o[c]) for c in range(3)) + tuple(v[3:])
         parsed[gh] = m
         print("head morph: %s age %.1f -> %.2f, weight %.1f kg -> %.2f%s" % (head, age if age is not None else 25.0, p4, weight if weight is not None else 70.0, p5,
                                                                          (", mixed %.2f with %s" % (mix, head2)) if hd1 else ""))

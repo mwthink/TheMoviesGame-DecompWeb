@@ -15,7 +15,7 @@ Layout, from LH_LoadMeshBinary (009deb10); the parts listed here were checked ag
         byte 0x13 != 0, byte 0x16 & 0x10, byte 0x16 & 8, byte 0x15 & 4, byte 0x16 & 4, byte 0x15 & 2, byte 0x16 & 1
         chunk = u16 n_verts, u16 ?, u16 n_tris, u16 ?, n_verts x 3 f32, n_tris x 3 u16, padded to 4 bytes
     n_named_parts x (32-byte name + aux polygon chunk)       ("room_*", "window*", ...)
-    submeshes (vertex/index data): not parsed here
+    nodes, then (flag byte 0) a skeleton, (flag byte 1 or byte 7 & 1) one 32-byte name per node, (flag byte 2 = count) the tag points, 0x50 bytes each
 """
 import struct
 import sys
@@ -158,8 +158,23 @@ def parse(data, geometry=True):
         bones = parse_skeleton(d, pos)
     except Exception:
         pass
+    tags, node_names = [], []
+    try:                                  # after the skeleton: per-node names, then the named tag points
+        if geometry and not any("error" in n for n in nodes):
+            if flags[0]:
+                pos += 8 + struct.unpack_from("<I", d, pos + 4)[0] * 84
+            if flags[1] or flags[7] & 1:  # one 32-byte name per node
+                node_names = [cstr(d[pos + 32 * i:pos + 32 * i + 32]) for i in range(nsub)]
+                pos += 32 * nsub
+            for _ in range(flags[2]):     # tag points: 32-byte name + 12 f32 (3x3 matrix, translation) = 0x50 bytes
+                f = struct.unpack_from("<12f", d, pos + 32)
+                tags.append({"name": cstr(d[pos:pos + 32]), "matrix": f[:9], "pos": f[9:12]})
+                pos += 0x50
+    except Exception as e:
+        tags.append({"error": f"{type(e).__name__}: {e} at 0x{pos:x}"})
     return {"version": ver, "n_submeshes": nsub, "flags": flags.hex(), "textures": textures, "materials": mats,
-            "chunks": chunks, "parts": parts, "nodes": nodes, "size": len(d), "rest": pos, "bones": bones}
+            "chunks": chunks, "parts": parts, "nodes": nodes, "size": len(d), "rest": pos, "bones": bones,
+            "tags": tags, "node_names": node_names}
 
 
 def parse_skeleton(d, pos):
