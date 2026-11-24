@@ -10,8 +10,13 @@ The menu is a **Flash movie**, played by Lionhead's own SWF renderer. What was c
 
 - The movies are the `.mfl` files in `data\ui\flash\` inside the pak archives (`MISC0000.pak`). They are **ordinary SWF files**: `frontend.mfl`
   starts with the bytes `FWS` and version 6, and all 86 distinct `.mfl` files carry `FWS` with version 4, 5 or 6 (uncompressed SWF). Lionhead
-  only renamed the extension. The header's declared length does not match the file (628,899 against 28,031 for the first `frontend.mfl`);
-  a likely reason is that the bitmaps were moved out into the `data\textures\flash\flash_<hash>.dds` textures, but that is a guess.
+  only renamed the extension. `frontend.mfl` exists twice: `MISC0000.pak` has 28,031 bytes, `Addon_2704_0001.pak` 30,207 bytes (the add-on copy
+  wins; it is the one `pak_extract.py` writes). The header's declared length does not match the file (801,777 against 30,207 for the add-on copy).
+  **The bitmaps are imported, not embedded:** `frontend.mfl` has 16 standard `ImportAssets` tags (tag 57, empty URL), each binding one character ID to a name
+  such as `7 -> flash_2efec4ac.dds`, `108 -> flash_49df47cf.dds`. Those are the `data\textures\flash\flash_<hash>.dds` textures (about 290 of them,
+  mostly `TEX_ALL0000.pak`, some in `Addon_2704_0000.pak`; 512x512 and 1024x512 ones are 262,272 and 524,416 bytes). The movie names every file it needs, so
+  the hash never has to be computed. The missing bytes are most likely those bitmaps (the sizes were not summed). Only `*.mfl` was extracted before, which is why the textures were not
+  seen: extract `flash_*.dds` as well (`--tree`, so `flash\` stays apart from the `thumbs` copies). Whether the 16 names all resolve and what DDS format they use was only spot-checked (one name found).
 - The player is Lionhead's, not Adobe's: the `LSWF::*` classes (`LSWFFile`, `LSWFMovie`, `LSWFShape`, `LSWFEditText`, ...), with
   `LSWFShape_ParseDefineShape` reading SWF `DefineShape` data, plus `SWFCache`, `CSWFPlayer` and `CFlashScaler`. Error strings such as
   `LSWF Error: Unable to find variable %s` show it runs ActionScript variables. No Adobe Flash Player is involved.
@@ -25,8 +30,11 @@ The menu is a **Flash movie**, played by Lionhead's own SWF renderer. What was c
 - **Thirteen registered callbacks appear in no movie**: the eight settings steppers, the four volume buttons and `ExternStartSandbox`.
   They look vestigial or are driven some other way; the options are separate native windows (`WGameplayOptions`, `WSandboxOptions`, ...).
   The sandbox is reached by the `$sandbox` item and by "Skip Front End" = 1, not by a callback from the movie.
-- The ActionScript was decoded with `tools/swf_dump.py` for `frontend.mfl`, `pause.mfl` and `installer.mfl` (below). Shapes, fonts and bitmaps
-  were not decoded. `.mfl` parses as SWF with that tool, so it is SWF in every way that was tried.
+- The ActionScript was decoded with `tools/swf_dump.py` for `frontend.mfl`, `pause.mfl` and `installer.mfl` (below). Shapes and fonts
+  were not decoded, and the bitmap fills only as far as the `ImportAssets` names above.
+- Playing the movies outside the game: Ruffle (`brew install --cask ruffle`, 0.8.0) is installed; `ruffle <file>.swf` opens a copy of an `.mfl`. Not yet tried.
+  Expected problems: the `flash_*.dds` imports do not resolve (they would have to be converted and embedded as `DefineBitsLossless2` under the same
+  character IDs), the `Extern*` functions are undefined in a stock player, and the game normally moves frame 1 on to `start_ui`. `.mfl` parses as SWF with that tool, so it is SWF in every way that was tried.
 
 `WFrontEnd` registers **35 `Extern*` callbacks** (`WFrontEnd_RegisterExternCallbacks`, 0x692A90, through `FUN_0087DE50(name, this,
 handler)`), fills the captions and `$command` names (`WFrontEnd_SetupMenuItems`, 0x693C80) and reacts to events
