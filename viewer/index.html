@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>The Movies character viewer</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #1d2026; color: #dde; font: 13px system-ui, sans-serif; overflow: hidden; }
+  #ui { position: absolute; top: 10px; left: 10px; background: #0008; padding: 10px 12px; border-radius: 6px; line-height: 1.9; max-width: 260px; }
+  #ui select, #ui input[type=range] { width: 100%; }
+  #info { color: #9ab; font-size: 12px; }
+  label { display: block; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <b id="title">loading…</b>
+  <label>Animation <select id="clip"></select></label>
+  <label><input type="checkbox" id="play" checked> play</label>
+  <label>Speed <input type="range" id="speed" min="0.1" max="2" step="0.05" value="1"></label>
+  <label>Time <input type="range" id="scrub" min="0" max="1" step="0.001" value="0"></label>
+  <label><input type="checkbox" id="bones"> skeleton</label>
+  <label><input type="checkbox" id="tex" checked> texture</label>
+  <label><input type="checkbox" id="wire"> wireframe</label>
+  <label><input type="checkbox" id="flip"> flip winding (if the model looks inside out)</label>
+  <div id="info"></div>
+</div>
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from './vendor/OrbitControls.js';
+
+const $ = id => document.getElementById(id);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1d2026);
+// The game is Z-up: keep its coordinates and make the camera Z-up too.
+THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
+const camera = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.05, 100);
+camera.up.set(0, 0, 1);
+camera.position.set(3.2, -2.2, 1.7);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0, 0.9);
+controls.update();
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x445, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+sun.position.set(2, -3, 4);
+scene.add(sun);
+const grid = new THREE.GridHelper(6, 24, 0x667, 0x334);
+grid.rotation.x = Math.PI / 2;
+scene.add(grid);
+
+const data = await (await fetch('data/character.json')).json();
+$('title').textContent = data.name;
+
+// skeleton in the bind pose (bone transforms are local; the root's local is its world bind)
+const bones = data.bones.map(b => {
+  const bone = new THREE.Bone();
+  bone.name = b.name;
+  bone.position.set(...b.pos);
+  bone.quaternion.set(...b.quat);
+  return bone;
+});
+let root = null;
+data.bones.forEach((b, i) => { if (b.parent >= 0) bones[b.parent].add(bones[i]); else root = bones[i]; });
+
+// one skinned mesh per part (body, head, eyes, hair ...), all bound to the same skeleton
+const loader = new THREE.TextureLoader();
+const mats = [], skinned = [];
+for (const part of data.parts) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(part.position, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(part.normal, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(part.uv, 2));
+  g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(part.skinIndex, 4));
+  g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(part.skinWeight, 4));
+  g.setIndex(part.index);
+  const map = part.texture ? loader.load('data/' + part.texture) : null;
+  if (map) { map.colorSpace = THREE.SRGBColorSpace; map.flipY = false; map.anisotropy = 8; map.wrapS = map.wrapT = THREE.RepeatWrapping; }
+  const mat = new THREE.MeshStandardMaterial({ map, roughness: 0.8, metalness: 0, side: THREE.DoubleSide, alphaTest: 0.5 });
+  mat.userData.map = map;
+  mats.push(mat);
+  const mesh = new THREE.SkinnedMesh(g, mat);
+  mesh.name = part.name;
+  mesh.frustumCulled = false;
+  skinned.push(mesh);
+  scene.add(mesh);
+}
+skinned[0].add(root);
+scene.updateMatrixWorld(true);
+const skeleton = new THREE.Skeleton(bones);
+for (const m of skinned) m.bind(skeleton, skinned[0].matrixWorld);
+const helper = new THREE.SkeletonHelper(skinned[0]);
+helper.visible = false;
+scene.add(helper);
+
+// animation: manual sampling (slerp between frames, the last frame equals the first so the clip loops)
+const clips = data.clips;
+for (const c of clips) { const o = document.createElement('option'); o.textContent = c.name + '  (' + c.frames.length + ' frames, ' + c.duration.toFixed(2) + ' s)'; $('clip').appendChild(o); }
+const qa = new THREE.Quaternion(), qb = new THREE.Quaternion();
+function pose(clip, u) {                     // u in [0, 1)
+  const n = clip.frames.length;
+  const f = u * (n - 1), i = Math.floor(f) % (n - 1), j = i + 1, k = f - Math.floor(f);
+  for (let b = 0; b < bones.length; b++) {
+    const A = clip.frames[i][b], B = clip.frames[j][b];
+    qa.set(A[0], A[1], A[2], A[3]); qb.set(B[0], B[1], B[2], B[3]);
+    bones[b].quaternion.copy(qa.slerp(qb, k));
+    bones[b].position.set(A[4] + (B[4] - A[4]) * k, A[5] + (B[5] - A[5]) * k, A[6] + (B[6] - A[6]) * k);
+  }
+}
+let clip = clips[0], t = 0;
+$('clip').onchange = () => { clip = clips[$('clip').selectedIndex]; t = 0; };
+$('tex').onchange = () => { for (const m of mats) { m.map = $('tex').checked ? m.userData.map : null; m.needsUpdate = true; } };
+$('wire').onchange = () => { for (const m of mats) m.wireframe = $('wire').checked; };
+$('bones').onchange = () => { helper.visible = $('bones').checked; };
+$('flip').onchange = () => { for (const m of mats) { m.side = $('flip').checked ? THREE.BackSide : THREE.DoubleSide; m.needsUpdate = true; } };
+$('scrub').oninput = () => { $('play').checked = false; t = parseFloat($('scrub').value); };
+
+const timer = new THREE.Timer();
+renderer.setAnimationLoop(ts => {
+  timer.update(ts);
+  const dt = timer.getDelta();
+  if (clip) {
+    if ($('play').checked) { t = (t + dt * parseFloat($('speed').value) / clip.duration) % 1; $('scrub').value = t; }
+    pose(clip, t);
+  }
+  controls.update();
+  renderer.render(scene, camera);
+});
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+$('info').textContent = data.parts.reduce((n, p) => n + p.position.length / 3, 0) + ' verts, ' + data.parts.length + ' parts, ' + bones.length + ' bones';
+window.__viewer = { bones, skinned, camera, controls, setT: v => { $('play').checked = false; t = v; } };
+</script>
+</body>
+</html>

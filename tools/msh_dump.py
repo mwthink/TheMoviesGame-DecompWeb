@@ -104,10 +104,12 @@ def read_node(d, pos):
                     verts[i] = verts[i] + struct.unpack_from("<2f", d, pos + 8 * i)
                 pos += 8 * nvert
         pos = align4(pos)
-        if f0 & 1:
+        skin = None
+        if f0 & 1:              # skinning: 4 f32 weights + 4 bone indices (u8) per vertex (bones of the skeleton block, see parse_skeleton)
+            skin = [(struct.unpack_from("<4f", d, pos + 20 * i), tuple(d[pos + 20 * i + 16:pos + 20 * i + 20])) for i in range(nvert)]
             pos += 20 * nvert
         pos += 8 * extra
-        prims.append({"material": mat, "verts": verts, "tris": tris, "flags": (f0, f1, f2, f3)})
+        prims.append({"material": mat, "verts": verts, "tris": tris, "flags": (f0, f1, f2, f3), "skin": skin})
     return {"matrix": m, "prims": prims}, pos
 
 
@@ -151,8 +153,29 @@ def parse(data):
             nodes.append(node)
     except Exception as e:      # geometry is best effort; the header data above is still valid
         nodes.append({"error": f"{type(e).__name__}: {e} at 0x{pos:x}", "prims": []})
+    bones = []
+    try:
+        bones = parse_skeleton(d, pos)
+    except Exception:
+        pass
     return {"version": ver, "n_submeshes": nsub, "flags": flags.hex(), "textures": textures, "materials": mats,
-            "chunks": chunks, "parts": parts, "nodes": nodes, "size": len(d), "rest": pos}
+            "chunks": chunks, "parts": parts, "nodes": nodes, "size": len(d), "rest": pos, "bones": bones}
+
+
+def parse_skeleton(d, pos):
+    """Skeleton block after the nodes: u32 ?, u32 n_bones, then n_bones x 84 bytes = 32-byte name, i32 parent (-1 root), 12 f32 =
+    the bone's WORLD bind pose: 3 rows (the bone's x, y, z axes in model space, row-vector convention) + translation.
+    Verified on cos_m_50s_1.msh: 30 bones, parents equal the parent table of walk.anm, the anim's local offsets equal world(child) - world(parent)."""
+    n = struct.unpack_from("<I", d, pos + 4)[0]
+    if not 0 < n < 512 or pos + 8 + 84 * n > len(d):
+        return []
+    out = []
+    for i in range(n):
+        o = pos + 8 + 84 * i
+        f = struct.unpack_from("<12f", d, o + 36)
+        out.append({"name": cstr(d[o:o + 32]), "parent": struct.unpack_from("<i", d, o + 32)[0],
+                    "rot": [f[0:3], f[3:6], f[6:9]], "pos": f[9:12]})
+    return out
 
 
 def fmt_box(b):

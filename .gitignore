@@ -5,6 +5,8 @@ data/*
 !data/identified_organized/
 gen/
 docs/generated/
+# Character viewer: exported game assets (mesh, skeleton, animations, textures) stay local
+viewer/data/
 # Ghidra project (local database)
 Commons/
 *.gpr
