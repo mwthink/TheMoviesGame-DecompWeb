@@ -70,21 +70,34 @@ No confident match for: the `.hd` loader (`0xa18e50`), `Anim_LoadByName` (`0x988
 * Check why the loader functions listed in section 3 do not match (changed code or ambiguous hashes) and use the older versions as a cross-check of the formats.
 * `.fan`: decide whether the second-to-last word (9998 or 99) is a blend time or flags, and find the expression table.
 
-## 6. First real saved star (2026-11-24, saved from StarMaker under Wine)
+## 6. The star file (`info.sm`), from two saved stars and the editor's load code
 
-A star is a folder `Documents\The Movies\Starmaker\<yyyy_mm_dd_hh_mm_ss>\` with `info.sm`, `star.hd` and `thumb.dds` (the `_` file next to it is 4 zero bytes). **[data]**
+A star is a folder `Documents\The Movies\Starmaker\<yyyy_mm_dd_hh_mm_ss>\` with `info.sm` (402 bytes), `star.hd` and `thumb.dds`. **[read, checked on two saves: a "DaveJohn" star with known settings, and an all-default "Baseline"]**
 
-`info.sm` (402 bytes), as decoded by eye from one star; the meaning of each field is **[guess]** unless noted:
-* `0x00` u32 2 (version?), `0x04` u32 402 (file size), `0x08` u32 hash/id, `0x0c` u32 1, `0x10` f32 0.3, `0x14` f32 1.0, `0x18`..`0x47` zeros.
-* `0x48`, `0x60` first and second head file names (`head_m_white_hero2.hd`, `head_m_indian_man2.hd`), `0x78` hair mesh (`hair_20s_m5.msh`); 24-byte NUL-padded slots.
-* `0xac` f32 1.0, `0xb4` f32 about 0.48, then u32 30, 7, 10, 4, 0 (`0xbc`..): probably age and the star attributes.
-* `0xd0`..`0x17b`: **43 f32 = the slider values, all 0.5 here** (so 0.5 is the neutral value, 0 and 1 the extremes) **[guess]**; `0x17c` u32 0; `0x180` the star name as UTF-16, NUL terminated ("DaveJohn").
+The editor's load function `FUN_004043eb` (StarMaker `0x4043eb`; `param_1` is the struct read from `info.sm`) copies the fields into the UI. The sliders are objects of 0x114 bytes created in the UI constructor `FUN_00402ce3` (this+0x5c head blend, +0x60 skin blend, +0x64 age; found through the tooltip strings `SM_TOOLTIP_HEAD_BLEND_SLIDER`, `SM_TOOLTIP_TEXTURE_BLEND_SLIDER`, `SM_TOOLTIP_AGE_SLIDER` at `0x5cd73c`, `0x5cd718`, `0x5cd6f8`); a slider's value is the float at slider+0x108, 0 to 1. `ghidra/scripts/FindRefs.java` lists the references to an address.
 
-`star.hd` is a normal `.hd` file (0x94 + 3 x 996 x 24 = 71,860 bytes) **[read]**: the editor saves the finished head. Its first array A is very close to the first head (`head_m_white_hero2.hd`): mean vertex distance 2.7 mm, against 5.6 mm between the two source heads; the best per-vertex mix toward the second head is about 0.014, not the 0.3 of `info.sm`. So the `0x10` float is not the head mix, or the mix was not applied in this save. Its B and C arrays are tiny, like a real head's. Not yet explained: what the 2.7 mm of difference from the first head is (sliders, age or weight baked in?). The second head is stored in the `.hd` header names.
+| offset | type | meaning |
+|---|---|---|
+| 0x00 | u32 | 2 (version) |
+| 0x04 | u32 | 402 (file size) |
+| 0x08 | u32 | differs per save (hash or id of the save) **[guess]** |
+| 0x0c | u32 | 1 here (male?) **[guess]** |
+| 0x10 | 14 x f32 | the star attributes, in the order of the `SM_STAT_*` rows: Looks (0x10), Trimness (0x14), Chest/Breast size, Action, Comedy, Horror, Romance, Sci-Fi, Stress, Boredom, Drink/Food, Mood upper, Mood lower. DaveJohn: Looks 0.3 (bar about a quarter full), Trimness 1.0 (bar full); Baseline: Looks 0, Trimness 1.0. The row order of the last six is **[guess]** |
+| 0x48 | char[32] | first head file (`head_m_white_joe.hd`) |
+| 0x68 | char[32] | second head file, empty when none was picked |
+| 0x88 | char[32] | hair mesh (`hair_20s_m5.msh`) |
+| 0xa8 | f32 | head shape blend slider (0 = first head, default 0.5) **[read, matches the screenshot: 0]** |
+| 0xac | f32 | skin tone blend slider (default 0.5; DaveJohn 1.0) **[read]** |
+| 0xb0 | u32 | passed to `FUN_00428280` (`this+0x6c`, applied to the hair object `this+0x14`): hair colour index **[guess]** |
+| 0xb4 | f32 | age slider; **age in years = slider x 47 + 18** (`FUN_00427130`), so 18 to 65. DaveJohn 0.48 = 41 **[read]** |
+| 0xb8 | u32 | passed to `FUN_00428200` (`this+0x70`): eye colour index (8 choices) **[guess]** |
+| 0xbc, 0xc0, 0xc4, 0xc8, 0xcc | 5 x u32 | makeup choices, one list each, in the on-screen order Eyebrows, Eye Makeup, Color, Facial Hair, Lipstick. The slider position is `(index + 0.5) / list size` (the colour one uses `index - 1`). DaveJohn 30, 7, 10, 4, 0 (eyebrows at the right end, makeup in the middle, colour 0.75, facial hair 0.2, lipstick 0) **[read]**; Baseline 1, 0, 1, 0, 0 |
+| 0xd0 | 43 x f32 | the advanced face sliders (0.5 = neutral) in the order of `starmaker.ini` **[guess for the order]** |
+| 0x17c | u32 | 0 |
+| 0x180 | UTF-16 | the star name, NUL terminated (the file ends there: 402 = 0x180 + 2 x (length + 1)) |
 
-Next: a star with known extreme slider values (the user has screenshots of the settings) to find which fields and vertices each slider touches.
+`star.hd` is a normal `.hd` file (0x94 + 3 x 996 x 24 = 71,860 bytes), the finished head. For the all-default Baseline it is *not* a copy of `head_m_white_joe.hd`: the header words differ, and the vertex arrays differ by 1.4 mm (A), 8.5 mm (B) and 9.3 mm (C) on average with a few vertices 0.6 to 0.8 off, so something is applied even at default settings (the 0.5 sliders may not be neutral, or the age 18 or the head mix are baked in). Not explained yet. With head blend 0, the DaveJohn head is close to its first head as expected.
 
-Settings of that star from the user's screenshots (Basic Settings, 2026-11-24): head shape slider (top) at 0, skin tone slider (second) at 1.0, age 41, eyebrows 1.0, eye makeup about 0.5, colour about 0.75, facial hair about 0.2, lipstick 0, hair `hair_20s_m5`, star name DaveJohn, all 43 advanced sliders untouched (they read 0.5 in `info.sm`, which supports 0.5 = neutral). Attributes page: Looks about 20%, Trimness full, the rest empty. Candidates in `info.sm` (**[guess]**, unchecked): `0x14` = 1.0 skin tone; `0x10` = 0.3 or a zero in `0x18..0x47` = head shape (0 would explain why `star.hd` is the first head); `0xac` = 1.0 eyebrows; `0xb4` = 0.48 = age 41 (41 = 18 + 0.48 x 48 would fit); the ints 30, 7, 10, 4 may be the attributes or the makeup. The save-writing function was not found in the export yet (`0x4277b0` only builds the folder path). A decisive test: save several stars changing ONE control each time, then diff the `info.sm` files.
+Not checked: how the 43 slider values and the makeup choices turn into geometry and textures (`FUN_00428500` applies the makeup choices; the slider code `0x4154a0` is still unread), and the hash at `0x08`.
 
-UI notes from the user (2026-11-24): the Basic Settings page has two head pickers (click one for a grid of head thumbnails, "Give your Star a new head."; the second slot starts as a "?" silhouette), then the sliders "Blend between head shapes" (top) and "Blend between skin tones", a row of 8 eye colours ("Choose Eye Color", no pop-out) and "Change Age", whose left end reads 18 (so 41 = 18 + 0.48 x 48 fits the `0xb4` float, with 66 as the right end; **[guess]**).
-
+Slider hover texts from the user (2026-11-24): "Blend between head shapes", "Blend between skin tones", "Choose Eye Color", "Change Age" (left end reads 18); the head pickers open a grid titled "Give your Star a new head." (`SM_BROWSER_HEADS`). All of them are in `starmaker.lhts` under `SM_TOOLTIP_*`.
