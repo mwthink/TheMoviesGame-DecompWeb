@@ -131,6 +131,8 @@ python3 tools/jad_dump.py "<save>.jad"                                        # 
 python3 tools/pak_extract.py extract "<game>/Data/pak" data/game_data/save_assets facility_gatehouse.ini ...   # inis, then the meshes and textures they name
 python3 tools/fetch_assets.py "<save>.jad" "<game>/Data/pak"                      # extract every ini/mesh/texture a save needs (about 2 min)
 python3 tools/msh_dump.py data/game_data/meshes/*.msh                         # textures, materials, polygon chunks, room parts
+python3 tools/list_rooms.py "<game>/Data/pak" "<stringdatabase.lhts>"        # every room in the archives with the text the game draws on it
+python3 tools/lhts.py "<stringdatabase.lhts>" --grep ROOM_                      # the localisation table (UI text keys)
 python3 tools/jad_dump.py "<save>.jad" --terrain out.png --footprints <ini+msh dir> --roofs <dds dir> --ground <land dds dir> --crop -64,-8,64,72
 ```
 Everything extracted lives under gitignored `data/game_data/`; renders go to `docs/generated/` (gitignored). The firewall audit passed after this work. Assets

@@ -113,7 +113,7 @@ def read_node(d, pos):
     return {"matrix": m, "prims": prims}, pos
 
 
-def parse(data):
+def parse(data, geometry=True):
     d = inflate(data)
     ver, ntex, nmat, nsub = struct.unpack_from("<4I", d, 0)
     if ver != 10:
@@ -148,7 +148,7 @@ def parse(data):
         parts.append((name, c))
     nodes = []
     try:
-        for _ in range(nsub):
+        for _ in range(nsub if geometry else 0):
             node, pos = read_node(d, pos)
             nodes.append(node)
     except Exception as e:      # geometry is best effort; the header data above is still valid

@@ -310,3 +310,24 @@ Fields: `RoomName`, `PParentAsset` (object id of the placed facility or set), `M
 
 
 `tools/fetch_assets.py <save> "<game>/Data/pak"` extracts everything a save needs for rendering (inis, meshes, textures, ground textures; about 2 minutes for this save).
+
+## Where room names and floor text come from (2026-11-24)
+
+**The room list is data, not code.** No table of rooms is in the executable. A facility's rooms are the named parts (`room_*`) of its model, found through the asset's `.ini` (`mesh = ...`); the loader keeps them
+as a room table on the mesh (`LH_LoadMeshBinary`, table at mesh + 0x70, 0x90 bytes per entry: 32-byte name + polygon; `FUN_00a14bd0` initialises each part's drawing data). The facility's creation code picks
+the behaviour class (`CHireRoom`, `CFireRoom`, ...) from the part name, and the save then stores one `TMRoom`-family object per part, matched by `RoomName` (above).
+`python3 tools/list_rooms.py "<game>/Data/pak" "<stringdatabase.lhts[,addon]>" > rooms.md` lists every room in the archives: **93 assets with rooms and 198 room parts**
+(the 19 facilities and sets in the Quick Start save, plus ones not in it: cosmetic surgery (`nip_tuck`, `implants`, `liposuctio`), hospital (`hosp_hosp`), post-production, publicity office (`publicity_pr`),
+stunt school (`stuntschool_create`, `_fire`), the 4-star script office, trailers 1-5, ~70 more sets).
+
+**The text on the floor is a string-table lookup** (`FUN_00a157b0` draws a room part; `Localize(key)` reads `Data/text/<lang>/stringdatabase.lhts`, read by `tools/lhts.py`):
+* the key is the part name, upper-case: `room_ss_actors` -> `ROOM_SS_ACTORS` ("Create"), and if `ROOM_SS_ACTORS_2` exists it is a second line ("Actor"): the "Create / Actor" of the in-game floor;
+* parts without a key are drawn with no text: the hallways (`*_hall`), windows (`room_window`, `*_windows`), the unnamed whole-floor `room_`, the set floors (`room_1_carpet`, ...), and a few with no entry
+  (`room_hosp_hosp`, `room_stuntschool_create`);
+* a part whose name contains `_fire` or `_canit` gets flag 0x80 (`FUN_00a14bd0`) and is drawn from five preloaded strings (`ROOM_FIRE_STAFF` "Fire", `ROOM_FIRE_SCRIPT` "Can It",
+  `ROOM_FIRE_WANABE` "Reject", `ROOM_PROD_PR_DONE`, `ROOM_TRAILER_RELAX`) selected at run time (index `DAT_010b93a4`): which one shows presumably depends on what is being held (a wannabe over the stage school's
+  `room_ss_fire` reads "Reject"); the selection logic is not traced;
+* `room_ss_starmaker`, `room_cso_blank`, `room_prod_release`, `room_preprod_extras/crew` get extra flags (0x4 / 0x100 / 0x400), so their text can be hidden or swapped by state: the star-maker pad is drawn without text in the screenshot even though
+  `ROOM_SS_STARMAKER` ("Import") / `_2` ("Star") exist.
+
+`jad_dump.py --rooms --strings <stringdatabase.lhts[,addon]>` draws these texts. The string database is game content: it stays local (the repo only has the reader).
