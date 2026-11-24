@@ -5,7 +5,7 @@
     python3 tools/jad_dump.py save.jad --class CFinance   # every field of the objects of one class
     python3 tools/jad_dump.py save.jad --lists            # the 24 global object registries from [STATICS]
     python3 tools/jad_dump.py save.jad --map [--svg out.svg]  # placed assets (SourcePath + POSITION + MyAngle), grid analysis, ASCII plan
-    python3 tools/jad_dump.py save.jad --terrain out.png [--occupancy] [--footprints DIR] [--roofs TEXDIR [--outlines] [--markers] [--no-lightmaps] [--cutaway Z]] [--rooms] [--ppu N] [--ground LANDTEXDIR [--tile UNITS]] [--crop x0,y0,x1,y1]
+    python3 tools/jad_dump.py save.jad --terrain out.png [--occupancy] [--footprints DIR] [--roofs TEXDIR [--outlines] [--markers] [--no-lightmaps] [--cutaway Z]] [--rooms [--labelscale N] [--no-numbers]] [--ppu N] [--ground LANDTEXDIR [--tile UNITS]] [--crop x0,y0,x1,y1]
                                                        # ground paint + assets as a PNG (x right, y up); DIR holds ini + msh files
     python3 tools/jad_dump.py a.jad b.jad              # field-level diff (statics + objects matched by id)
 
@@ -348,6 +348,67 @@ ROOM_COLOURS = [(230, 25, 75), (60, 180, 75), (255, 225, 25), (0, 130, 200), (24
                 (240, 50, 230), (210, 245, 60), (250, 190, 212), (0, 128, 128), (170, 110, 40)]
 
 
+FONT = {}
+for _ch, _rows in {
+    "A": "01110 10001 10001 11111 10001 10001 10001", "B": "11110 10001 10001 11110 10001 10001 11110",
+    "C": "01110 10001 10000 10000 10000 10001 01110", "D": "11110 10001 10001 10001 10001 10001 11110",
+    "E": "11111 10000 10000 11110 10000 10000 11111", "F": "11111 10000 10000 11110 10000 10000 10000",
+    "G": "01110 10001 10000 10111 10001 10001 01111", "H": "10001 10001 10001 11111 10001 10001 10001",
+    "I": "01110 00100 00100 00100 00100 00100 01110", "J": "00111 00010 00010 00010 00010 10010 01100",
+    "K": "10001 10010 10100 11000 10100 10010 10001", "L": "10000 10000 10000 10000 10000 10000 11111",
+    "M": "10001 11011 10101 10101 10001 10001 10001", "N": "10001 11001 10101 10011 10001 10001 10001",
+    "O": "01110 10001 10001 10001 10001 10001 01110", "P": "11110 10001 10001 11110 10000 10000 10000",
+    "Q": "01110 10001 10001 10001 10101 10010 01101", "R": "11110 10001 10001 11110 10100 10010 10001",
+    "S": "01111 10000 10000 01110 00001 00001 11110", "T": "11111 00100 00100 00100 00100 00100 00100",
+    "U": "10001 10001 10001 10001 10001 10001 01110", "V": "10001 10001 10001 10001 10001 01010 00100",
+    "W": "10001 10001 10001 10101 10101 11011 10001", "X": "10001 10001 01010 00100 01010 10001 10001",
+    "Y": "10001 10001 01010 00100 00100 00100 00100", "Z": "11111 00001 00010 00100 01000 10000 11111",
+    "0": "01110 10001 10011 10101 11001 10001 01110", "1": "00100 01100 00100 00100 00100 00100 01110",
+    "2": "01110 10001 00001 00010 00100 01000 11111", "3": "11110 00001 00001 01110 00001 00001 11110",
+    "4": "00010 00110 01010 10010 11111 00010 00010", "5": "11111 10000 11110 00001 00001 10001 01110",
+    "6": "00110 01000 10000 11110 10001 10001 01110", "7": "11111 00001 00010 00100 01000 01000 01000",
+    "8": "01110 10001 10001 01110 10001 10001 01110", "9": "01110 10001 10001 01111 00001 00010 01100",
+    "-": "00000 00000 00000 11111 00000 00000 00000", ".": "00000 00000 00000 00000 00000 01100 01100",
+    ":": "00000 01100 01100 00000 01100 01100 00000", "(": "00010 00100 01000 01000 01000 00100 00010",
+    ")": "01000 00100 00010 00010 00010 00100 01000", " ": "00000 00000 00000 00000 00000 00000 00000",
+}.items():
+    FONT[_ch] = _rows.split()
+
+
+def draw_text(put, cx, cy, lines, scale):
+    """Centered lines of text in a 5x7 bitmap font (A-Z, 0-9, - . : ( )), white with a black outline; (cx, cy) = centre of the block."""
+    h = len(lines) * 8 * scale
+    for li, line in enumerate(lines):
+        w = len(line) * 6 * scale
+        x0, y0 = int(cx - w / 2), int(cy - h / 2 + li * 8 * scale)
+        for pass_, col in ((0, (0, 0, 0)), (1, (255, 255, 255))):
+            for ci, ch in enumerate(line.upper()):
+                for gy, row in enumerate(FONT.get(ch, FONT[" "])):
+                    for gx, bit in enumerate(row):
+                        if bit != "1":
+                            continue
+                        for dy in range(scale):
+                            for dx in range(scale):
+                                px_, py_ = x0 + (ci * 6 + gx) * scale + dx, y0 + gy * scale + dy
+                                if pass_ == 0:
+                                    for ox in (-1, 0, 1):
+                                        for oy in (-1, 0, 1):
+                                            put(px_ + ox, py_ + oy, col)
+                                else:
+                                    put(px_, py_, col)
+
+
+def wrap_label(text, max_chars):
+    words, lines, cur = text.split(), [], ""
+    for w in words:
+        if cur and len(cur) + 1 + len(w) > max_chars:
+            lines.append(cur)
+            cur = w
+        else:
+            cur = (cur + " " + w).strip()
+    return lines + ([cur] if cur else [])
+
+
 def room_objects(p):
     """{parent asset object id: [room dict]} from every object with a RoomName (TMRoom and its subclasses: CHireRoom, CFireRoom, CScriptRoom ...).
     RoomName is the mesh part name (`room_ss_actors`), PParentAsset the placed facility/set's object id (all 104 rooms of the Quick Start save resolve), MyIndex an order
@@ -386,7 +447,7 @@ ROOM_LABELS = {"room_ss_extras": "Create Extra", "room_ss_actors": "Create Actor
                "room_ss_fire": "Reject", "room_ss_starmaker": "(striped star-maker pad)"}
 
 
-def draw_rooms(put, tri, line, to_px, items, meshes, k, room_data=None):
+def draw_rooms(put, tri, line, to_px, items, meshes, k, room_data=None, label_scale=1, numbers=True):
     """Fill each named room floor polygon (mesh parts called room_*) in its own colour at the asset's placement and label it with a number; the unnamed
     `room_` part (the whole walkable floor) is skipped. Prints a legend: number = room name per mesh."""
     import math
@@ -409,17 +470,14 @@ def draw_rooms(put, tri, line, to_px, items, meshes, k, room_data=None):
             for t in ch["tris"]:
                 tri(pts[t[0]], pts[t[1]], pts[t[2]], col, 0.55)
             if pts:
-                cx = int(sum(q[0] for q in pts) / len(pts))
-                cy = int(sum(q[1] for q in pts) / len(pts))
-                lab = str(len(legend))
-                sc = max(2, k // 3)
-                for ci, chr_ in enumerate(lab):
-                    for gy in range(5):
-                        for gx in range(3):
-                            if DIGITS[chr_][gy * 3 + gx] == "1":
-                                for dy in range(sc):
-                                    for dx in range(sc):
-                                        put(cx + (ci * 4 + gx) * sc + dx - len(lab) * 2 * sc, cy + gy * sc + dy - 2 * sc, (0, 0, 0))
+                cx = sum(q[0] for q in pts) / len(pts)
+                cy = sum(q[1] for q in pts) / len(pts)
+                width = max(q[0] for q in pts) - min(q[0] for q in pts)
+                label = ROOM_LABELS.get(name) or name[5:] if name.startswith("room_") else name
+                label = ROOM_LABELS.get(name) or label
+                label = label.replace("(", "").replace(")", "").replace("_", " ")
+                text = f"{len(legend)} {label}" if numbers else label
+                draw_text(put, cx, cy, wrap_label(text, max(4, int(width / (6 * label_scale)))), label_scale)
         if apath not in seen:
             seen.add(apath)
             print(f"  rooms in {apath}:")
@@ -428,7 +486,7 @@ def draw_rooms(put, tri, line, to_px, items, meshes, k, room_data=None):
                 print(f"    {i + 1} = {n}" + (f' ("{ROOM_LABELS[n]}" in game)' if n in ROOM_LABELS else "") + f"  [{info}]")
 
 
-def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None, roofs=None, outlines=True, markers=True, ground=None, tile=12.0, lightmaps=True, cutaway=None, rooms=False):
+def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None, roofs=None, outlines=True, markers=True, ground=None, tile=12.0, lightmaps=True, cutaway=None, rooms=False, label_scale=1, numbers=True):
     """Top-down PNG: ground paint (cell g = round((world + 256) / 2), centred on even world coordinates), optionally the occupancy bits,
     the placed assets (red = facility, blue = ornament) and, with a directory of ini + msh files, each asset's mesh polygons rotated by
     MyAngle and moved to POSITION: b15_02 footprint = orange fill, b16_01 = yellow outline, facility room floors = cyan outline."""
@@ -532,7 +590,7 @@ def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None,
     if roofs and meshes:
         render_roofs(px, W, H, k, x0, y1, items, meshes, roofs, lightmaps, cutaway)
     if rooms:
-        draw_rooms(put, tri, line, to_px, items, meshes, k, room_objects(p))
+        draw_rooms(put, tri, line, to_px, items, meshes, k, room_objects(p), label_scale, numbers)
     for _c, _i, apath, (x, y, _z), ang in items:
         m = meshes.get(apath)
         if m and outlines:
@@ -647,6 +705,9 @@ def main(argv):
     cut = argv[argv.index("--cutaway") + 1] if "--cutaway" in argv else None
     if cut:
         args.remove(cut)
+    lscale = argv[argv.index("--labelscale") + 1] if "--labelscale" in argv else None
+    if lscale:
+        args.remove(lscale)
     ppu_arg = argv[argv.index("--ppu") + 1] if "--ppu" in argv else None
     if ppu_arg:
         args.remove(ppu_arg)
@@ -659,7 +720,8 @@ def main(argv):
             show_terrain(p, png, "--occupancy" in argv, fp, tuple(float(v) for v in crop.split(",")) if crop else None,
                          roofs=roofs, outlines=not roofs or "--outlines" in argv, markers=not roofs or "--markers" in argv,
                          ground=ground, tile=float(tile), lightmaps="--no-lightmaps" not in argv,
-                         cutaway=float(cut) if cut else None, rooms="--rooms" in argv, ppu=int(ppu_arg) if ppu_arg else None)
+                         cutaway=float(cut) if cut else None, rooms="--rooms" in argv, ppu=int(ppu_arg) if ppu_arg else None,
+                         label_scale=int(lscale) if lscale else 1, numbers="--no-numbers" not in argv)
         elif "--map" in argv:
             show_map(p, svg)
         elif "--lists" in argv:

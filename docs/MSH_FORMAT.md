@@ -96,7 +96,7 @@ The texture scale is **assumed**: one tile per 12 world units (`--tile`), from t
 ## Rooms and the cutaway view
 
 `jad_dump.py ... --rooms` fills each named room floor polygon (mesh parts called `room_*`, `docs/MSH_FORMAT.md` "Named parts") in its own colour at the asset's `POSITION` / `MyAngle`, numbered, and prints a
-legend (`1=room_ss_extras, ...`). The unnamed `room_` part is the union of the walkable floor and is skipped. `--cutaway Z` drops every triangle whose vertices are all above Z (default use: 2.5), which
+legend (`1=room_ss_extras, ...`). The unnamed `room_` part is the union of the walkable floor and is skipped. `--rooms` draws each room's name on it (in-game label where known, else the mesh part name without `room_`) with the number in front (`--no-numbers` drops the number, `--labelscale N` enlarges the 5x7 built-in font); `--cutaway Z` drops every triangle whose vertices are all above Z (default use: 2.5), which
 removes roofs and shows what is under them. Observed on the tutorial save: the stage school has five rooms (extras, actors, directors, fire, starmaker); the gatehouse three (fire, hire janitor, hire builder);
 the trailer two (window, trailer_assign). The catering building's mesh has no named room parts. The facility shells are **empty** under the roof (grass shows through): the interiors are the sets the player
 builds in the rooms, which is why a save with player-built sets is needed to see them (`docs/SAVE_FORMAT.md`).
