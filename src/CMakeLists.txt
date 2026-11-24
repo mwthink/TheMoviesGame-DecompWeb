@@ -25,6 +25,7 @@ add_library(otm_game
     game/staff/StaffTuningLoader.cpp
     game/boot/IntroSequence.cpp
     game/boot/CommandLine.cpp
+    game/frontend/FrontEnd.cpp
     game/character/AnmFile.cpp
     game/character/MshFile.cpp
     game/character/HeadFile.cpp
@@ -102,3 +103,8 @@ set_tests_properties(character PROPERTIES
 add_executable(command_line_test tests/CommandLineTest.cpp)
 target_link_libraries(command_line_test PRIVATE otm_game)
 add_test(NAME command_line COMMAND command_line_test)
+
+# The main menu (WFrontEnd): state machine, event handler and tables; docs/FRONTEND.md.
+add_executable(front_end_test tests/FrontEndTest.cpp)
+target_link_libraries(front_end_test PRIVATE otm_game)
+add_test(NAME front_end COMMAND front_end_test)
