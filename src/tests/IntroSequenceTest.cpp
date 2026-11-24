@@ -1,5 +1,6 @@
 // Walks the intro state machine through the same transitions UpdateIntroSplashScreens (0x0045E3F0) makes. These are
-// derived from the decompile, not measured at runtime (no run covers boot yet; docs/BOOT.md).
+// derived from the decompile. The first-call boot trace (docs/BOOT.md, "Measured: boot1") confirms the order of the path and
+// the first splash's 3 s, but not the other splashes' timing, the skip rules or the legal notice.
 #include <cstdio>
 #include <cstring>
 
