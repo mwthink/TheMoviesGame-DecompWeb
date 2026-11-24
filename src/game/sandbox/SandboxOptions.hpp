@@ -46,7 +46,7 @@ struct SandboxChoices {
     bool buildingsDecay = true;        // +0x77F   (the row is labelled "Buildings Don't Decay", so it reads inverted)
     bool stuntmen = false;             // +0x780   (add-on)
     bool stuntInjuries = false;        // +0x781   (add-on)
-    bool readyBuiltLot = true;         // DAT_0104DE24, a global: "Start With A Ready Built Studio Lot"; Campaign_Begin loads a second template for it
+    bool readyBuiltLot = true;         // DAT_0104DE24, a global: "Start With A Ready Built Studio Lot" (ON = a basic setup, OFF = an empty lot). Campaign_Begin appends "_clean" to a path string that nothing uses and clears it; no real consumer was found
 };
 
 // orig: WProfileScreen_OnConfirm 0x006E1220, case 1. Sets GameType = 2.0 and six options from the checkboxes; the others keep their values.

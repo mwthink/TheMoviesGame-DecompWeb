@@ -137,7 +137,7 @@ The sandbox screen (`WSandboxOptions`, `FUN_0070D020`) has seven rows, each a la
 | Buildings Instantly Constructed | `INSTANTBUILD` | `+0x77C` | off |
 | Stars Don't Misbehave | `MOOD` | `+0x77E` | off |
 | Buildings Don't Decay | `DISREPAIR` | `+0x77F` | 1 (so decay is on) |
-| Start With A Ready Built Studio Lot | `CLEARLOT` | the global `DAT_0104DE24` | on |
+| Start With A Ready Built Studio Lot | `CLEARLOT` | the global `DAT_0104DE24` (no consumer found, see `Campaign_Begin`) | on |
 | Stunt Injuries (add-on) | `STUNTINJURIES` | `+0x781` | off |
 | Stuntmen (add-on) | `STUNTMEN` | `+0x780` | off |
 
@@ -179,13 +179,13 @@ sandbox with the default checkboxes options 7 and 8 are 1.0 and option 2 is 0.
 `Campaign_Begin(startYear, x, tutorial)` (0x4AF870) is the launch point:
 - builds the game clock (`GameClock_Constructor`) into `DAT_00E4FA4C..60`; `DAT_00E4FA4C` is the clock in days that the debugger's
   `GAME_CLOCK_STARTED` marker watches (RVA 0xA4FA4C);
-- loads a **`savedefaults/<n>` template** (the initial world and studio are built from a default save file, so the save format applies;
-  see SAVE_FORMAT.md; what `<n>` is, is not decoded);
-- when `DAT_0104DE24` is set and the game type is 2.0 or 3.0, loads a second template and clears the flag. `DAT_0104DE24` is the sandbox
-  screen's **"Start With A Ready Built Studio Lot"** checkbox (default on), so the built lot is a second `savedefaults` template;
+- builds a local path string `savedefaults/<tutorial or a number>`, and appends `_clean` when `DAT_0104DE24` is set and the game type is 2.0 or 3.0 (it also
+  clears that flag). **Nothing uses the string**: it is a local that is freed at the end of the function, and the last call, `FUN_005434E0` with the argument
+  `data/sandbox.cfg`, goes to an empty stub, so a loader that took these paths seems to have been removed. An earlier version of this document said the function
+  loads a default save template; that was wrong. `DAT_0104DE24` is the sandbox row's flag (its texts say ON is a basic setup and OFF an empty lot) and I found
+  no consumer for it other than this function and the sandbox screen, so the "ready built lot" option may do nothing in this build;
 - then runs `FUN_00467D50`, `FUN_00422750`, `GlobalStatRegistry_Get`, `FUN_008C9620`, `Money_DebugCheckRange`, `FUN_00442BE0`, `FUN_00530D90`
-  and `FUN_0048F3F0`, which build the registries and the starting state. None of those was read. That is where the main game loop's
-  state comes from.
+  and `FUN_0048F3F0`, which build the registries and the starting state. None of those was read. The state the main game loop works on comes from these.
 
 `FUN_00422250` scans the user's movies folder (`Trailer_GetMoviesFolder`) for the highest numbered entry and works out the next movie number;
 it is run before a new game or the tutorial starts.
@@ -270,7 +270,7 @@ non-creating one (`Fullscreen`). The audio manager is `Audio_GetInstance()` (`DA
   (the Continue tooltip text?) are unread. So is the 1.2 KB `FUN_0068F6E0`, which looks like an ambient particle spawner (random angles and
   radii around a point, calling `FUN_009B3A70`).
 - `WProfileScreen`'s own logic (the name boxes, the validation behind `PROFILESCREEN_CANCELNONAME`, the star display in `FUN_006E3400`) and the
-  eight functions `Campaign_Begin` calls are unread. The second `savedefaults` string that `Campaign_Begin` loads is not decoded.
+  eight functions `Campaign_Begin` calls are unread. The world a new game starts with is built by the eight calls of `Campaign_Begin`, which are unread.
 - The constructor (`WFrontEnd_Constructor`, 0x695460) loads `ui/minspec_frontend.dds` for tier < 2 and the `frontend` movie
   with its `filmstrips_win` clip otherwise (that clip name is also in `frontend.mfl`); the rest of it is unread. `data/intro/frontend_intro.wmv` is not referenced by any string in the
   executable, so it may be unused.
