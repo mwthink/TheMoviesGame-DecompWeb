@@ -134,7 +134,7 @@ Read only the last screenshot of a scripted sequence (the user asked for that); 
    (the tools tint the shape with the colour's average); the constant ~1 mm shift in the baked head; the meaning of bit 0 of the blend flags (`model+0x38`); what `FUN_0043b3b0`
    does (vertex reorder into `.hd` order, used by the `star.hd` writer); the hair `a.dds` alpha maps and the `_nr.msh` hair variants; the `.fan` flag word (99, 998, 9998); the id word
    at `info.sm` 0x08 (a checksum, algorithm not read: `StarMaker_BuildInfoSm` calls `FUN_0042b9e0`); the real tick length of the expression envelope; the last six attribute rows' order.
-   Not started: the body / costume side (`InfoTextures.fas`, the `.cos` texture layers), tattoo and nail layers, the UI code, and the 532 StarMaker-only functions.
+   Researched, not built (`docs/STARMAKER.md` section 11; `InfoTextures.fas` is unused): the body / costume side (`.cos` texture layers, compositor `FUN_004707e0`), tattoo and nail layers, the UI code, and the 532 StarMaker-only functions.
    **Next port step:** DDS decoding and face-layer compositing in `src/` (so a star's face texture can be built in C++), then wiring `game/character` to the cast data of a save
    (`tools/save_cast.py`) so a person's face, makeup and expression can be built from a save; `verified` needs a run of the game's own functions (hooks) for the expression blend.
    Local-only files these tools and the `character` test read (none are in git): `data/game_data/sm_assets` (extracted `mannequin_sm.anm`, `sm_generic.msh`, `generic_facialskin.msh`,

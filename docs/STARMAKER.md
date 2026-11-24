@@ -9,6 +9,7 @@ Status (end of the 2026-11-24 session): the editor's star format, face sliders, 
 | The 43 face sliders | section 7 | `tools/starmaker_sliders.py`, `src/game/character/FaceRig` |
 | Facial expressions (`.fan`, `fclexp`) | section 8 | `tools/render_expression.py`, `render_expression_gif.py`, `FaceRig` |
 | Makeup, hair, iris, age, blends, weight; all function names | sections 9, 10 | `tools/render_star.py`, `render_star_sheet.py`, `src/game/character/Appearance`, `tools/starmaker_names.csv` |
+| Body / costume texture compositing, `.cos` records, `InfoTextures.fas` | section 11 | (research only, no tool yet) |
 | Finding code from a string | `docs/DECOMP_PIPELINE.md` | `ghidra/scripts/FindRefs.java` |
 
 Items are marked **[read]** (read in the decompiled code or disassembly), **[data]** (seen in the game's data files or the binary's strings) or **[guess]**.
@@ -65,7 +66,7 @@ No confident match for: the `.hd` loader (`0xa18e50`), `Anim_LoadByName` (`0x988
 2. **`starmaker.ini` [data]**: 43 face sliders in groups `nose` (9), `eyes` (6), `mouth` (8), `jaw` (6), `cheek` (3), `ear` (3), `brow` (2), `eyebrow` (3), `head` (3), each as `[group] [name] [a][b]`, e.g. `[nose] [nose_length] [1][2]`. The first number goes up in steps of 3 from 1 to 127 (and 130 for `teeth_move_in_out`), so it indexes a vector of 3-float entries; the second number (0, 1 or 2) is not understood. **How a slider value turns into the face is not read yet.** **[guess]**: the slider vector is stored in the star file.
 3. **`.fan` files [data]** (solved in section 8): `Data\Animations\Facials\<name>.fan` (64 files, 28 bytes: `u32 1, u32 0, u32 expression index, f32 1.0, u32 0, u32 9998 (or 99 for rage_open), u32 0`): e.g. `kiss` = 14, `blinkright` = 29, `rage_open` = 49. **[guess]**: the expression index (0 to 53) is the one `Actor_SetFacialExpression` takes for the `fclexp` scene command (`docs/FLM_FORMAT.md` 5f); where the 54 expression shapes themselves are stored is not known.
 4. **`Data\Hairs\head_shape.dat` [data]**: `u32 876` then 876 triangles of `u16` indices, over 440 distinct vertices, all below index 755 (the 760-vertex face primitive of `generic_head.msh`). A face-region mesh; what the editor uses it for is not known.
-5. **`Data\Costume\Datas\InfoTextures.fas` [data]** (20,292 bytes): a table of costume texture-layer names (`com_f_20s_1_panels_v00.dds` ...) with small integers per entry. Probably how the `.cos` texture layers are composited into the costume atlas (the piece `docs/CHARACTERS.md` lists as not done). **[guess]**
+5. **`Data\Costume\Datas\InfoTextures.fas` [data]** (20,292 bytes): a table of costume texture-layer names with small integers per entry. **Not used by the compositor** (section 11): the loader stores it in a global that nothing reads, in StarMaker and in MoviesSE. Probably authoring metadata.
 6. **Star file [data]**: the strings `\The Movies\StarMaker\` and `\info.sm` (in the unmatched function `0x4277b0`), `STARMAKER THUMB`, and `*.cpak`. The layout of `info.sm` is not read.
 7. **Other editor assets [data]**: `sm_generic.msh`, `mannequin_sm.anm`, `sm_pose.anm` (function `0x40e2fc`: the editor's own body and pose), `latex_%c_head_v00.msh` (head selection, `0x425e40`), `hair_gradiant.dds`, `hair_*.msh` with a `_nr.msh` variant (hair, `0x46d800`), `Data\Costume\Datas\%s`, `Thumbs\Heads\`, `Thumbs\Hair\`, the textures `SM\*.dds` (UI), makeup keys `SM_MUP_BEARD/COLOR/EYEBROW/MAKEUP/LIPSSTICK`.
 8. **Star attributes [data]** (`SM_STAT_*`): Looks, Trimness, Bulk (chest or breast size), the five genres, Stress, Boredom, Appetite (food), Thirst (drink), Mood upper, Mood lower. They line up with `CStar` fields in a save (`Looks`, `WEIGHT`, the thresholds); the mapping is not checked.
@@ -216,3 +217,40 @@ So the advanced face sliders, the `info.sm` file and `star.hd` (the baked head) 
 
 Still open: the two-texture blend mode 0x25 of the eye pair; what `FUN_0043b3b0` does exactly (it is called three times by the `star.hd` writer and reorders vertices into `.hd` order); the constant ~1 mm offset of the baked head; the meaning of bit 0 of the blend flags; the `a.dds` alpha maps and `_nr.msh` hair variants.
 
+## 11. Body and costume textures (research, 2026-11-24; nothing built yet)
+
+**[read in the decompile; the layer-to-atlas mapping checked by rendering one costume]**
+
+**The costume texture is composited from layers, the same way as the face.** The body mesh (`cos_m_50s_1.msh`) has one 512x512 diffuse atlas (`cos_m_50s_1.dds`). The costume layers (`com_*.dds`, 512x512 DXT5 with alpha) share its UVs: for `m_50s_1.cos`, the jeans, shirt, belt and shoe layers each land on their own region of the atlas, and the atlas itself shows the default costume baked on top of skin.
+
+**`InfoTextures.fas` is not part of this.** 390 rows after a 12-byte header (u32 0, u32 count, u32 runtime pointer), 52 bytes each: name[32], then five u32. The first is a decade (1900 to 1990, 0 for two rows); the next three are small codes (0 to 11, 0 to 9, 0 to 8) not decoded; the fifth is always 0. `FindRefs.java` on the global (`0x74f5e0` in StarMaker, `0x10c9ad0` in MoviesSE) finds only the loader and the free. The old guess in section 4 was wrong.
+
+**The compositor is `FUN_004707e0`** (StarMaker; `this` is the costume, `param_1` the character model; MoviesSE has the equivalent, not located). In the editor the mesh's `cos_*` texture slot is replaced by a render target named `costume` (`FUN_00425e40`, the `.cos` loader, does it; the head and hair slots get the same treatment). Draw order:
+
+1. The base skin, then three alpha-weighted skin overlays (`skin_<g>_<race>_<n>.dds`, `_enh`, `_old`; the pak has all three for each skin). Names come from `FUN_00428410` / `FUN_00428570`, alphas from `FUN_00427ec0` of the age morph (`model+0x11c`) and the weight morph, clamped to 0 to 255. **Which overlay uses which morph, and the formula, are not read.**
+2. `skin_blend_body_%d.dds` (the skin blend slider), then `FUN_004705c0`: a body layer named at `model+0x208`, `mup_bodytatoo_v<N>` (name at `+0x1a8`, 17 characters, drawn when the list entry for N is non-zero), and a third layer from `+0x228` with `body` appended (not identified).
+3. If the costume has a latex head mesh (mesh record type 4): `mup_latex_v%02d.dds`, with `_t%d` added when the record's `+0x28` is above 0.
+4. Each texture record of the `.cos`, in file order, through `Texture_DrawLayer` (`0x447290`). The record's type (`+0x20`) selects the mode: 0 is a normal colour draw (mode 6); anything else is drawn as an **alpha map** (mode 0x13, writes the alpha channel only, for transparency such as the `..._a.dds` layers). If no alpha map was drawn, the alpha channel is filled opaque (`Texture_DrawLayer(0, 1)` = mode 0x14, colour `0xff000000`).
+5. The layer's variant number is spliced into the name by `FUN_0042c570` (`com_..._v00.dds` becomes `_v%02d` with the current variant); `FUN_0042c480` returns the variant count and the default. **Not read.**
+
+**`.cos` record layout** (from `FUN_004251d0` for textures and `FUN_004252d0` for meshes; `tools/cos_dump.py` already finds the strings). Texture record, 0x54 bytes in the file, then optionally 0x24 more bytes when flag bit 3 is set (`FUN_00425130` copies them as nine words):
+
+| offset | meaning |
+|---|---|
+| 0x00 | file name, 32 bytes |
+| 0x20 | type: 0 colour layer, other values alpha map |
+| 0x24 | a float (0.04, 0.09 ...), not read |
+| 0x28 / 0x2c | variant count / current variant (replaced by `FUN_0042c480` at load; if flag bit 0 is set the current is copied from the count) |
+| 0x30 | slot name, 32 bytes (`cos_shoes`, `cos_color_2`, `cos_dress` ...) |
+| 0x50 | flags (file version 6 and up; before that 0): bit 0 variant locked, bit 3 extra block follows; the loader adds bit 1 when the name does not start with `com_` |
+
+Mesh records start the same way (name, a type byte at `+0x20` with 5 set for `acc_glasses_*`, a flags byte at `+0x21`: bits 0 and 4 force the variant to 1, bit 1 adds a 4-byte field, bit 2 the 0x24-byte block). The `.cos` header (0xa8 bytes) holds the counts as bit fields in one word: texture records `(w >> 2) & 0x1f`, mesh records `(w >> 7) & 0x1f`; a year range sits at 0x8c to 0x90 (1977 to 1993 for the cheerleader; meaning a guess). A trailing array of 0x40-byte entries is the editor's parameter list (`this+0xcc`). The parameter types are the ones in section 9 (0 = a texture record's variant, 1 = a mesh variant, 2 to 6 and 10 to 13 = makeup categories, 7 to 9 = other lists, via `FUN_00425440`).
+
+**A saved `CCostume` stores the choice as that parameter list.** In the Wine save the blob (1,047 bytes) holds the costume name, the `.cos` name, the table of 0x2c-byte parameter entries (the first byte of each looks like the index, then the type, then the value) and, at the end, the makeup names and the hair mesh. No `com_*` names are stored, so the variant of each layer must be decoded from the table. Not decoded.
+
+**Considerations for building it**
+* Reuse: DDS decoding, `Texture_DrawLayer` and the face layer order are done. A costume compositor is the same code with different inputs.
+* Prototype in Python first (`tools/render_costume.py`, shaped like `render_star.py`), check against an editor screenshot, then port to `src/game/character/`.
+* Open before it can be exact: the skin overlay alphas, the variant naming (`FUN_0042c480`, `FUN_0042c570`), the saved parameter table, the float at record `+0x24`, the third body layer at `model+0x228`.
+* Accessories (hat, glasses, watch, ring) are separate meshes attached at the slot named in the mesh record; no compositing.
+* Not touched: tattoo and nail layers on the face side, the 532 StarMaker-only functions, the editor UI.
