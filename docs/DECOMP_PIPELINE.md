@@ -180,6 +180,10 @@ What the traces showed (new-game Quick Start, then 2 game years: 1960.0 to 1962.
   confirmed independently: tier A 90% consistent with the dynamic class, tier B 88%.
 - Start-up facts: the game clock starts at 1960.0 for a Quick Start; `MONTH_n` markers are whole months since year 0 of the clock.
 
+## Comparing two binaries (`MoviesSE.exe` and `StarMaker.exe`)
+
+`ghidra/scripts/FunctionHashes.java` writes one line per function with fingerprints that survive a rebuild of the same source (a hash of the mnemonic sequence, and one of the mnemonics plus operands with addresses and large numbers replaced), so functions can be matched between two builds without addresses or names. `ghidra/scripts/DecompileAddrs.java` decompiles chosen functions, their callers and optionally the disassembly (the decompiler loses stack-passed float arguments in both binaries; the instructions show the real order). `tools/match_binaries.py` matches the two fingerprint tables. Commands, the numbers (89% shared) and the findings are in `docs/STARMAKER.md`. Run them headless against a copy of the project, or a separate project for the second binary, so the main Ghidra project is not touched.
+
 ## What this does not do yet
 
 - No object code is produced or linked (`/Zs` only); calling-convention rewriting at call sites (`__thiscall`) is not done.

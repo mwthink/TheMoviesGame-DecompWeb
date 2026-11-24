@@ -26,7 +26,7 @@ The write-ups live in `docs/` (start with `docs/HANDOVER.md`); `FINDINGS.md` hol
 
 ```
 docs/          findings and format write-ups: MOVIE_QUALITY / MOVIE_SUCCESS / STUNT_SYSTEM / TRAITS_AND_EXPERIENCE (formulas),
-               SAVE_FORMAT / SCRIPTS / CHARACTERS (saved games), MSH_FORMAT / ANM_FORMAT / FLM_FORMAT (assets),
+               SAVE_FORMAT / SCRIPTS / CHARACTERS (saved games), MSH_FORMAT / ANM_FORMAT / FLM_FORMAT (assets), STARMAKER (the character editor binary),
                REIMPLEMENTATION, DECOMP_PIPELINE, WINDOWS_TEST_BOX, WINE_CROSSOVER, HANDOVER (state and next steps)
 FINDINGS.md    older findings notes, kept as a reference (radio/news, genre trend, audio engine, .lug loader)
 renames.csv    proposed function names with evidence; library_map.csv, fable_matches.csv
@@ -34,11 +34,11 @@ tools/         analysis and generator scripts (Python/PowerShell); tools/ghidra_
                jad_dump.py, script_dump.py, script_quality.py, save_cast.py (saved games, scripts, terrain and placement renders),
                msh_dump.py, dds.py, anm_dump.py, cos_dump.py (models, textures, animations, costumes),
                export_person.py / export_character.py (characters for the viewer), lhts.py, list_rooms.py (text and rooms),
-               pak_extract.py, fetch_assets.py (archives); attribute_classes.py, progress.py (decompilation status);
+               pak_extract.py, fetch_assets.py (archives); attribute_classes.py, progress.py (decompilation status); match_binaries.py (match functions between MoviesSE and StarMaker);
                tools/winbox/ = scripts for the Windows test box (build, launch, trace, drive the game);
                tools/wine/ = patch_laa.py, for running the game under CrossOver/Wine on the Mac (docs/WINE_CROSSOVER.md)
 viewer/        three.js character viewer (index.html, vendor/; viewer/data is generated, see docs/ANM_FORMAT.md)
-ghidra/        Ghidra scripts (the Ghidra project itself is local: *.gpr / *.rep, gitignored)
+ghidra/        Ghidra scripts (export, function fingerprints to compare two binaries, targeted decompile; the Ghidra projects are local: *.gpr / *.rep, gitignored)
 debugger/      TheMoviesDebugger: injected DLL + injector (CMake), used to verify findings at runtime
 src/           the readable reimplementation (portable C++17): core/, game/movie, game/staff, game/studio, game/ai, apps/ (otm_movie_calc), tests/
 data/          LOCAL ONLY, gitignored: ExportDecompiled/, game_data/ (extracted ini/csv), runtime/ (traces from the test box);
