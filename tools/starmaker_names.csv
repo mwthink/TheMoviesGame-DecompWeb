@@ -1270,3 +1270,15 @@ address,name
 005bd05b,__ctrandisp2
 005bd1f1,__ctrandisp1
 005bd224,__fload
+0040edd9,StarMaker_ApplyAllSliders
+0040676b,FaceSlider_SkinHeadAtValue
+004066a1,FaceSlider_PoseAtValue
+004066de,FaceSlider_SetNeutral
+00405ebf,StarMaker_ResetAllSliders
+00407d7f,StarMaker_BuildInfoSm
+0040828a,StarMaker_LoadInfoSm
+004043eb,StarMaker_ApplyInfoSmToUI
+00406354,StarMaker_ParseSliderIni
+004062b1,StarMaker_AddSlider
+00427130,StarMaker_AgeFromSlider
+00402ce3,StarMaker_BuildBasicsUI
