@@ -8,7 +8,7 @@ How it was found (see docs/NETWORK.md): the strings are P4's own (`P4PORT`, `P4C
 The P4 objects are interleaved with unrelated game code (the pak writer at 0xaafeb0-0xab4df0, FX, fonts, ...), so membership is the
 component of direct calls around the anchors inside 0xa9d000-0xac8000, minus functions that carry game strings.
 
-Columns: addr, name, size, sub (net | config | file | charset | zlib-1.0.4 | other), evidence, old_class (what
+Columns: addr, name, size, sub (net | config | file | charset | zlib-1.0.4 | interleaved | other), evidence, old_class (what
 class_attribution.csv says; tools/attribute_classes.py applies this file over it when it is present).
 Needs docs/generated/class_attribution.csv (only for old_class) and tools/ghidra_names.csv + renames.csv.
 """
@@ -39,7 +39,9 @@ anchor = re.compile(r'P4[A-Z]+|s_P4|Rpc_|NetBuffer|NetTcp|client_OpenFile|"xfile
                     r'"commit"|"perms"|"confirm"|"decline"')
 game = re.compile(r'Pak|pak |FX\\\\|Data\\\\|MUMBLE|EXPLOSION|\.anm|Fonts|bigtextures|CONOUT|TheMovies|Lionhead|mflash|_sp_gun')
 excl = {a for a in win if game.search(funcs[a])}
-comp = {a for a in win if anchor.search(funcs[a]) and a not in excl}
+wsock = re.compile(r'\b(WSAStartup|WSACleanup|WSAGetLastError|socket|closesocket|send|recv|connect|bind|getsockname|getpeername|'
+                   r'gethostbyname|gethostbyaddr|gethostname|getservbyname|inet_addr|htons|ntohs)\s*\(')
+comp = {a for a in win if (anchor.search(funcs[a]) or wsock.search(funcs[a])) and a not in excl}
 fr = list(comp)
 while fr:
     a = fr.pop()
@@ -54,7 +56,14 @@ while fr:
     for c in down[a]:
         if c in z or I(c) < 0xa30000 or I(c) >= 0xad2000: continue
         if all(u in z for u in up.get(c, ())): z.add(c); fr.append(c)
-members = comp | z
+for _ in range(2):
+    z |= {a for a in funcs if 0xa30000 <= I(a) < 0xad2000 and a not in z and a not in comp and disp[a].startswith('FUN_')
+          and sum(1 for b in set(down[a]) | set(up.get(a, ())) if b in z) >= 2}
+# 3. interleaved: unnamed functions lying between the first and last P4 member of the 0xac2240.. block but not call-connected to
+#    anything (virtual FileSys/charset methods): same object files, so P4, but with no call evidence
+core = sorted((a for a in comp if I(a) >= 0xac2240), key=I)
+span = {a for a in funcs if I(core[0]) <= I(a) <= I(core[-1]) and a not in comp and a not in z and disp[a].startswith('FUN_')}
+members = comp | z | span
 
 subs = [('net', r'NetTcp|NetBuffer|Rpc|WSAStartup_failure|"protocol"|compress[12]|flush[12]|funcHandler|himark'),
         ('config', r'P4[A-Z]+|s_P4|COMPUTERNAME|"USERNAME"|"registry"'),
@@ -62,6 +71,7 @@ subs = [('net', r'NetTcp|NetBuffer|Rpc|WSAStartup_failure|"protocol"|compress[12
         ('charset', r'shiftjis|winansi|macosroman')]
 def sub(a):
     if a in z: return 'zlib-1.0.4'
+    if a in span: return 'interleaved'
     b = funcs[a]
     if re.search(r'\b(socket|send|recv|connect|closesocket|getsockname|getpeername|gethostbyname|gethostbyaddr|WSAStartup|'
                  r'WSACleanup|WSAGetLastError|getservbyname|inet_addr|htons|ntohs)\s*\(', b) and I(a) >= 0xac6000: return 'net'

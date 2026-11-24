@@ -50,7 +50,7 @@ callers are `0x00970bb0` and `0x00971190`, and those have no direct callers and 
 
 ## The socket and HTTP classes, as named
 
-34 functions are named in `renames.csv` (evidence in each row; **not yet applied to the Ghidra project** or `tools/ghidra_names.csv`).
+34 functions are named in `renames.csv` (evidence in each row), applied to the Ghidra project and `tools/ghidra_names.csv`.
 The picture they give:
 
 * **`NetSocket`** (`0xc4` bytes, one `operator_new(0xc4)` per socket). Fields seen: socket handle `+0x58` (-1 = closed), peer
@@ -110,7 +110,7 @@ played month.
 
 ## P4API (stack B and what surrounds it)
 
-`tools/p4api_map.py` writes `p4api_map.csv` (266 functions): the statically linked Perforce client, not part of the game's
+`tools/p4api_map.py` writes `p4api_map.csv` (306 functions): the statically linked Perforce client, not part of the game's
 online services. Its objects sit between `0x00a9d470` and `0x00ac7ee0`, interleaved with unrelated game code (the pak writer at
 `0x00aafeb0`-`0x00ab4df0`, FX, fonts), so membership is "connected to the P4 anchors by direct calls, minus functions carrying game
 strings". Anchors: `P4PORT`/`P4HOST`/`P4USER`/`P4CONFIG`..., `Rpc_dispatch`, `NetBuffer_send_compressing`,
@@ -118,18 +118,25 @@ strings". Anchors: `P4PORT`/`P4HOST`/`P4USER`/`P4CONFIG`..., `Rpc_dispatch`, `Ne
 
 | sub | functions | what |
 |---|---|---|
-| net | 23 | `NetTcpTransport`, `NetBuffer`, Rpc, the Winsock calls of stack B |
+| net | 27 | `NetTcpTransport`, `NetBuffer`, Rpc, the Winsock calls of stack B |
 | config | 10 | `P4*` environment variables, registry, `COMPUTERNAME`/`USERNAME` |
 | file | 17 | file-system layer (`open_for_read`, handles, AppleSingle, permissions) |
 | charset | 1 | `shiftjis`, `winansi`, `macosroman` tables |
-| zlib-1.0.4 | 33 | the **second zlib copy** (`*_copy2`), bundled for `NetBuffer` compression |
-| other | 182 | the rest of the client, mostly unnamed |
+| zlib-1.0.4 | 34 | the **second zlib copy** (`*_copy2` plus unnamed functions that only touch it), bundled for `NetBuffer` compression |
+| interleaved | 30 | unnamed functions lying between P4 members at `0xac2240`-`0xac7c90` with no call link to anything (virtual methods); same object files, so P4, but **no call evidence** |
+| other | 187 | the rest of the client, mostly unnamed |
 
 The second zlib copy is `"1.0.4"` (the first, used by the game, is 1.1.4) and is called from `NetBuffer`'s compress/decompress
-code, so it belongs to P4API as well. 21 functions of the client had been attributed to `zlib` by adjacency in
-`class_attribution.csv`; `tools/attribute_classes.py` now re-labels them `P4API` (tier `lib`) when `p4api_map.csv` is present.
-Regenerating `class_attribution.csv` needs the game exe, which is not in this checkout, so that file has not been rebuilt here
-and the hook was only syntax-checked.
+code, so it belongs to P4API as well. 48 functions of the client had been attributed to `zlib` by adjacency in `class_attribution.csv`.
+`tools/attribute_classes.py` re-labels every map member except the zlib ones `P4API` (tier `lib`) when `p4api_map.csv` is present.
+This was run against the real exe on 2026-11-24 (it is gitignored output): 272 functions are now `P4API`, and the only functions in
+`0xa90000`-`0xad2000` still labelled `zlib` outside the map are `0x00ac1480` and `0x00ac14e0` (unresolved: not call-linked to
+either P4 or zlib). A first version of the map missed `0x00ac65b0` (the `gethostbyname` wrapper, no P4 string) and `0x00ac8050`
+(zlib); the Winsock-caller anchor and the zlib neighbour rule fixed that.
+
+Side effect of the network names: the attribution tool turns a name prefix into a class, so `MV_ParseMV*` made it label about 51
+neighbouring functions (`0x00965c80`...) with a class called `MV`, which is also the engine's real namespace (`MV::Object`...).
+Read that label as "net protocol code", or rename the three functions if it gets in the way.
 
 The game's own glue on top is `Perforce::MyFileSys`, `Perforce::ClientUserSubclass` and `MyAsyncInteraction` (RTTI, around
 `0x00971790`-`0x00974820`); nothing in the cone calls it, and it has not been looked at.
