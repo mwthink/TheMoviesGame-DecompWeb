@@ -129,7 +129,7 @@ std::vector<Effect> FrontEnd::OnEvent(int id, const EventInput& in) {
     case ev::kNewGame:
         if (in.playedBasics) {
             Enter(State::Leaving, 25);
-            fx.push_back(Make(Kind::StartGame, 0));
+            fx.push_back(Make(Kind::OpenProfileScreen, 0));
         } else {
             // New Game before the Basics tutorial has been played runs the tutorial instead.
             fx.push_back(Make(Kind::BackgroundVisible, 1));
@@ -140,12 +140,12 @@ std::vector<Effect> FrontEnd::OnEvent(int id, const EventInput& in) {
 
     case ev::kSandbox:
         Enter(State::Leaving, 25);
-        fx.push_back(Make(Kind::StartGame, 1));
+        fx.push_back(Make(Kind::OpenProfileScreen, 1));
         break;
 
     case ev::kAddOnQuickStart:
         Enter(State::Leaving, 25);
-        fx.push_back(Make(Kind::StartGame, 3));
+        fx.push_back(Make(Kind::OpenProfileScreen, 3));
         break;
 
     case ev::kTutorial:

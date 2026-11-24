@@ -63,9 +63,9 @@ then the main credits, then the menu.
 
 | id | from | effect |
 |---|---|---|
-| 0x515 | `ExternStartNewGame`, "Skip Front End" = 2 | config `Played Basics` true: state 5 and `NewGame_Start(0, ...)`; false: hide the background, set `DAT_010503D2`, state 5 and run the Basics tutorial |
-| 0x5B5 | `ExternStartSandbox`, "Skip Front End" = 1 | state 5, `NewGame_Start(1, ...)` |
-| 0x8FD | `AddOn1Qstart` | state 5, `NewGame_Start(3, ...)`, `+0x608 = 0` |
+| 0x515 | `ExternStartNewGame`, "Skip Front End" = 2 | config `Played Basics` true: state 5 and `WProfileScreen_Create(0, ...)`; false: hide the background, set `DAT_010503D2`, state 5 and run the Basics tutorial |
+| 0x5B5 | `ExternStartSandbox`, "Skip Front End" = 1 | state 5, `WProfileScreen_Create(1, ...)` |
+| 0x8FD | `AddOn1Qstart` | state 5, `WProfileScreen_Create(3, ...)`, `+0x608 = 0` |
 | 0x795 | `ExternTutorial` | state 5, hide the background, run the tutorial (same sequence as New Game without the Basics) |
 | 0x7E5 | `ExternResume` | if `+0x60C` (a game to resume): state 5 and `DAT_0104A982 = 1` |
 | 0x71D | `ExternCredits` | the credits flow above, if the movie player exists |
@@ -76,6 +76,42 @@ then the main credits, then the menu.
 
 The new-game start properties come from the `studio` section (`startfunds`, `time`, `start`; `startfunds_quickstart` and
 `start_quickstart` for the quick start), read and written through `FUN_00558750` / `FUN_00558A50`.
+
+## From the button to the game
+
+New Game, Sandbox and the add-on quick start do **not** start a game: they open the **profile screen** (`WProfileScreen`, 0x578 bytes) through
+`WProfileScreen_Create(mode, ...)` (0x6E3200) and `WProfileScreen_Constructor` (0x6E2350). The mode is kept at `+0x528`: 0 new game, 1 sandbox,
+3 add-on quick start. The screen has a studio name and an owner name box (`+0x358`, `+0x370`), the icon `ui/fullsrn_studioicon.dds`, the
+message `PROFILESCREEN_DIALOGUE_MESSAGE` and a cancel message `PROFILESCREEN_CANCELNONAME`. The game starts when it is confirmed,
+in `WProfileScreen_OnConfirm` (0x6E1220):
+
+1. The two names are copied out (`FUN_004036D0`), `DAT_010503D0` takes the checkbox at `+0x539`, and `DAT_010503D1` takes `DAT_0104DD04`.
+2. Mode 0 with config `Played Basics` false becomes mode 2 (and `DAT_010503D2 = 1`): a first-time player gets the tutorial.
+3. By mode, each case resets or sets the **campaign start parameters** and calls `Campaign_Begin`:
+
+| mode | game | start parameters (`CampaignParams_Set(index, value)`, array at `DAT_0104A974+0x60`) |
+|---|---|---|
+| 0 | new game | `FUN_00422250()`, `CampaignParams_ResetIfAny`, [6] = 1.0, `Campaign_Begin(+0x52C, +0x530, 0)`; then, unless "Skip Front End" is set, `Game+8 = 1` |
+| 1 | sandbox | `FUN_00422250()`, [6] = 2.0, six sandbox options copied from the sandbox options object `DAT_0104DE3C` (bytes `+0x77C`..`+0x781`) into [1], [2], [5], [3], [8], [7], then `Campaign_Begin` |
+| 2 | Basics tutorial | reset, [6] = 0, `Campaign_Begin(.., .., 1)`, `Game+8 = 0`, and config `Played Basics` is set to `"1"` |
+| 3 | add-on quick start | [6] = 3.0, the stored names are used, `DAT_0104DE24` takes the flag at `+0x538` |
+
+`WFrontEnd_OnEvent` runs the same tutorial sequence directly (without the profile screen) for the Tutorial button and for New Game
+before the Basics have been played. Parameter [0] is the start decade, `(startYear - 1900) / 10`, and the defaults are [0] = -1.0,
+[1..5] = 0, [6] = 1.0 (`CampaignParams_ResetDefaults`, 0x4AF370).
+
+`Campaign_Begin(startYear, x, tutorial)` (0x4AF870) is the launch point:
+- builds the game clock (`GameClock_Constructor`) into `DAT_00E4FA4C..60`; `DAT_00E4FA4C` is the clock in days that the debugger's
+  `GAME_CLOCK_STARTED` marker watches (RVA 0xA4FA4C);
+- loads a **`savedefaults/<n>` template** (the initial world and studio are built from a default save file, so the save format applies;
+  see SAVE_FORMAT.md; what `<n>` is, is not decoded);
+- when `DAT_0104DE24` is set and the game type is 2.0 or 3.0, loads a second string (not decoded);
+- then runs `FUN_00467D50`, `FUN_00422750`, `GlobalStatRegistry_Get`, `FUN_008C9620`, `Money_DebugCheckRange`, `FUN_00442BE0`, `FUN_00530D90`
+  and `FUN_0048F3F0`, which build the registries and the starting state. None of those was read. That is where the main game loop's
+  state comes from.
+
+`FUN_00422250` scans the user's movies folder (`Trailer_GetMoviesFolder`) for the highest numbered entry and works out the next movie number;
+it is run before a new game or the tutorial starts.
 
 ## The `Extern*` callbacks (registration order)
 
@@ -116,8 +152,8 @@ non-creating one (`Fullscreen`). The audio manager is `Audio_GetInstance()` (`DA
 - `ExternContinue` (`FUN_00692530`), `ExternSave` (0x68FAD0), the two `Gamebut` callbacks, `FUN_0068FFD0` (references `.jad`) and `FUN_00693930`
   (the Continue tooltip text?) are unread. So is the 1.2 KB `FUN_0068F6E0`, which looks like an ambient particle spawner (random angles and
   radii around a point, calling `FUN_009B3A70`).
-- `FUN_006E2350`, which `NewGame_Start` runs for modes 0, 1 and 3, is where a game is actually set up; it reads `CompletedStuntTutorial` and
-  `CompletedNewGameTutorial`. Not read.
+- `WProfileScreen`'s own logic (the name boxes, the validation behind `PROFILESCREEN_CANCELNONAME`, the star display in `FUN_006E3400`) and the
+  eight functions `Campaign_Begin` calls are unread. The start parameters at indexes 1 to 5, 7 and 8 are not named.
 - The constructor (`WFrontEnd_Constructor`, 0x695460) loads `ui/minspec_frontend.dds` for tier < 2 and the `frontend` movie
   with its `filmstrips_win` clip otherwise (that clip name is also in `frontend.mfl`); the rest of it is unread. `data/intro/frontend_intro.wmv` is not referenced by any string in the
   executable, so it may be unused.

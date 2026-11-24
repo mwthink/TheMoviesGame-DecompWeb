@@ -56,7 +56,7 @@ struct Effect {
         SetMenuReady,         // arg = 0 or 1 (DAT_00E5E281)
         RequestClose,         // the window's flags |= 1: the front end closes
         PostEvent,            // arg = event id
-        StartGame,            // arg = mode: 0 new game, 1 sandbox, 3 add-on quick start (NewGame_Start)
+        OpenProfileScreen,    // arg = mode: 0 new game, 1 sandbox, 3 add-on quick start (WProfileScreen_Create 0x6E3200)
         StartTutorial,        // the Basics tutorial path (also used by New Game when "Played Basics" is false)
         ResumeGame,           // DAT_0104A982 = 1
         OpenLoadScreen,

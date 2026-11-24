@@ -77,7 +77,7 @@ int main() {
     {
         FrontEnd f; f.SetState(State::Menu); EventInput e; e.playedBasics = true;
         const auto fx = f.OnEvent(ev::kNewGame, e);
-        Check("new game with the Basics played starts mode 0", Has(fx, Kind::StartGame, 0) && f.state() == State::Leaving && f.limit() == 25);
+        Check("new game with the Basics played opens the profile screen in mode 0", Has(fx, Kind::OpenProfileScreen, 0) && f.state() == State::Leaving && f.limit() == 25);
         Check("events are ignored while leaving", f.OnEvent(ev::kSandbox, e).empty() && f.state() == State::Leaving);
         TickInput in;
         TickN(f, 24, in);
@@ -88,14 +88,14 @@ int main() {
     {
         FrontEnd f; f.SetState(State::Menu); EventInput e; e.playedBasics = false;
         const auto fx = f.OnEvent(ev::kNewGame, e);
-        Check("new game without the Basics runs the tutorial", Find(fx, Kind::StartTutorial) && !Find(fx, Kind::StartGame) && f.state() == State::Leaving);
+        Check("new game without the Basics runs the tutorial", Find(fx, Kind::StartTutorial) && !Find(fx, Kind::OpenProfileScreen) && f.state() == State::Leaving);
         Check("... and hides the background first", fx.size() >= 1 && fx[0].kind == Kind::BackgroundVisible && fx[0].arg == 1);
     }
     {
         FrontEnd f; EventInput e;
-        Check("sandbox is mode 1", Has(f.OnEvent(ev::kSandbox, e), Kind::StartGame, 1));
+        Check("sandbox opens the profile screen in mode 1", Has(f.OnEvent(ev::kSandbox, e), Kind::OpenProfileScreen, 1));
         FrontEnd g;
-        Check("add-on quick start is mode 3", Has(g.OnEvent(ev::kAddOnQuickStart, e), Kind::StartGame, 3));
+        Check("add-on quick start opens it in mode 3", Has(g.OnEvent(ev::kAddOnQuickStart, e), Kind::OpenProfileScreen, 3));
         FrontEnd h;
         Check("tutorial", Find(h.OnEvent(ev::kTutorial, e), Kind::StartTutorial) && h.state() == State::Leaving);
         FrontEnd r1; e.resumeAvailable = false;
