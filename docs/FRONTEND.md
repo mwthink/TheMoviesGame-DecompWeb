@@ -15,17 +15,18 @@ The menu is a **Flash movie**, played by Lionhead's own SWF renderer. What was c
 - The player is Lionhead's, not Adobe's: the `LSWF::*` classes (`LSWFFile`, `LSWFMovie`, `LSWFShape`, `LSWFEditText`, ...), with
   `LSWFShape_ParseDefineShape` reading SWF `DefineShape` data, plus `SWFCache`, `CSWFPlayer` and `CFlashScaler`. Error strings such as
   `LSWF Error: Unable to find variable %s` show it runs ActionScript variables. No Adobe Flash Player is involved.
-- The movie calls the game by name. The ActionScript strings in `frontend.mfl` include `ExternEnterMain`, `ExternStartNewGame`,
-  `ExternCredits`, `ExternQuitGame` and so on: 20 of the 35 registered names appear in it, and `ExternKillWin`, `ExternWin` (which
-  `WFrontEnd` does not register) too. The other menu-like movies are `frontend2.mfl`, `frontend_bak.mfl` (older copies), `installer.mfl`
+- The movie calls the game by name, with plain ActionScript function calls (`ExternEnterMain()`, not `fscommand`): the player
+  resolves a call to an undefined function by looking it up among the registered callbacks. `frontend.mfl` calls 20 of the 35 registered
+  names, plus `ExternWin` and `ExternKillWin`, which `WFrontEnd` does not register (see "The movie, decoded"). The other menu-like movies are `frontend2.mfl`, `frontend_bak.mfl` (older copies), `installer.mfl`
   and `pause.mfl` (the in-game menu: it calls `ExternResume`, `ExternSave`, `ExternQuitGame`...). `tools/mfl_callbacks.py` reproduces this (extract first with `tools/pak_extract.py extract <Data/pak> data/pak_ui '*.mfl' --tree`; the output stays under the gitignored `data/`).
 - The same mechanism runs through the whole UI: 17 of the 86 movies mention callback names, 21 distinct `cb_*` names (build menus,
   league tables, picture-in-picture clips, ...) and 25 distinct `Extern*` names. Each window registers the callbacks its movie calls
   (`FUN_0087DE50`), so the registration functions of the other windows are a map from UI to game code that has not been walked.
 - **Thirteen registered callbacks appear in no movie**: the eight settings steppers, the four volume buttons and `ExternStartSandbox`.
   They look vestigial or are driven some other way; the options are separate native windows (`WGameplayOptions`, `WSandboxOptions`, ...).
-- Only the strings were read. The ActionScript bytecode itself was not decoded, so which button calls which name, and with what
-  arguments, is not known; and `.mfl` is not proven to be exactly SWF (it has the SWF signature and SWF-shaped strings, no more).
+  The sandbox is reached by the `$sandbox` item and by "Skip Front End" = 1, not by a callback from the movie.
+- The ActionScript was decoded with `tools/swf_dump.py` for `frontend.mfl`, `pause.mfl` and `installer.mfl` (below). Shapes, fonts and bitmaps
+  were not decoded. `.mfl` parses as SWF with that tool, so it is SWF in every way that was tried.
 
 `WFrontEnd` registers **35 `Extern*` callbacks** (`WFrontEnd_RegisterExternCallbacks`, 0x692A90, through `FUN_0087DE50(name, this,
 handler)`), fills the captions and `$command` names (`WFrontEnd_SetupMenuItems`, 0x693C80) and reacts to events
@@ -112,6 +113,46 @@ before the Basics have been played. Parameter [0] is the start decade, `(startYe
 
 `FUN_00422250` scans the user's movies folder (`Trailer_GetMoviesFolder`) for the highest numbered entry and works out the next movie number;
 it is run before a new game or the tutorial starts.
+
+## The movie, decoded (`frontend.mfl`)
+
+`python3 tools/swf_dump.py <file> [--calls]` (SWF 4 to 6: tag stream, instance names, button and clip events, ActionScript 1 bytecode as pseudo-code).
+
+`frontend.mfl`: SWF v6, 25 fps, **2 frames**. Frame 1 is a `stop()`. Frame 2 is labelled `start_ui`, places the clips, and its script calls
+`ExternEnterMain()` and then stops. Every button then calls the game on a mouse event. All of it:
+
+| button id | event | call |
+|---|---|---|
+| 56 | release | `ExternStartNewGame()` |
+| 58 | release | `ExternTutorial()` |
+| 72 | release | `AddOn1Qstart()` |
+| 19 | release | `ExternContinue()` |
+| 23 | release | `ExternResume()` |
+| 74 | release | `ExternOpenGame()` |
+| 79 | release | `ExternSave()` |
+| 48 | press | `ExternOnline()` |
+| 50 | press | `ExternCredits()` |
+| 29 | press | `cb_trailereditor()` |
+| 44 / 46 | press / release | `ExternOptionsClickedOpen()` / `ExternOptionsClickedClose()` |
+| 52 / 138 | press | `ExternQuitClickedOpen()` / `ExternQuitClickedClose()` |
+| 137 | press | `ExternQuitGame()` |
+| 90, 98, 105, 111 | press | `ExternAudioClose()`, `ExternVideoClose()`, `ExternGameplayClose()`, `ExternOnlineClose()` |
+| 117 | press | `ExternKillWin('load_dialogue')` |
+| clip 118, frame 2 | on entry | `ExternWin('load_dialogue', 'LoadScreen', 'loadgame:close')` |
+| clip 127, frame 15 | on entry | `ExternWin('Movieplayer', 'MoviePlayerScreen', 'movieplayer:close')` |
+
+So 20 of the game's 35 registered callbacks are called, and the player also needs `ExternWin(name, screen, closeEvent)` and
+`ExternKillWin(name)`. They open and close a game window by name: the load-game screen and the movie player are opened from inside the
+movie this way. They are not registered by `WFrontEnd`; the names `LoadScreen` and `MoviePlayerScreen` are registered by `FUN_0087EB30`
+(through `FUN_0087D600`), a small screen-name registry that was not read further. `pause.mfl` (the in-game menu) wires the same calls
+with release for most buttons and press for Resume and Save; `installer.mfl` is the same menu with the Gamebut pair.
+
+The game talks back to the movie by **instance names** and **frame labels**. The names it looks up are really in the movie: instance
+names `quickstartbutton`, `continuebutton`, `notquit`, `textmenu`, `onlineoptions`, `video`, `audio`, `filmstrips_win`, `gamebutton`; and the labels
+`start_ui`, `open`, `close`, `normal`, `saveon` and `saveoff` (the `Gamebut` callbacks and the panel events move the movie to those
+labels). The movie has 36 instance names and 21 frame labels. The 21 text fields have no variable name, so the captions are set on the
+instances by name. One lookup does not match: the game uses `savebutton`, the movie has `save_button`, so either the lookup ignores
+the underscore or that call does nothing.
 
 ## The `Extern*` callbacks (registration order)
 
