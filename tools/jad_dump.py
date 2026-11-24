@@ -5,7 +5,7 @@
     python3 tools/jad_dump.py save.jad --class CFinance   # every field of the objects of one class
     python3 tools/jad_dump.py save.jad --lists            # the 24 global object registries from [STATICS]
     python3 tools/jad_dump.py save.jad --map [--svg out.svg]  # placed assets (SourcePath + POSITION + MyAngle), grid analysis, ASCII plan
-    python3 tools/jad_dump.py save.jad --terrain out.png [--occupancy] [--footprints DIR] [--roofs TEXDIR [--outlines] [--markers]] [--ground LANDTEXDIR [--tile UNITS]] [--crop x0,y0,x1,y1]
+    python3 tools/jad_dump.py save.jad --terrain out.png [--occupancy] [--footprints DIR] [--roofs TEXDIR [--outlines] [--markers] [--no-lightmaps]] [--ground LANDTEXDIR [--tile UNITS]] [--crop x0,y0,x1,y1]
                                                        # ground paint + assets as a PNG (x right, y up); DIR holds ini + msh files
     python3 tools/jad_dump.py a.jad b.jad              # field-level diff (statics + objects matched by id)
 
@@ -275,10 +275,10 @@ def load_footprints(d, items):
     return out
 
 
-def render_roofs(px, W, H, k, x0, y1, items, meshes, texdir):
+def render_roofs(px, W, H, k, x0, y1, items, meshes, texdir, lightmaps=True):
     """Top-down textured view of the placed models: every triangle of every mesh (rotated by MyAngle, moved to POSITION) is rasterized with a
     z-buffer, so the highest surface wins (roofs, tree canopies). Texture = the material's diffuse texture (tex index 0) decoded from texdir;
-    alpha < 0.5 is skipped; reflection/environment/sky materials are skipped. Lightmaps are not applied."""
+    alpha < 0.5 is skipped; reflection/environment/sky materials are skipped. With lightmaps (the material's texture slot 2, on the second UV set) the colour is diffuse x lightmap x 2."""
     import math
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import dds
@@ -305,7 +305,11 @@ def render_roofs(px, W, H, k, x0, y1, items, meshes, texdir):
                 if not t:
                     continue
                 tw, th, tpx = t
-                pv = [((x + v[0] * ca - v[1] * sa - x0) * k, (y1 - (y + v[0] * sa + v[1] * ca)) * k, v[2], v[6], v[7]) for v in pr["verts"]]
+                lm = None
+                li = mat["tex"][2] if mat else 255
+                if lightmaps and li < len(m["textures"]) and m["textures"][li].lower().startswith("lm_") and pr["verts"] and len(pr["verts"][0]) > 8:
+                    lm = tex(m["textures"][li])
+                pv = [((x + v[0] * ca - v[1] * sa - x0) * k, (y1 - (y + v[0] * sa + v[1] * ca)) * k, v[2], v[6], v[7]) + tuple(v[8:10]) for v in pr["verts"]]
                 for i0, i1, i2 in pr["tris"]:
                     a, b, c = pv[i0], pv[i1], pv[i2]
                     den = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
@@ -326,12 +330,17 @@ def render_roofs(px, W, H, k, x0, y1, items, meshes, texdir):
                             r, g, bl, al = tpx[(int(tv * th) % th) * tw + int(tu * tw) % tw]
                             if al < 128:
                                 continue
+                            if lm:
+                                lu = u * a[5] + v * b[5] + w_ * c[5]
+                                lv = u * a[6] + v * b[6] + w_ * c[6]
+                                lr, lg, lb, _la = lm[2][(int(lv * lm[1]) % lm[1]) * lm[0] + int(lu * lm[0]) % lm[0]]
+                                r, g, bl = min(255, r * lr // 127), min(255, g * lg // 127), min(255, bl * lb // 127)
                             zbuf[yy * W + xx] = z
                             o = (yy * W + xx) * 3
                             px[o:o + 3] = bytes((r, g, bl))
 
 
-def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None, roofs=None, outlines=True, markers=True, ground=None, tile=12.0):
+def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None, roofs=None, outlines=True, markers=True, ground=None, tile=12.0, lightmaps=True):
     """Top-down PNG: ground paint (cell g = round((world + 256) / 2), centred on even world coordinates), optionally the occupancy bits,
     the placed assets (red = facility, blue = ornament) and, with a directory of ini + msh files, each asset's mesh polygons rotated by
     MyAngle and moved to POSITION: b15_02 footprint = orange fill, b16_01 = yellow outline, facility room floors = cyan outline."""
@@ -433,7 +442,7 @@ def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None,
                     put(xx, yy, col, alpha)
     import math
     if roofs and meshes:
-        render_roofs(px, W, H, k, x0, y1, items, meshes, roofs)
+        render_roofs(px, W, H, k, x0, y1, items, meshes, roofs, lightmaps)
     for _c, _i, apath, (x, y, _z), ang in items:
         m = meshes.get(apath)
         if m and outlines:
@@ -553,7 +562,7 @@ def main(argv):
         if png:
             show_terrain(p, png, "--occupancy" in argv, fp, tuple(float(v) for v in crop.split(",")) if crop else None,
                          roofs=roofs, outlines=not roofs or "--outlines" in argv, markers=not roofs or "--markers" in argv,
-                         ground=ground, tile=float(tile))
+                         ground=ground, tile=float(tile), lightmaps="--no-lightmaps" not in argv)
         elif "--map" in argv:
             show_map(p, svg)
         elif "--lists" in argv:

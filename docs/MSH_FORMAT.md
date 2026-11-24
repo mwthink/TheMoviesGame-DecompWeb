@@ -29,15 +29,15 @@ primitive  u32 (low byte = material index), u32 n_tris, u32 n_verts, 4 flag byte
            n_tris x 3 x u16 indices (triangle list), padded to 4
            vertices: f0 & 0x20 -> 8 x u16 per vertex = pos xyz, normal xyz (2t-1), uv, with t = value / 65535 and pos = lerp(bbox min, bbox max) from the
                      block (floats 0-2 min, 3-5 max; 6-9 = uv min/max); else 8 x f32 (pos, normal, uv).
-                     f1 & 1: a second UV stream follows (4 bytes/vertex compact, 8 floats-bytes direct); then pad to 4
+                     f1 & 1: a second UV set follows = the lightmap's UVs: compact 2 x u16 per vertex scaled by block floats 10..13 (u min, v min, u max, v max); direct 2 x f32; then pad to 4
            f0 & 1: 20 bytes per vertex more (not decoded), skipped
 ```
 
 Checked on all 15 meshes: every file parses without error, the vertex bounds match the collision hulls (stage school 27.7 wide vs hull 27.7, hedge 4.0 vs 3.9, palm tree 17 vs 16 high) and
-the rendered result (below) looks right. Not checked: the `f0 & 1` extra block (probably skinning), the second UV stream's use (lightmap), `f2`/`f3`, per-material flags.
+the rendered result (below) looks right. Not checked: the `f0 & 1` extra block (probably skinning), `f2`/`f3`, per-material flags.
 
 `tools/dds.py` decodes the textures (DXT1/3/5, top mip). `tools/jad_dump.py <save> --terrain out.png --footprints <dir with ini+msh> --roofs <dir with dds> [--crop x0,y0,x1,y1]`
-draws a top-down view of the placed models: all triangles, rotated by `MyAngle`, with a z-buffer (highest surface wins), textured with each material's diffuse texture. Lightmaps are not applied.
+draws a top-down view of the placed models: all triangles, rotated by `MyAngle`, with a z-buffer (highest surface wins), textured with each material's diffuse texture. With lightmaps (the material's texture slot 2, `lm_*.dds`, on the second UV set) the colour is diffuse x lightmap x 2 (lightmaps average ~0.4 brightness, so 0.5 is neutral; the 2x is an assumed modulate-2x, not read from the code). `--no-lightmaps` turns that off.
 Add `--outlines` for the footprint/room polygons and `--markers` for the origin dots.
 
 ## What the files show

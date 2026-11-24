@@ -90,13 +90,18 @@ def read_node(d, pos):
                               2 * t[3] - 1, 2 * t[4] - 1, 2 * t[5] - 1,
                               qb[6] + t[6] * (qb[8] - qb[6]), qb[7] + t[7] * (qb[9] - qb[7])))
             pos += 16 * nvert
-            if f1 & 1:
+            if f1 & 1:          # second UV set (the lightmap's): 2 x u16 per vertex, bounds = block floats 10..13 (u min, v min, u max, v max)
+                for i in range(nvert):
+                    a, b = struct.unpack_from("<2H", d, pos + 4 * i)
+                    verts[i] = verts[i] + (qb[10] + a / 65535.0 * (qb[12] - qb[10]), qb[11] + b / 65535.0 * (qb[13] - qb[11]))
                 pos += 4 * nvert
         else:                   # direct: 8 x f32 per vertex (position, normal, uv)
             for i in range(nvert):
                 verts.append(struct.unpack_from("<8f", d, pos + 32 * i))
             pos += 32 * nvert
             if f1 & 1:
+                for i in range(nvert):
+                    verts[i] = verts[i] + struct.unpack_from("<2f", d, pos + 8 * i)
                 pos += 8 * nvert
         pos = align4(pos)
         if f0 & 1:
