@@ -69,3 +69,17 @@ No confident match for: the `.hd` loader (`0xa18e50`), `Anim_LoadByName` (`0x988
 * ~~Copy the known main-binary names onto the matched StarMaker functions~~ **Done 2026-11-24**: `tools/starmaker_names.csv` (1,271 rows: only the 1:1 exact matches whose main-binary name is a real name; ambiguous and mnemonic-only matches are left out). Applied to the StarMaker project with `ApplyNames.java` (790 renamed, 481 already right; a dry run afterwards shows 0 changes). 1,340 of the exported functions now have real names. Regenerate it after new main-binary names with the two `FunctionHashes.java` runs and `match_binaries.py --out`, keeping the 1:1 rows with non-`FUN_` names. A backup of the project before the change is not kept in the repo.
 * Check why the loader functions listed in section 3 do not match (changed code or ambiguous hashes) and use the older versions as a cross-check of the formats.
 * `.fan`: decide whether the second-to-last word (9998 or 99) is a blend time or flags, and find the expression table.
+
+## 6. First real saved star (2026-11-24, saved from StarMaker under Wine)
+
+A star is a folder `Documents\The Movies\Starmaker\<yyyy_mm_dd_hh_mm_ss>\` with `info.sm`, `star.hd` and `thumb.dds` (the `_` file next to it is 4 zero bytes). **[data]**
+
+`info.sm` (402 bytes), as decoded by eye from one star; the meaning of each field is **[guess]** unless noted:
+* `0x00` u32 2 (version?), `0x04` u32 402 (file size), `0x08` u32 hash/id, `0x0c` u32 1, `0x10` f32 0.3, `0x14` f32 1.0, `0x18`..`0x47` zeros.
+* `0x48`, `0x60` first and second head file names (`head_m_white_hero2.hd`, `head_m_indian_man2.hd`), `0x78` hair mesh (`hair_20s_m5.msh`); 24-byte NUL-padded slots.
+* `0xac` f32 1.0, `0xb4` f32 about 0.48, then u32 30, 7, 10, 4, 0 (`0xbc`..): probably age and the star attributes.
+* `0xd0`..`0x17b`: **43 f32 = the slider values, all 0.5 here** (so 0.5 is the neutral value, 0 and 1 the extremes) **[guess]**; `0x17c` u32 0; `0x180` the star name as UTF-16, NUL terminated ("DaveJohn").
+
+`star.hd` is a normal `.hd` file (0x94 + 3 x 996 x 24 = 71,860 bytes) **[read]**: the editor saves the finished head. Its first array A is very close to the first head (`head_m_white_hero2.hd`): mean vertex distance 2.7 mm, against 5.6 mm between the two source heads; the best per-vertex mix toward the second head is about 0.014, not the 0.3 of `info.sm`. So the `0x10` float is not the head mix, or the mix was not applied in this save. Its B and C arrays are tiny, like a real head's. Not yet explained: what the 2.7 mm of difference from the first head is (sliders, age or weight baked in?). The second head is stored in the `.hd` header names.
+
+Next: a star with known extreme slider values (the user has screenshots of the settings) to find which fields and vertices each slider touches.
