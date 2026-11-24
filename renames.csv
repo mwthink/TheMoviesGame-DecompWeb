@@ -2016,3 +2016,351 @@ address,old_name,new_name,evidence
 00966120,FUN_00966120,MV_ParseMVX301Reply,"""MVX301:"" reply: skips to the first "":"" and returns atol() of the rest (-1 for NULL, 0 when the prefix does not match)"
 009681b0,FUN_009681b0,MV_ParseMV0050Reply,"""MV0050:"" reply: reads six 32-bit and two 16-bit header fields, then a count followed by that many 0x50-byte records (operator_new(0x50)); only caller is WOnlineScreen 0x6d3fe0"
 00965e90,FUN_00965e90,MV_ParseMV0040Reply,"""MV0040:"" reply: count of embedded blobs, each written to a GetTempFileNameA(""sy"") temp file; only caller is WOnlineScreen 0x6c73c0"
+0041d350,FUN_0041d350,ChemistryModifier_CreateInstance,"factory registered for RTTI class "".?AVChemistryModifier@TM@@"" in Game_Bootstrap: operator_new(180), constructor 0042e7e0, then a vtable call"
+0042e7e0,FUN_0042e7e0,ChemistryModifier_Constructor,"called by the "".?AVChemistryModifier@TM@@"" factory 0041d350 right after operator_new(180); class registered in Game_Bootstrap"
+0042a5e0,FUN_0042a5e0,ChemistryModifier_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041ee00,FUN_0041ee00,CAward_CreateInstance,"factory registered for RTTI class "".?AVCAward@TM@@"" in Game_Bootstrap: operator_new(316), constructor 00858820, then a vtable call"
+00858820,FUN_00858820,CAward_Constructor,"called by the "".?AVCAward@TM@@"" factory 0041ee00 right after operator_new(316); class registered in Game_Bootstrap"
+00858590,FUN_00858590,CAward_StaticInit,called right after the class registration in Game_Bootstrap; pushes a static descriptor onto the list at DAT_010584c8
+008572a0,FUN_008572a0,CAward_PreLoadCallback,"registered in the pre-load callback list (DAT_010584e8) in Game_Bootstrap right after "".?AVCAward@TM@@"" is registered; used by this class only"
+0041ee60,FUN_0041ee60,CAwardsManager_CreateInstance,"factory registered for RTTI class "".?AVCAwardsManager@TM@@"" in Game_Bootstrap: operator_new(140), constructor 0085b9f0, then a vtable call"
+0085b9f0,FUN_0085b9f0,CAwardsManager_Constructor,"called by the "".?AVCAwardsManager@TM@@"" factory 0041ee60 right after operator_new(140); class registered in Game_Bootstrap"
+0041f840,FUN_0041f840,CAwardsBonusManager_CreateInstance,"factory registered for RTTI class "".?AVCAwardsBonusManager@TM@@"" in Game_Bootstrap: operator_new(208), constructor 00859c80, then a vtable call"
+00858e00,FUN_00858e00,CAwardsBonusManager_StaticInit,"called right after the class registration in Game_Bootstrap; registers the persistence name ""PBonusManager"" (FUN_0098fdd0)"
+00858f00,FUN_00858f00,CAwardsBonusManager_PreLoadCallback,"registered in the pre-load callback list (DAT_010584e8) in Game_Bootstrap right after "".?AVCAwardsBonusManager@TM@@"" is registered; used by this class only"
+0041fa80,FUN_0041fa80,CDebugDataLog_CreateInstance,"factory registered for RTTI class "".?AVCDebugDataLog@TM@@"" in Game_Bootstrap: operator_new(192), constructor 0054dc10, then a vtable call"
+0054dc10,FUN_0054dc10,CDebugDataLog_Constructor,"called by the "".?AVCDebugDataLog@TM@@"" factory 0041fa80 right after operator_new(192); class registered in Game_Bootstrap"
+0054b0c0,FUN_0054b0c0,CDebugDataLog_StaticInit,"called right after the class registration in Game_Bootstrap; registers the persistence name ""PDataLog"" (FUN_0098fdd0)"
+0054b1e0,FUN_0054b1e0,CDebugDataLog_PreLoadCallback,"registered in the pre-load callback list (DAT_010584e8) in Game_Bootstrap right after "".?AVCDebugDataLog@TM@@"" is registered; used by this class only"
+0041ccc0,FUN_0041ccc0,CFacility_CreateInstance,"factory registered for RTTI class "".?AVCFacility@TM@@"" in Game_Bootstrap: operator_new(1284), constructor 00847f00, then a vtable call"
+00847040,FUN_00847040,CFacility_StaticInit,called right after the class registration in Game_Bootstrap; pushes a static descriptor onto the list at DAT_010584c8
+004221b0,FUN_004221b0,CFacilityBar_CreateInstance,"factory registered for RTTI class "".?AVCFacilityBar@TM@@"" in Game_Bootstrap: operator_new(1308), constructor 00847f00, then a vtable call"
+00848390,FUN_00848390,CFacilityBar_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041f230,FUN_0041f230,CFacilityScriptOffice_CreateInstance,"factory registered for RTTI class "".?AVCFacilityScriptOffice@TM@@"" in Game_Bootstrap: operator_new(1360), constructor 0084a580, then a vtable call"
+00849f70,FUN_00849f70,CFacilityScriptOffice_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041f290,FUN_0041f290,CFacilityTrailer_CreateInstance,"factory registered for RTTI class "".?AVCFacilityTrailer@TM@@"" in Game_Bootstrap: operator_new(1388), constructor 0084c9a0, then a vtable call"
+0084b080,FUN_0084b080,CFacilityTrailer_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+00420d80,FUN_00420d80,CFacilityStageSchool_CreateInstance,"factory registered for RTTI class "".?AVCFacilityStageSchool@TM@@"" in Game_Bootstrap: operator_new(1284), constructor 00847f00, then a vtable call"
+0084ac90,FUN_0084ac90,CFacilityStageSchool_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+004208c0,FUN_004208c0,CFacilityProduction_CreateInstance,"factory registered for RTTI class "".?AVCFacilityProduction@TM@@"" in Game_Bootstrap: operator_new(1284), constructor 00847f00, then a vtable call"
+00849df0,FUN_00849df0,CFacilityProduction_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041cd20,FUN_0041cd20,CFacilityMarketing_CreateInstance,"factory registered for RTTI class "".?AVCFacilityMarketing@TM@@"" in Game_Bootstrap: operator_new(1312), constructor 00849180, then a vtable call"
+00848fe0,FUN_00848fe0,CFacilityMarketing_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+00420970,FUN_00420970,CFacilityPost_CreateInstance,"factory registered for RTTI class "".?AVCFacilityPost@TM@@"" in Game_Bootstrap: operator_new(1284), constructor 00847f00, then a vtable call"
+00849390,FUN_00849390,CFacilityPost_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+00420e30,FUN_00420e30,CFacilityStuntSchool_CreateInstance,"factory registered for RTTI class "".?AVCFacilityStuntSchool@TM@@"" in Game_Bootstrap: operator_new(1284), constructor 00847f00, then a vtable call"
+0084aea0,FUN_0084aea0,CFacilityStuntSchool_PreLoadCallback,"registered in the pre-load callback list (DAT_010584e8) in Game_Bootstrap right after "".?AVCFacilityStuntSchool@TM@@"" is registered; used by this class only"
+0041d470,FUN_0041d470,TMFloorPlan_CreateInstance,"factory registered for RTTI class "".?AVTMFloorPlan@TM@@"" in Game_Bootstrap: operator_new(604), constructor 0093a0b0, then a vtable call"
+00937ea0,FUN_00937ea0,TMFloorPlan_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041d4d0,FUN_0041d4d0,TMRoom_CreateInstance,"factory registered for RTTI class "".?AVTMRoom@TM@@"" in Game_Bootstrap: operator_new(600), constructor 0093e990, then a vtable call"
+0093b0d0,FUN_0093b0d0,TMRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041e020,FUN_0041e020,TMRoomCB_CreateInstance,"factory registered for RTTI class "".?AVTMRoomCB@TM@@"" in Game_Bootstrap: operator_new(648), constructor 00943880, then a vtable call"
+00943720,FUN_00943720,TMRoomCB_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041d530,FUN_0041d530,CActivateRoom_CreateInstance,"factory registered for RTTI class "".?AVCActivateRoom@TM@@"" in Game_Bootstrap: operator_new(600), constructor 00914c00, then a vtable call"
+00914bf0,FUN_00914bf0,CActivateRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041d590,FUN_0041d590,CAdvanceRoom_CreateInstance,"factory registered for RTTI class "".?AVCAdvanceRoom@TM@@"" in Game_Bootstrap: operator_new(600), constructor 00915560, then a vtable call"
+00915550,FUN_00915550,CAdvanceRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041d5f0,FUN_0041d5f0,CArchiveRoom_CreateInstance,"factory registered for RTTI class "".?AVCArchiveRoom@TM@@"" in Game_Bootstrap: operator_new(632), constructor 009163f0, then a vtable call"
+00915b60,FUN_00915b60,CArchiveRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041d650,FUN_0041d650,CAutoWardrobeRoom_CreateInstance,"factory registered for RTTI class "".?AVCAutoWardrobeRoom@TM@@"" in Game_Bootstrap: operator_new(756), constructor 00916a90, then a vtable call"
+00916560,FUN_00916560,CAutoWardrobeRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041d6b0,FUN_0041d6b0,CCastRoom_CreateInstance,"factory registered for RTTI class "".?AVCCastRoom@TM@@"" in Game_Bootstrap: operator_new(600), constructor 009176b0, then a vtable call"
+00917460,FUN_00917460,CCastRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041d710,FUN_0041d710,CCostumeRoom_CreateInstance,"factory registered for RTTI class "".?AVCCostumeRoom@TM@@"" in Game_Bootstrap: operator_new(600), constructor 00917cb0, then a vtable call"
+00917ca0,FUN_00917ca0,CCostumeRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041d770,FUN_0041d770,CCrewRoom_CreateInstance,"factory registered for RTTI class "".?AVCCrewRoom@TM@@"" in Game_Bootstrap: operator_new(600), constructor 009182c0, then a vtable call"
+00918050,FUN_00918050,CCrewRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041d7d0,FUN_0041d7d0,CCustomScriptRoom_CreateInstance,"factory registered for RTTI class "".?AVCCustomScriptRoom@TM@@"" in Game_Bootstrap: operator_new(652), constructor 009191a0, then a vtable call"
+00918640,FUN_00918640,CCustomScriptRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041d830,FUN_0041d830,CDetoxRoom_CreateInstance,"factory registered for RTTI class "".?AVCDetoxRoom@TM@@"" in Game_Bootstrap: operator_new(648), constructor 0091a2a0, then a vtable call"
+00919440,FUN_00919440,CDetoxRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041d890,FUN_0041d890,CDirectorRoom_CreateInstance,"factory registered for RTTI class "".?AVCDirectorRoom@TM@@"" in Game_Bootstrap: operator_new(600), constructor 0091add0, then a vtable call"
+0091a810,FUN_0091a810,CDirectorRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+00420a20,FUN_00420a20,CFinanceRoom_CreateInstance,"factory registered for RTTI class "".?AVCFinanceRoom@TM@@"" in Game_Bootstrap: operator_new(600), constructor 0093e990, then a vtable call"
+0091b0f0,FUN_0091b0f0,CFinanceRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041d940,FUN_0041d940,CFireRoom_CreateInstance,"factory registered for RTTI class "".?AVCFireRoom@TM@@"" in Game_Bootstrap: operator_new(632), constructor 0091c070, then a vtable call"
+0091b2b0,FUN_0091b2b0,CFireRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041d9a0,FUN_0041d9a0,CHealthRoom_CreateInstance,"factory registered for RTTI class "".?AVCHealthRoom@TM@@"" in Game_Bootstrap: operator_new(648), constructor 00923a50, then a vtable call"
+009228b0,FUN_009228b0,CHealthRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041da00,FUN_0041da00,CHireRoom_CreateInstance,"factory registered for RTTI class "".?AVCHireRoom@TM@@"" in Game_Bootstrap: operator_new(604), constructor 00924200, then a vtable call"
+00924200,FUN_00924200,CHireRoom_Constructor,"called by the "".?AVCHireRoom@TM@@"" factory 0041da00 right after operator_new(604); class registered in Game_Bootstrap"
+009241f0,FUN_009241f0,CHireRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041da60,FUN_0041da60,CLeadsRoom_CreateInstance,"factory registered for RTTI class "".?AVCLeadsRoom@TM@@"" in Game_Bootstrap: operator_new(600), constructor 00927280, then a vtable call"
+00927080,FUN_00927080,CLeadsRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041dac0,FUN_0041dac0,CMarketingRoom_CreateInstance,"factory registered for RTTI class "".?AVCMarketingRoom@TM@@"" in Game_Bootstrap: operator_new(604), constructor 009281f0, then a vtable call"
+009281e0,FUN_009281e0,CMarketingRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041db20,FUN_0041db20,MovieViewerRoom_CreateInstance,"factory registered for RTTI class "".?AVMovieViewerRoom@TM@@"" in Game_Bootstrap: operator_new(600), constructor 00928910, then a vtable call"
+00928900,FUN_00928900,MovieViewerRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041db80,FUN_0041db80,CPostProdRoom_CreateInstance,"factory registered for RTTI class "".?AVCPostProdRoom@TM@@"" in Game_Bootstrap: operator_new(604), constructor 00928be0, then a vtable call"
+00928bd0,FUN_00928bd0,CPostProdRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041dbe0,FUN_0041dbe0,CPRRoom_CreateInstance,"factory registered for RTTI class "".?AVCPRRoom@TM@@"" in Game_Bootstrap: operator_new(668), constructor 00929ed0, then a vtable call"
+00929110,FUN_00929110,CPRRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041dca0,FUN_0041dca0,CRehearseRoom_CreateInstance,"factory registered for RTTI class "".?AVCRehearseRoom@TM@@"" in Game_Bootstrap: operator_new(688), constructor 0092e320, then a vtable call"
+0092a920,FUN_0092a920,CRehearseRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041dc40,FUN_0041dc40,CRehearseXPData_CreateInstance,"factory registered for RTTI class "".?AVCRehearseXPData@TM@@"" in Game_Bootstrap: operator_new(144), constructor 0092e4e0, then a vtable call"
+0092e4e0,FUN_0092e4e0,CRehearseXPData_Constructor,"called by the "".?AVCRehearseXPData@TM@@"" factory 0041dc40 right after operator_new(144); class registered in Game_Bootstrap"
+0092a8e0,FUN_0092a8e0,CRehearseXPData_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041ddc0,FUN_0041ddc0,CReleaseRoom_CreateInstance,"factory registered for RTTI class "".?AVCReleaseRoom@TM@@"" in Game_Bootstrap: operator_new(628), constructor 0092eb80, then a vtable call"
+0092eb70,FUN_0092eb70,CReleaseRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041de20,FUN_0041de20,CResearchRoom_CreateInstance,"factory registered for RTTI class "".?AVCResearchRoom@TM@@"" in Game_Bootstrap: operator_new(680), constructor 009308c0, then a vtable call"
+0092f410,FUN_0092f410,CResearchRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041e080,FUN_0041e080,CResearchPackObject_CreateInstance,"factory registered for RTTI class "".?AVCResearchPackObject@TM@@"" in Game_Bootstrap: operator_new(380), constructor 004a5660, then a vtable call"
+004a5660,FUN_004a5660,CResearchPackObject_Constructor,"called by the "".?AVCResearchPackObject@TM@@"" factory 0041e080 right after operator_new(380); class registered in Game_Bootstrap"
+004a4ef0,FUN_004a4ef0,CResearchPackObject_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041de80,FUN_0041de80,CReviewsRoom_CreateInstance,"factory registered for RTTI class "".?AVCReviewsRoom@TM@@"" in Game_Bootstrap: operator_new(636), constructor 00931460, then a vtable call"
+00930ed0,FUN_00930ed0,CReviewsRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041dee0,FUN_0041dee0,CScriptRoom_CreateInstance,"factory registered for RTTI class "".?AVCScriptRoom@TM@@"" in Game_Bootstrap: operator_new(684), constructor 00935570, then a vtable call"
+009343d0,FUN_009343d0,CScriptRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041df40,FUN_0041df40,CSellRoom_CreateInstance,"factory registered for RTTI class "".?AVCSellRoom@TM@@"" in Game_Bootstrap: operator_new(632), constructor 00937190, then a vtable call"
+00936b00,FUN_00936b00,CSellRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+00420ad0,FUN_00420ad0,CStarMakerRoom_CreateInstance,"factory registered for RTTI class "".?AVCStarMakerRoom@TM@@"" in Game_Bootstrap: operator_new(600), constructor 0093e990, then a vtable call"
+00937c90,FUN_00937c90,CStarMakerRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041dfc0,FUN_0041dfc0,CTrailerStarRoom_CreateInstance,"factory registered for RTTI class "".?AVCTrailerStarRoom@TM@@"" in Game_Bootstrap: operator_new(628), constructor 00946ab0, then a vtable call"
+00946470,FUN_00946470,CTrailerStarRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041dd00,FUN_0041dd00,CRoomPlaceObject_CreateInstance,"factory registered for RTTI class "".?AVCRoomPlaceObject@TM@@"" in Game_Bootstrap: operator_new(544), constructor 00947a10, then a vtable call"
+009474d0,FUN_009474d0,CRoomPlaceObject_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041dd60,FUN_0041dd60,CReleasedFilmClone_CreateInstance,"factory registered for RTTI class "".?AVCReleasedFilmClone@TM@@"" in Game_Bootstrap: operator_new(568), constructor 00947cb0, then a vtable call"
+00947cb0,FUN_00947cb0,CReleasedFilmClone_Constructor,"called by the "".?AVCReleasedFilmClone@TM@@"" factory 0041dd60 right after operator_new(568); class registered in Game_Bootstrap"
+00947510,FUN_00947510,CReleasedFilmClone_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+004243e0,FUN_004243e0,CBuildButtonData_CreateInstance,"factory registered for RTTI class "".?AVCBuildButtonData@TM@@"" in Game_Bootstrap: operator_new(132), constructor 004241d0, then a vtable call"
+004241d0,FUN_004241d0,CBuildButtonData_Constructor,"called by the "".?AVCBuildButtonData@TM@@"" factory 004243e0 right after operator_new(132); class registered in Game_Bootstrap"
+006420a0,FUN_006420a0,CBuildButtonData_StaticInit,"called right after the class registration in Game_Bootstrap; registers the persistence name ""PBuildButtonData"" (FUN_0098fdd0)"
+0041ce70,FUN_0041ce70,CPressBar_CreateInstance,"factory registered for RTTI class "".?AVCPressBar@TM@@"" in Game_Bootstrap: operator_new(220), constructor 00493560, then a vtable call"
+00493560,FUN_00493560,CPressBar_Constructor,"called by the "".?AVCPressBar@TM@@"" factory 0041ce70 right after operator_new(220); class registered in Game_Bootstrap"
+00491130,FUN_00491130,CPressBar_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041e160,FUN_0041e160,CLeagueTable_CreateInstance,"factory registered for RTTI class "".?AVCLeagueTable@TM@@"" in Game_Bootstrap: operator_new(224), constructor 00460e20, then a vtable call"
+00460e20,FUN_00460e20,CLeagueTable_Constructor,"called by the "".?AVCLeagueTable@TM@@"" factory 0041e160 right after operator_new(224); class registered in Game_Bootstrap"
+0045f110,FUN_0045f110,CLeagueTable_StaticInit,"called right after the class registration in Game_Bootstrap; registers the persistence name ""PLeagueStar"" (FUN_0098fdd0)"
+0045f280,FUN_0045f280,CLeagueTable_PreLoadCallback,"registered in the pre-load callback list (DAT_010584e8) in Game_Bootstrap right after "".?AVCLeagueTable@TM@@"" is registered; used by this class only"
+0041ece0,FUN_0041ece0,CResearchPack_CreateInstance,"factory registered for RTTI class "".?AVCResearchPack@TM@@"" in Game_Bootstrap: operator_new(352), constructor 004a2780, then a vtable call"
+004a1310,FUN_004a1310,CResearchPack_StaticInit,called right after the class registration in Game_Bootstrap; pushes a static descriptor onto the list at DAT_010584c8
+00541790,FUN_00541790,CResearchPack_PreLoadCallback,"registered in the pre-load callback list (DAT_010584e8) in Game_Bootstrap right after "".?AVCResearchPack@TM@@"" is registered; used by this class only"
+0041eec0,FUN_0041eec0,CAwardPrizePack_CreateInstance,"factory registered for RTTI class "".?AVCAwardPrizePack@TM@@"" in Game_Bootstrap: operator_new(164), constructor 00853820, then a vtable call"
+00853820,FUN_00853820,CAwardPrizePack_Constructor,"called by the "".?AVCAwardPrizePack@TM@@"" factory 0041eec0 right after operator_new(164); class registered in Game_Bootstrap"
+00853730,FUN_00853730,CAwardPrizePack_StaticInit,called right after the class registration in Game_Bootstrap; pushes a static descriptor onto the list at DAT_010584c8
+00852d20,FUN_00852d20,CAwardPrizePack_PreLoadCallback,"registered in the pre-load callback list (DAT_010584e8) in Game_Bootstrap right after "".?AVCAwardPrizePack@TM@@"" is registered; used by this class only"
+0041d1a0,FUN_0041d1a0,CWannabe_CreateInstance,"factory registered for RTTI class "".?AVCWannabe@TM@@"" in Game_Bootstrap: operator_new(2724), constructor 005a1780, then a vtable call"
+005a0730,FUN_005a0730,CWannabe_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041e670,FUN_0041e670,CSponsoredBillboard_CreateInstance,"factory registered for RTTI class "".?AVCSponsoredBillboard@TM@@"" in Game_Bootstrap: operator_new(1228), constructor 004fb7a0, then a vtable call"
+004fb7a0,FUN_004fb7a0,CSponsoredBillboard_Constructor,"called by the "".?AVCSponsoredBillboard@TM@@"" factory 0041e670 right after operator_new(1228); class registered in Game_Bootstrap"
+004fb300,FUN_004fb300,CSponsoredBillboard_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041d140,FUN_0041d140,CStaff_CreateInstance,"factory registered for RTTI class "".?AVCStaff@TM@@"" in Game_Bootstrap: operator_new(2596), constructor 00580fb0, then a vtable call"
+00580fb0,FUN_00580fb0,CStaff_Constructor,"called by the "".?AVCStaff@TM@@"" factory 0041d140 right after operator_new(2596); class registered in Game_Bootstrap"
+00584200,FUN_00584200,CStaff_StaticInit,called right after the class registration in Game_Bootstrap; pushes a static descriptor onto the list at DAT_010584c8
+0041eb40,FUN_0041eb40,CStar_CreateInstance,"factory registered for RTTI class "".?AVCStar@TM@@"" in Game_Bootstrap: operator_new(3444), constructor 00594760, then a vtable call"
+00594760,FUN_00594760,CStar_Constructor,"called by the "".?AVCStar@TM@@"" factory 0041eb40 right after operator_new(3444); class registered in Game_Bootstrap"
+005853e0,FUN_005853e0,CStar_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+00424440,FUN_00424440,TMLandscape_CreateInstance,"factory registered for RTTI class "".?AVTMLandscape@TM@@"" in Game_Bootstrap: operator_new(108), constructor 004242e0, then a vtable call"
+00539e00,FUN_00539e00,TMLandscape_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041fe20,FUN_0041fe20,DesireMap_CreateInstance,"factory registered for RTTI class "".?AVDesireMap@TM@@"" in Game_Bootstrap: operator_new(132), constructor 00839c70, then a vtable call"
+00839c70,FUN_00839c70,DesireMap_Constructor,"called by the "".?AVDesireMap@TM@@"" factory 0041fe20 right after operator_new(132); class registered in Game_Bootstrap"
+00839550,FUN_00839550,DesireMap_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041e1c0,FUN_0041e1c0,CGear_CreateInstance,"factory registered for RTTI class "".?AVCGear@TM@@"" in Game_Bootstrap: operator_new(1084), constructor 00448680, then a vtable call"
+00448680,FUN_00448680,CGear_Constructor,"called by the "".?AVCGear@TM@@"" factory 0041e1c0 right after operator_new(1084); class registered in Game_Bootstrap"
+00448160,FUN_00448160,CGear_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041e350,FUN_0041e350,CRole_CreateInstance,"factory registered for RTTI class "".?AVCRole@TM@@"" in Game_Bootstrap: operator_new(224), constructor 005a8e30, then a vtable call"
+005a8e30,FUN_005a8e30,CRole_Constructor,"called by the "".?AVCRole@TM@@"" factory 0041e350 right after operator_new(224); class registered in Game_Bootstrap"
+005a60d0,FUN_005a60d0,CRole_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041e840,FUN_0041e840,CReview_CreateInstance,"factory registered for RTTI class "".?AVCReview@TM@@"" in Game_Bootstrap: operator_new(180), constructor 004a5cf0, then a vtable call"
+004a5cf0,FUN_004a5cf0,CReview_Constructor,"called by the "".?AVCReview@TM@@"" factory 0041e840 right after operator_new(180); class registered in Game_Bootstrap"
+004a5930,FUN_004a5930,CReview_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041e960,FUN_0041e960,CMovieReview_CreateInstance,"factory registered for RTTI class "".?AVCMovieReview@TM@@"" in Game_Bootstrap: operator_new(352), constructor 00482250, then a vtable call"
+00479260,FUN_00479260,CMovieReview_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041e900,FUN_0041e900,CBasicReview_CreateInstance,"factory registered for RTTI class "".?AVCBasicReview@TM@@"" in Game_Bootstrap: operator_new(216), constructor 00410910, then a vtable call"
+00410910,FUN_00410910,CBasicReview_Constructor,"called by the "".?AVCBasicReview@TM@@"" factory 0041e900 right after operator_new(216); class registered in Game_Bootstrap"
+0040bc80,FUN_0040bc80,CBasicReview_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041e8a0,FUN_0041e8a0,CReviewItemData_CreateInstance,"factory registered for RTTI class "".?AVCReviewItemData@TM@@"" in Game_Bootstrap: operator_new(188), constructor 004aad90, then a vtable call"
+004aad90,FUN_004aad90,CReviewItemData_Constructor,"called by the "".?AVCReviewItemData@TM@@"" factory 0041e8a0 right after operator_new(188); class registered in Game_Bootstrap"
+004aa5b0,FUN_004aa5b0,CReviewItemData_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041e9c0,FUN_0041e9c0,CStarReview_CreateInstance,"factory registered for RTTI class "".?AVCStarReview@TM@@"" in Game_Bootstrap: operator_new(304), constructor 004ff9d0, then a vtable call"
+004ff9d0,FUN_004ff9d0,CStarReview_Constructor,"called by the "".?AVCStarReview@TM@@"" factory 0041e9c0 right after operator_new(304); class registered in Game_Bootstrap"
+004feda0,FUN_004feda0,CStarReview_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041ea20,FUN_0041ea20,CStudioReview_CreateInstance,"factory registered for RTTI class "".?AVCStudioReview@TM@@"" in Game_Bootstrap: operator_new(288), constructor 0051e490, then a vtable call"
+0051e490,FUN_0051e490,CStudioReview_Constructor,"called by the "".?AVCStudioReview@TM@@"" factory 0041ea20 right after operator_new(288); class registered in Game_Bootstrap"
+0051c310,FUN_0051c310,CStudioReview_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041e7d0,FUN_0041e7d0,CCredit_CreateInstance,"factory registered for RTTI class "".?AVCCredit@TM@@"" in Game_Bootstrap: operator_new(228), constructor 0043ab40, then a vtable call"
+0043ab40,FUN_0043ab40,CCredit_Constructor,"called by the "".?AVCCredit@TM@@"" factory 0041e7d0 right after operator_new(228); class registered in Game_Bootstrap"
+00439530,FUN_00439530,CCredit_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041d0e0,FUN_0041d0e0,CSubFacility_CreateInstance,"factory registered for RTTI class "".?AVCSubFacility@TM@@"" in Game_Bootstrap: operator_new(384), constructor 0084f7a0, then a vtable call"
+0084f7a0,FUN_0084f7a0,CSubFacility_Constructor,"called by the "".?AVCSubFacility@TM@@"" factory 0041d0e0 right after operator_new(384); class registered in Game_Bootstrap"
+0084f540,FUN_0084f540,CSubFacility_StaticInit,called right after the class registration in Game_Bootstrap; pushes a static descriptor onto the list at DAT_010584c8
+0041eba0,FUN_0041eba0,CAssistantData_CreateInstance,"factory registered for RTTI class "".?AVCAssistantData@TM@@"" in Game_Bootstrap: operator_new(192), constructor 0056eda0, then a vtable call"
+0056eda0,FUN_0056eda0,CAssistantData_Constructor,"called by the "".?AVCAssistantData@TM@@"" factory 0041eba0 right after operator_new(192); class registered in Game_Bootstrap"
+0056eb10,FUN_0056eb10,CAssistantData_StaticInit,called right after the class registration in Game_Bootstrap; pushes a static descriptor onto the list at DAT_010584c8
+0056e1d0,FUN_0056e1d0,CAssistantData_PreLoadCallback,"registered in the pre-load callback list (DAT_010584e8) in Game_Bootstrap right after "".?AVCAssistantData@TM@@"" is registered; used by this class only"
+0041f0f0,FUN_0041f0f0,CLot_CreateInstance,"factory registered for RTTI class "".?AVCLot@TM@@"" in Game_Bootstrap: operator_new(1252), constructor 00468e60, then a vtable call"
+00468e60,FUN_00468e60,CLot_Constructor,"called by the "".?AVCLot@TM@@"" factory 0041f0f0 right after operator_new(1252); class registered in Game_Bootstrap"
+00465510,FUN_00465510,CLot_StaticInit,"called right after the class registration in Game_Bootstrap; registers the persistence name ""PBillboard1"" (FUN_0098fdd0)"
+00468550,FUN_00468550,CLot_PreLoadCallback,"registered in the pre-load callback list (DAT_010584e8) in Game_Bootstrap right after "".?AVCLot@TM@@"" is registered; used by this class only"
+0041e610,FUN_0041e610,COrnament_CreateInstance,"factory registered for RTTI class "".?AVCOrnament@TM@@"" in Game_Bootstrap: operator_new(1156), constructor 0048bc00, then a vtable call"
+0048c570,FUN_0048c570,COrnament_StaticInit,called right after the class registration in Game_Bootstrap; pushes a static descriptor onto the list at DAT_010584c8
+0041f170,FUN_0041f170,CProject_CreateInstance,"factory registered for RTTI class "".?AVCProject@TM@@"" in Game_Bootstrap: operator_new(1064), constructor 005c0f10, then a vtable call"
+005c0e90,FUN_005c0e90,CProject_StaticInit,called right after the class registration in Game_Bootstrap; pushes a static descriptor onto the list at DAT_010584c8
+005b3cb0,FUN_005b3cb0,CProject_PreLoadCallback,"registered in the pre-load callback list (DAT_010584e8) in Game_Bootstrap right after "".?AVCProject@TM@@"" is registered; used by this class only"
+0041f2f0,FUN_0041f2f0,CSet_CreateInstance,"factory registered for RTTI class "".?AVCSet@TM@@"" in Game_Bootstrap: operator_new(1572), constructor 004d1cf0, then a vtable call"
+004d1cf0,FUN_004d1cf0,CSet_Constructor,"called by the "".?AVCSet@TM@@"" factory 0041f2f0 right after operator_new(1572); class registered in Game_Bootstrap"
+004d2c40,FUN_004d2c40,CSet_StaticInit,called right after the class registration in Game_Bootstrap; pushes a static descriptor onto the list at DAT_010584c8
+004ca9c0,FUN_004ca9c0,CSet_PreLoadCallback,"registered in the pre-load callback list (DAT_010584e8) in Game_Bootstrap right after "".?AVCSet@TM@@"" is registered; used by this class only"
+00513880,FUN_00513880,CStudioAI_PreLoadCallback,"registered in the pre-load callback list (DAT_010584e8) in Game_Bootstrap right after "".?AVCStudioAI@TM@@"" is registered; used by this class only"
+0041eda0,FUN_0041eda0,CAIInterpolatedValue_CreateInstance,"factory registered for RTTI class "".?AVCAIInterpolatedValue@TM@@"" in Game_Bootstrap: operator_new(112), constructor 005a2450, then a vtable call"
+005a2450,FUN_005a2450,CAIInterpolatedValue_Constructor,"called by the "".?AVCAIInterpolatedValue@TM@@"" factory 0041eda0 right after operator_new(112); class registered in Game_Bootstrap"
+005a1e40,FUN_005a1e40,CAIInterpolatedValue_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041f540,FUN_0041f540,CStudioPlayer_CreateInstance,"factory registered for RTTI class "".?AVCStudioPlayer@TM@@"" in Game_Bootstrap: operator_new(696), constructor 0051c080, then a vtable call"
+0051c080,FUN_0051c080,CStudioPlayer_Constructor,"called by the "".?AVCStudioPlayer@TM@@"" factory 0041f540 right after operator_new(696); class registered in Game_Bootstrap"
+00517fa0,FUN_00517fa0,CStudioPlayer_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+00519750,FUN_00519750,CStudioPlayer_PreLoadCallback,"registered in the pre-load callback list (DAT_010584e8) in Game_Bootstrap right after "".?AVCStudioPlayer@TM@@"" is registered; used by this class only"
+0041f3f0,FUN_0041f3f0,CShot_CreateInstance,"factory registered for RTTI class "".?AVCShot@TM@@"" in Game_Bootstrap: operator_new(928), constructor 004eb0b0, then a vtable call"
+004eb0b0,FUN_004eb0b0,CShot_Constructor,"called by the "".?AVCShot@TM@@"" factory 0041f3f0 right after operator_new(928); class registered in Game_Bootstrap"
+0041cf00,FUN_0041cf00,CFacilityPreProduction_CreateInstance,"factory registered for RTTI class "".?AVCFacilityPreProduction@TM@@"" in Game_Bootstrap: operator_new(1324), constructor 00849a40, then a vtable call"
+00849a40,FUN_00849a40,CFacilityPreProduction_Constructor,"called by the "".?AVCFacilityPreProduction@TM@@"" factory 0041cf00 right after operator_new(1324); class registered in Game_Bootstrap"
+00849510,FUN_00849510,CFacilityPreProduction_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041cfc0,FUN_0041cfc0,CPhasePreProduction_CreateInstance,"factory registered for RTTI class "".?AVCPhasePreProduction@TM@@"" in Game_Bootstrap: operator_new(252), constructor 005ad130, then a vtable call"
+005aaf60,FUN_005aaf60,CPhasePreProduction_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041cf60,FUN_0041cf60,CFacilityCanteen_CreateInstance,"factory registered for RTTI class "".?AVCFacilityCanteen@TM@@"" in Game_Bootstrap: operator_new(1332), constructor 00848d30, then a vtable call"
+00848d30,FUN_00848d30,CFacilityCanteen_Constructor,"called by the "".?AVCFacilityCanteen@TM@@"" factory 0041cf60 right after operator_new(1332); class registered in Game_Bootstrap"
+00848750,FUN_00848750,CFacilityCanteen_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041d080,FUN_0041d080,CFixedAssetCosts_CreateInstance,"factory registered for RTTI class "".?AVCFixedAssetCosts@TM@@"" in Game_Bootstrap: operator_new(208), constructor 00445c70, then a vtable call"
+00445c70,FUN_00445c70,CFixedAssetCosts_Constructor,"called by the "".?AVCFixedAssetCosts@TM@@"" factory 0041d080 right after operator_new(208); class registered in Game_Bootstrap"
+004455a0,FUN_004455a0,CFixedAssetCosts_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+00420cb0,FUN_00420cb0,CStaffCosts_CreateInstance,"factory registered for RTTI class "".?AVCStaffCosts@TM@@"" in Game_Bootstrap: operator_new(208), constructor 004af1d0, then a vtable call"
+004af1d0,FUN_004af1d0,CStaffCosts_Constructor,"called by the "".?AVCStaffCosts@TM@@"" factory 00420cb0 right after operator_new(208); class registered in Game_Bootstrap"
+004fcfa0,FUN_004fcfa0,CStaffCosts_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041e6d0,FUN_0041e6d0,CStarCosts_CreateInstance,"factory registered for RTTI class "".?AVCStarCosts@TM@@"" in Game_Bootstrap: operator_new(256), constructor 004feb80, then a vtable call"
+004feb80,FUN_004feb80,CStarCosts_Constructor,"called by the "".?AVCStarCosts@TM@@"" factory 0041e6d0 right after operator_new(256); class registered in Game_Bootstrap"
+004fd700,FUN_004fd700,CStarCosts_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041e2f0,FUN_0041e2f0,CEquipment_CreateInstance,"factory registered for RTTI class "".?AVCEquipment@TM@@"" in Game_Bootstrap: operator_new(280), constructor 005a9bc0, then a vtable call"
+005a9bc0,FUN_005a9bc0,CEquipment_Constructor,"called by the "".?AVCEquipment@TM@@"" factory 0041e2f0 right after operator_new(280); class registered in Game_Bootstrap"
+005a9370,FUN_005a9370,CEquipment_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041ec00,FUN_0041ec00,CPhotographer_CreateInstance,"factory registered for RTTI class "".?AVCPhotographer@TM@@"" in Game_Bootstrap: operator_new(1936), constructor 00574460, then a vtable call"
+00574460,FUN_00574460,CPhotographer_Constructor,"called by the "".?AVCPhotographer@TM@@"" factory 0041ec00 right after operator_new(1936); class registered in Game_Bootstrap"
+00572c70,FUN_00572c70,CPhotographer_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041e3b0,FUN_0041e3b0,CCast_CreateInstance,"factory registered for RTTI class "".?AVCCast@TM@@"" in Game_Bootstrap: operator_new(116), constructor 005a9070, then a vtable call"
+005a9070,FUN_005a9070,CCast_Constructor,"called by the "".?AVCCast@TM@@"" factory 0041e3b0 right after operator_new(116); class registered in Game_Bootstrap"
+005a6110,FUN_005a6110,CCast_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041d410,FUN_0041d410,CRelationships_CreateInstance,"factory registered for RTTI class "".?AVCRelationships@TM@@"" in Game_Bootstrap: operator_new(352), constructor 0042ee00, then a vtable call"
+0042ee00,FUN_0042ee00,CRelationships_Constructor,"called by the "".?AVCRelationships@TM@@"" factory 0041d410 right after operator_new(352); class registered in Game_Bootstrap"
+0041d3b0,FUN_0041d3b0,CRelationship_CreateInstance,"factory registered for RTTI class "".?AVCRelationship@TM@@"" in Game_Bootstrap: operator_new(308), constructor 0042e410, then a vtable call"
+0042e410,FUN_0042e410,CRelationship_Constructor,"called by the "".?AVCRelationship@TM@@"" factory 0041d3b0 right after operator_new(308); class registered in Game_Bootstrap"
+0042a680,FUN_0042a680,CRelationship_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041e230,FUN_0041e230,CLitterObject_CreateInstance,"factory registered for RTTI class "".?AVCLitterObject@TM@@"" in Game_Bootstrap: operator_new(440), constructor 00463110, then a vtable call"
+00463110,FUN_00463110,CLitterObject_Constructor,"called by the "".?AVCLitterObject@TM@@"" factory 0041e230 right after operator_new(440); class registered in Game_Bootstrap"
+004642c0,FUN_004642c0,CLitterObject_StaticInit,called right after the class registration in Game_Bootstrap; pushes a static descriptor onto the list at DAT_010584c8
+004636b0,FUN_004636b0,CLitterObject_PreLoadCallback,"registered in the pre-load callback list (DAT_010584e8) in Game_Bootstrap right after "".?AVCLitterObject@TM@@"" is registered; used by this class only"
+0041e470,FUN_0041e470,CScript_CreateInstance,"factory registered for RTTI class "".?AVCScript@TM@@"" in Game_Bootstrap: operator_new(496), constructor 004c48d0, then a vtable call"
+004c3a50,FUN_004c3a50,CScript_StaticInit,called right after the class registration in Game_Bootstrap; pushes a static descriptor onto the list at DAT_010584c8
+004bf170,FUN_004bf170,CScript_PreLoadCallback,"registered in the pre-load callback list (DAT_010584e8) in Game_Bootstrap right after "".?AVCScript@TM@@"" is registered; used by this class only"
+0041e290,FUN_0041e290,CShoot_CreateInstance,"factory registered for RTTI class "".?AVCShoot@TM@@"" in Game_Bootstrap: operator_new(560), constructor 004db260, then a vtable call"
+004db260,FUN_004db260,CShoot_Constructor,"called by the "".?AVCShoot@TM@@"" factory 0041e290 right after operator_new(560); class registered in Game_Bootstrap"
+004d65e0,FUN_004d65e0,CShoot_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041f8a0,FUN_0041f8a0,CPhaseDesign_CreateInstance,"factory registered for RTTI class "".?AVCPhaseDesign@TM@@"" in Game_Bootstrap: operator_new(180), constructor 005aaa20, then a vtable call"
+005aaa20,FUN_005aaa20,CPhaseDesign_Constructor,"called by the "".?AVCPhaseDesign@TM@@"" factory 0041f8a0 right after operator_new(180); class registered in Game_Bootstrap"
+005aa7e0,FUN_005aa7e0,CPhaseDesign_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041f900,FUN_0041f900,CPhasePostProduction_CreateInstance,"factory registered for RTTI class "".?AVCPhasePostProduction@TM@@"" in Game_Bootstrap: operator_new(180), constructor 005aadf0, then a vtable call"
+005aadf0,FUN_005aadf0,CPhasePostProduction_Constructor,"called by the "".?AVCPhasePostProduction@TM@@"" factory 0041f900 right after operator_new(180); class registered in Game_Bootstrap"
+005aab70,FUN_005aab70,CPhasePostProduction_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041f960,FUN_0041f960,CPhaseRelease_CreateInstance,"factory registered for RTTI class "".?AVCPhaseRelease@TM@@"" in Game_Bootstrap: operator_new(224), constructor 005af730, then a vtable call"
+005ae2a0,FUN_005ae2a0,CPhaseRelease_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041f9c0,FUN_0041f9c0,CPhaseShoot_CreateInstance,"factory registered for RTTI class "".?AVCPhaseShoot@TM@@"" in Game_Bootstrap: operator_new(192), constructor 005b07f0, then a vtable call"
+005af9a0,FUN_005af9a0,CPhaseShoot_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041fa20,FUN_0041fa20,CPhaseWriting_CreateInstance,"factory registered for RTTI class "".?AVCPhaseWriting@TM@@"" in Game_Bootstrap: operator_new(180), constructor 005b0ca0, then a vtable call"
+005b0ca0,FUN_005b0ca0,CPhaseWriting_Constructor,"called by the "".?AVCPhaseWriting@TM@@"" factory 0041fa20 right after operator_new(180); class registered in Game_Bootstrap"
+005b0920,FUN_005b0920,CPhaseWriting_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041e730,FUN_0041e730,CPart_CreateInstance,"factory registered for RTTI class "".?AVCPart@TM@@"" in Game_Bootstrap: operator_new(196), constructor 0048e370, then a vtable call"
+0048e370,FUN_0048e370,CPart_Constructor,"called by the "".?AVCPart@TM@@"" factory 0041e730 right after operator_new(196); class registered in Game_Bootstrap"
+0048c700,FUN_0048c700,CPart_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041e410,FUN_0041e410,CFinance_CreateInstance,"factory registered for RTTI class "".?AVCFinance@TM@@"" in Game_Bootstrap: operator_new(360), constructor 00445050, then a vtable call"
+00442a20,FUN_00442a20,CFinance_StaticInit,"called right after the class registration in Game_Bootstrap; registers the persistence name ""PFinance"" (FUN_0098fdd0)"
+00442c50,FUN_00442c50,CFinance_PreLoadCallback,"registered in the pre-load callback list (DAT_010584e8) in Game_Bootstrap right after "".?AVCFinance@TM@@"" is registered; used by this class only"
+0041ea80,FUN_0041ea80,CCostume_CreateInstance,"factory registered for RTTI class "".?AVCCostume@TM@@"" in Game_Bootstrap: operator_new(224), constructor 00430b40, then a vtable call"
+00430b40,FUN_00430b40,CCostume_Constructor,"called by the "".?AVCCostume@TM@@"" factory 0041ea80 right after operator_new(224); class registered in Game_Bootstrap"
+0042fce0,FUN_0042fce0,CCostume_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+00449b20,FUN_00449b20,CGenre_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041e4d0,FUN_0041e4d0,ShotDesc_CreateInstance,"factory registered for RTTI class "".?AVShotDesc@CScript@TM@@"" in Game_Bootstrap: operator_new(272), constructor 004c5700, then a vtable call"
+004c5700,FUN_004c5700,ShotDesc_Constructor,"called by the "".?AVShotDesc@CScript@TM@@"" factory 0041e4d0 right after operator_new(272); class registered in Game_Bootstrap"
+004bcf50,FUN_004bcf50,ShotDesc_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041e560,FUN_0041e560,PartDesc_CreateInstance,"factory registered for RTTI class "".?AVPartDesc@CScript@TM@@"" in Game_Bootstrap: operator_new(188), constructor 004c5890, then a vtable call"
+004c5890,FUN_004c5890,PartDesc_Constructor,"called by the "".?AVPartDesc@CScript@TM@@"" factory 0041e560 right after operator_new(188); class registered in Game_Bootstrap"
+004bcf90,FUN_004bcf90,PartDesc_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041f5a0,FUN_0041f5a0,CLogo_CreateInstance,"factory registered for RTTI class "".?AVCLogo@TM@@"" in Game_Bootstrap: operator_new(140), constructor 00464cd0, then a vtable call"
+00464cd0,FUN_00464cd0,CLogo_Constructor,"called by the "".?AVCLogo@TM@@"" factory 0041f5a0 right after operator_new(140); class registered in Game_Bootstrap"
+00464730,FUN_00464730,CLogo_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041e100,FUN_0041e100,CLeagueTableEntry_CreateInstance,"factory registered for RTTI class "".?AVCLeagueTableEntry@TM@@"" in Game_Bootstrap: operator_new(160), constructor 00460bc0, then a vtable call"
+00460bc0,FUN_00460bc0,CLeagueTableEntry_Constructor,"called by the "".?AVCLeagueTableEntry@TM@@"" factory 0041e100 right after operator_new(160); class registered in Game_Bootstrap"
+0045edc0,FUN_0045edc0,CLeagueTableEntry_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041ce10,FUN_0041ce10,CPressBarEvent_CreateInstance,"factory registered for RTTI class "".?AVCPressBarEvent@TM@@"" in Game_Bootstrap: operator_new(124), constructor 004936a0, then a vtable call"
+004936a0,FUN_004936a0,CPressBarEvent_Constructor,"called by the "".?AVCPressBarEvent@TM@@"" factory 0041ce10 right after operator_new(124); class registered in Game_Bootstrap"
+004910c0,FUN_004910c0,CPressBarEvent_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041f660,FUN_0041f660,CProjectAI_CreateInstance,"factory registered for RTTI class "".?AVCProjectAI@TM@@"" in Game_Bootstrap: operator_new(408), constructor 005a5d60, then a vtable call"
+005a5d60,FUN_005a5d60,CProjectAI_Constructor,"called by the "".?AVCProjectAI@TM@@"" factory 0041f660 right after operator_new(408); class registered in Game_Bootstrap"
+005a55f0,FUN_005a55f0,CProjectAI_StaticInit,called right after the class registration in Game_Bootstrap; pushes a static descriptor onto the list at DAT_010584c8
+0041f600,FUN_0041f600,CProjectObject_CreateInstance,"factory registered for RTTI class "".?AVCProjectObject@TM@@"" in Game_Bootstrap: operator_new(676), constructor 005d3ba0, then a vtable call"
+005d3ba0,FUN_005d3ba0,CProjectObject_Constructor,"called by the "".?AVCProjectObject@TM@@"" factory 0041f600 right after operator_new(676); class registered in Game_Bootstrap"
+005d0ea0,FUN_005d0ea0,CProjectObject_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041d200,FUN_0041d200,CTrackInfo_CreateInstance,"factory registered for RTTI class "".?AVCTrackInfo@TM@@"" in Game_Bootstrap: operator_new(200), constructor 00489d30, then a vtable call"
+00489d30,FUN_00489d30,CTrackInfo_Constructor,"called by the "".?AVCTrackInfo@TM@@"" factory 0041d200 right after operator_new(200); class registered in Game_Bootstrap"
+00488eb0,FUN_00488eb0,CTrackInfo_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041d260,FUN_0041d260,CPlayInfo_CreateInstance,"factory registered for RTTI class "".?AVCPlayInfo@TM@@"" in Game_Bootstrap: operator_new(132), constructor 00489ca0, then a vtable call"
+00489ca0,FUN_00489ca0,CPlayInfo_Constructor,"called by the "".?AVCPlayInfo@TM@@"" factory 0041d260 right after operator_new(132); class registered in Game_Bootstrap"
+00488ef0,FUN_00488ef0,CPlayInfo_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041ed40,FUN_0041ed40,CAIResearchSchedule_CreateInstance,"factory registered for RTTI class "".?AVCAIResearchSchedule@TM@@"" in Game_Bootstrap: operator_new(112), constructor 0040a0f0, then a vtable call"
+0040a0f0,FUN_0040a0f0,CAIResearchSchedule_Constructor,"called by the "".?AVCAIResearchSchedule@TM@@"" factory 0041ed40 right after operator_new(112); class registered in Game_Bootstrap"
+00408610,FUN_00408610,CAIResearchSchedule_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+004216a0,FUN_004216a0,CThresholdPackage_CreateInstance,"factory registered for RTTI class "".?AVCThresholdPackage@TM@@"" in Game_Bootstrap: operator_new(164), constructor 00420b80, then a vtable call"
+00420b80,FUN_00420b80,CThresholdPackage_Constructor,"called by the "".?AVCThresholdPackage@TM@@"" factory 004216a0 right after operator_new(164); class registered in Game_Bootstrap"
+005863a0,FUN_005863a0,CThresholdPackage_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041d020,FUN_0041d020,CExperience_CreateInstance,"factory registered for RTTI class "".?AVCExperience@TM@@"" in Game_Bootstrap: operator_new(152), constructor 00442520, then a vtable call"
+00442520,FUN_00442520,CExperience_Constructor,"called by the "".?AVCExperience@TM@@"" factory 0041d020 right after operator_new(152); class registered in Game_Bootstrap"
+0043fe90,FUN_0043fe90,CExperience_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041f6c0,FUN_0041f6c0,CExtra_CreateInstance,"factory registered for RTTI class "".?AVCExtra@TM@@"" in Game_Bootstrap: operator_new(2764), constructor 00570a70, then a vtable call"
+00570a70,FUN_00570a70,CExtra_Constructor,"called by the "".?AVCExtra@TM@@"" factory 0041f6c0 right after operator_new(2764); class registered in Game_Bootstrap"
+0056f4b0,FUN_0056f4b0,CExtra_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041ef20,FUN_0041ef20,CGraphDataSeries_CreateInstance,"factory registered for RTTI class "".?AVCGraphDataSeries@TM@@"" in Game_Bootstrap: operator_new(176), constructor 0044e4a0, then a vtable call"
+0044e4a0,FUN_0044e4a0,CGraphDataSeries_Constructor,"called by the "".?AVCGraphDataSeries@TM@@"" factory 0041ef20 right after operator_new(176); class registered in Game_Bootstrap"
+0044d3b0,FUN_0044d3b0,CGraphDataSeries_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041f720,FUN_0041f720,CGrudge_CreateInstance,"factory registered for RTTI class "".?AVCGrudge@TM@@"" in Game_Bootstrap: operator_new(208), constructor 0045cb70, then a vtable call"
+0045b790,FUN_0045b790,CGrudge_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041f780,FUN_0041f780,CGrudges_CreateInstance,"factory registered for RTTI class "".?AVCGrudges@TM@@"" in Game_Bootstrap: operator_new(224), constructor 0045cf20, then a vtable call"
+0045cf20,FUN_0045cf20,CGrudges_Constructor,"called by the "".?AVCGrudges@TM@@"" factory 0041f780 right after operator_new(224); class registered in Game_Bootstrap"
+0045b7e0,FUN_0045b7e0,CGrudges_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041f450,FUN_0041f450,CReviewGenerator_CreateInstance,"factory registered for RTTI class "".?AVCReviewGenerator@TM@@"" in Game_Bootstrap: operator_new(132), constructor 004aa420, then a vtable call"
+004aa420,FUN_004aa420,CReviewGenerator_Constructor,"called by the "".?AVCReviewGenerator@TM@@"" factory 0041f450 right after operator_new(132); class registered in Game_Bootstrap"
+004a6aa0,FUN_004a6aa0,CReviewGenerator_StaticInit,"called right after the class registration in Game_Bootstrap; registers the persistence name ""PReviewGenerator"" (FUN_0098fdd0)"
+004a6ac0,FUN_004a6ac0,CReviewGenerator_PreLoadCallback,"registered in the pre-load callback list (DAT_010584e8) in Game_Bootstrap right after "".?AVCReviewGenerator@TM@@"" is registered; used by this class only"
+0041eae0,FUN_0041eae0,CProjectStaffEnhancement_CreateInstance,"factory registered for RTTI class "".?AVCProjectStaffEnhancement@TM@@"" in Game_Bootstrap: operator_new(288), constructor 005d6dc0, then a vtable call"
+005d6dc0,FUN_005d6dc0,CProjectStaffEnhancement_Constructor,"called by the "".?AVCProjectStaffEnhancement@TM@@"" factory 0041eae0 right after operator_new(288); class registered in Game_Bootstrap"
+005d5220,FUN_005d5220,CProjectStaffEnhancement_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041f7e0,FUN_0041f7e0,CProjectCrewEffects_CreateInstance,"factory registered for RTTI class "".?AVCProjectCrewEffects@TM@@"" in Game_Bootstrap: operator_new(180), constructor 005cbbd0, then a vtable call"
+005cbbd0,FUN_005cbbd0,CProjectCrewEffects_Constructor,"called by the "".?AVCProjectCrewEffects@TM@@"" factory 0041f7e0 right after operator_new(180); class registered in Game_Bootstrap"
+005cb9d0,FUN_005cb9d0,CProjectCrewEffects_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041ef80,FUN_0041ef80,CProjectGraphInfo_CreateInstance,"factory registered for RTTI class "".?AVCProjectGraphInfo@TM@@"" in Game_Bootstrap: operator_new(132), constructor 005cc9c0, then a vtable call"
+005cc9c0,FUN_005cc9c0,CProjectGraphInfo_Constructor,"called by the "".?AVCProjectGraphInfo@TM@@"" factory 0041ef80 right after operator_new(132); class registered in Game_Bootstrap"
+005cc090,FUN_005cc090,CProjectGraphInfo_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041efe0,FUN_0041efe0,CDJPlayList_CreateInstance,"factory registered for RTTI class "".?AVCDJPlayList@TM@@"" in Game_Bootstrap: operator_new(96), constructor 0043dd60, then a vtable call"
+0043dd60,FUN_0043dd60,CDJPlayList_Constructor,"called by the "".?AVCDJPlayList@TM@@"" factory 0041efe0 right after operator_new(96); class registered in Game_Bootstrap"
+0041d2c0,FUN_0041d2c0,CSound_CreateInstance,"factory registered for RTTI class "".?AVCSound@TM@@"" in Game_Bootstrap: operator_new(2804), constructor 004fa710, then a vtable call"
+004fa710,FUN_004fa710,CSound_Constructor,"called by the "".?AVCSound@TM@@"" factory 0041d2c0 right after operator_new(2804); class registered in Game_Bootstrap"
+0041ec60,FUN_0041ec60,CSetDressingProp_CreateInstance,"factory registered for RTTI class "".?AVCSetDressingProp@TM@@"" in Game_Bootstrap: operator_new(308), constructor 004d62a0, then a vtable call"
+004d62a0,FUN_004d62a0,CSetDressingProp_Constructor,"called by the "".?AVCSetDressingProp@TM@@"" factory 0041ec60 right after operator_new(308); class registered in Game_Bootstrap"
+004d5210,FUN_004d5210,CSetDressingProp_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+0041f040,FUN_0041f040,CProjectLegacy_CreateInstance,"factory registered for RTTI class "".?AVCProjectLegacy@TM@@"" in Game_Bootstrap: operator_new(264), constructor 005d0b50, then a vtable call"
+005d0b50,FUN_005d0b50,CProjectLegacy_Constructor,"called by the "".?AVCProjectLegacy@TM@@"" factory 0041f040 right after operator_new(264); class registered in Game_Bootstrap"
+005d09a0,FUN_005d09a0,CProjectLegacy_StaticInit,called right after the class registration in Game_Bootstrap; pushes a static descriptor onto the list at DAT_010584c8
+005ceb20,FUN_005ceb20,CProjectLegacy_PreLoadCallback,"registered in the pre-load callback list (DAT_010584e8) in Game_Bootstrap right after "".?AVCProjectLegacy@TM@@"" is registered; used by this class only"
+0041fb20,FUN_0041fb20,CHospitalRoom_CreateInstance,"factory registered for RTTI class "".?AVCHospitalRoom@TM@@"" in Game_Bootstrap: operator_new(652), constructor 009256d0, then a vtable call"
+00924990,FUN_00924990,CHospitalRoom_StaticInit,called right after the class registration in Game_Bootstrap; empty (just returns)
+005301d0,FUN_005301d0,AssetDebug_RegisterCommands,"Game_Bootstrap init (second half, 0x428414..0x4289AF): registers the console commands ""ass_hide"", ""ass_shownames"", ""ass_repair""; role read from the strings only, not from the code"
+008386b0,FUN_008386b0,Desires_LoadTuning,"Game_Bootstrap init (second half, 0x428414..0x4289AF): reads the keys ""desires"", ""AdaptiveDesires"", ""MaxDesireInterval""; role read from the strings only, not from the code"
+0040bc90,FUN_0040bc90,Reviews_RegisterMessages,"Game_Bootstrap init (second half, 0x428414..0x4289AF): registers the message ids MT_REVIEWS_OPENMOVIEREVIEW, ..._OPENMOVIEREVIEWA, ..._OPENSTARREVIEW; role read from the strings only, not from the code"
+006a4050,FUN_006a4050,GuiTuning_Load,"Game_Bootstrap init (second half, 0x428414..0x4289AF): reads the ""gui"" keys ""FadeDuration"", ""DropIconRange"", ""DropIconRangeOrnament"", ""DropAutoAppearDelay""; role read from the strings only, not from the code"
+00471fb0,FUN_00471fb0,StudioFundsHighlight_LoadTuning,"Game_Bootstrap init (second half, 0x428414..0x4289AF): reads the ""studio"" keys ""FundsHighlightingScaleAtMin"", ""FundsHilightingMin""; role read from the strings only, not from the code"
+0063d970,FUN_0063d970,Bubbles_LoadTuning,"Game_Bootstrap init (second half, 0x428414..0x4289AF): loads ui/newbubble.dds and ui/bubblebit.dds and reads ""Bubblyness""; role read from the strings only, not from the code"
+0084bde0,FUN_0084bde0,Trailers_LoadTuning,"Game_Bootstrap init (second half, 0x428414..0x4289AF): reads the ""trailers"" keys ""territoryfactor"", ""possessionsfactor""; role read from the strings only, not from the code"
+0095e860,FUN_0095e860,PropBlueprints_Load,"Game_Bootstrap init (second half, 0x428414..0x4289AF): loads data/propblueprint*.ini (""setdressing""); role read from the strings only, not from the code"
+0095da00,FUN_0095da00,MiscBlueprints_Load,"Game_Bootstrap init (second half, 0x428414..0x4289AF): reads ""miscblueprint""; role read from the strings only, not from the code"
+004fcb60,FUN_004fcb60,Adverts_LoadRuleCsv,"Game_Bootstrap init (second half, 0x428414..0x4289AF): loads data/rule/adverts.csv; role read from the strings only, not from the code"
+005ea6a0,FUN_005ea6a0,UiPulse_LoadTuning,"Game_Bootstrap init (second half, 0x428414..0x4289AF): reads the ""interface"" keys ""pulse_minimumalpha"", ""pulse_maxtimebetweenscale""; role read from the strings only, not from the code"
+005979e0,FUN_005979e0,StuntsTuning_Load,"Game_Bootstrap init (second half, 0x428414..0x4289AF): reads the ""stunts"" keys ""genderfactor"", ""sexfactor""; role read from the strings only, not from the code"
+005200b0,FUN_005200b0,StuntOptions_Init,"Game_Bootstrap init (second half, 0x428414..0x4289AF): references ""StuntOptions"", ""FirstTrainerBuilt"", ""FirstStuntMovieReleased""; role read from the strings only, not from the code"
+008d5380,FUN_008d5380,PInstance_Init,"Game_Bootstrap init (second half, 0x428414..0x4289AF): references the persistence name ""PInstance""; role read from the strings only, not from the code"
+004afe20,FUN_004afe20,PSandbox_Init,"Game_Bootstrap init (second half, 0x428414..0x4289AF): references the persistence name ""PSandbox""; role read from the strings only, not from the code"
+0053c3a0,FUN_0053c3a0,ObjectSelect_RegisterMessages,"Game_Bootstrap init (second half, 0x428414..0x4289AF): registers the message ids MT_OBJECT_SELECT, MT_OBJECT_DESELECT, MT_OBJECT_LOCKOUTLINE; role read from the strings only, not from the code"
