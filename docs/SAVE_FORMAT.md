@@ -141,7 +141,8 @@ paint over it (grass, earth, tarmac). In the tutorial save most of the lot is gr
 has the same lot with different painting, and its own occupancy bits.
 
 The occupancy bitmap is the grid used by lot building code (`CLot_RefreshOccupancyGridForBounds`, `00465a50`). In the tutorial save 9,305 of 65,536
-cells are set; the lot's grass area is mostly clear.
+cells are set (8,897 in the blank-lot save); the lot's grass area is mostly clear, and testing the mesh footprints against it
+(`docs/MSH_FORMAT.md`) shows the bits are not where the buildings are: it is a terrain/lot blocking mask, with the placed objects probably added at load time.
 
 ## From save names to game files
 
@@ -150,26 +151,32 @@ are the patch layer and win over the base ones). Extracted copies go under `data
 
 **Placed assets.** A `SourcePath` such as `ornament/p_hedge` or `facility/facility_gatehouse` names an **`.ini`** (`MISC0000.pak` / `Addon_2704_0000.pak`;
 `pak_extract` does not resolve directories, so same-named inis from different folders come out as `name.ini`, `name.ini.2`, ...). The ini's `mesh = ...` line
-names the model, which lives in `meshscene0000.pak`. Textures are `.dds` files in `TEX_ALL0000/0001.pak` and the addon archive. The texture is **matched by
-file stem** (mesh `p_hedge.msh` goes with `p_hedge.dds`); that is a naming observation, not read from the mesh, which is zlib-style compressed (`zcmp`) and
-has not been parsed. Every name below was found in the archives:
+names the model, which lives in `meshscene0000.pak`. **The model's own texture list is inside the mesh** (`docs/MSH_FORMAT.md`, `tools/msh_dump.py`); the
+texture is *not* the same-stem `.dds` (an earlier version of this note said so; those `fac_*.dds` / `p_*.dds` files are probably UI thumbnails).
+Everything below was found in the archives and the meshes parsed:
 
-| `SourcePath` in the save | ini | mesh (`meshscene0000`) | texture (`TEX_ALL*`) |
+| `SourcePath` in the save | ini | mesh (`meshscene0000`) | textures read from the mesh |
 |---|---|---|---|
-| `facility/facility_gatehouse` | `facility_gatehouse.ini` | `fac_gatehouse.msh` (+ `.inf`, `.flm`) | `fac_gatehouse.dds` |
-| `facility/facility_stage` | `facility_stage.ini` | `fac_stageschool.msh` | `fac_stageschool.dds` (+ `fac_stageschoolwall/moulding`, `fac_stage_window`) |
-| `facility/trailer_2` | `trailer_2.ini` | `fac_trailer2.msh` | `fac_trailer2.dds` |
-| `facility/facility_catering1` | `facility_catering1.ini` | `fac_catering1.msh` | `fac_catering1.dds` |
-| `ornament/p_billboard` | `p_billboard.ini` | `outl_billboardt.msh` | not found by name |
-| `ornament/p_flowerbed_circle1`, `..._circle2` | same names | `p_flowerbed_circle1.msh`, `p_flowerbed_circle2.msh` | same stems |
-| `ornament/p_hedge`, `p_hedge2` | same names | `p_hedge.msh`, `p_hedge2.msh` | same stems |
-| `ornament/p_large_pot_plant4` | same name | `p_large_pot_plant4.msh` (+ `lp_...` low-poly) | same stem |
-| `ornament/p_palmtree`, `p_palm_tree02` | same names | same stems | same stems |
-| `ornament/p_parkbench` | same name | `p_parkbench.msh` (+ `lp_...`) | same stem |
-| `lot` (`CLot`) | `lot.ini` | the road/gate set: `lot_gate.msh`, `lot_road_mark.msh`, `lot_wall_*.msh` | `lot_quality.dds`, `lotsprites.dds` |
+| `facility/facility_gatehouse` | `facility_gatehouse.ini` | `fac_gatehouse.msh` | 31: `grou_ph43k`, `wall_ph50*`, `palm_tree_02`, `plant_ph0*`, lightmap `lm_1940gates_00`, `advert_chrysler_3` ... |
+| `facility/facility_stage` | `facility_stage.ini` | `fac_stageschool.msh` | 51: `wall_ph*`, `grou_ph*`, `wood_ph*`, `land_grass00`, lightmap `lm_stageschool_fac_0` ... |
+| `facility/trailer_2` | `trailer_2.ini` | `fac_trailer2.msh` | `lm_trailer2_0`, `envmap6`, `gen_mirrorwindow`, `fac_trailer6`, `gen_sky` |
+| `facility/facility_catering1` | `facility_catering1.ini` | `fac_catering1.msh` | 34: `stuff_ph*`, `wood_ph*`, `steel_ph*`, lightmap `lm_catering1_snack_0` ... |
+| `ornament/p_billboard` | `p_billboard.ini` | `outl_billboardt.msh` | `advert_chrysler_3`, `wall_ph50(a)`, `grating_rk01`, `light_ph04`, `plas_ph01`, `steel_ph24c`, lightmap `lm_osl_group_01` |
+| `ornament/p_flowerbed_circle1`, `..._circle2` | same names | `p_flowerbed_circle1.msh`, `..._circle2.msh` | `p_flowerbed_circle1.dds`, `p_flowerbed_circle2.dds` |
+| `ornament/p_hedge` | `p_hedge.ini` | `p_hedge.msh` | `hedge`, `hedge_stone`, lightmap `lm_hedge` |
+| `ornament/p_hedge2` | `p_hedge2.ini` | `p_hedge2.msh` | `hedge`, lightmap `lm_hedge2` |
+| `ornament/p_large_pot_plant4` | same name | `p_large_pot_plant4.msh` | `p_treepinkblossom`, `p_pot_plant4_128` |
+| `ornament/p_palmtree` | same name | `p_palmtree.msh` | `palm_tree`, lightmap `lm_palmtree1` |
+| `ornament/p_palm_tree02` | same name | `p_palm_tree02.msh` | `palm_tree_02` |
+| `ornament/p_parkbench` | same name | `p_parkbench.msh` | `prop_bench` |
+| `lot` (`CLot`) | `lot.ini` | the road/gate set: `lot_gate.msh` (41 textures incl. `flag`, `logo_v00`), `lot_road_mark.msh`, `lot_wall_*.msh` | |
 
-The `.inf` next to a facility mesh holds its named locator points (door, staff spots, `_fp_*` points). The `_fp_` ones may be the footprint points the lot uses
-for the occupancy grid: unverified, not parsed. `lot.ini` lists three lot sizes (`192,128`, `256,192`, `300,224`); their unit is not established.
+The `.inf` next to a facility mesh holds named locator points (door, staff spots, `_fp_*` points) and a `thumbnail` entry. `lot.ini` lists three lot sizes
+(`192,128`, `256,192`, `300,224`); their unit is not established.
+
+**Footprints.** Each mesh carries flat collision/placement polygons and, for facilities, one floor polygon per room (`docs/MSH_FORMAT.md`). Which polygon
+the game uses as the placement footprint is not established, and the save's occupancy bitmap does **not** mark where placed buildings stand (the gatehouse
+and catering footprints have no bits set under them), so the grid cannot be reconstructed from the save plus the meshes alone yet.
 
 **Ground textures.** The 7 names in `TMLandscape` are `.dds` files in `TEX_ALL0000.pak`, each added `land_` + the name in lower case:
 `land_sand00`, `land_grass00`, `land_grass02`, `land_grass01`, `land_earth00`, `land_tarmac00` (256x256 DXT1 with 9 mips) and `land_sidewalk02` (128x128).
@@ -248,7 +255,7 @@ the cash drop) but which building the 3,000.00 is, is not recorded in the spent 
 * Ornament/facility `GUID` (8 bytes) semantics, `StateOfRepair` / `BuildWorkDone` units, `SL_CamRot`/`SL_CamZoo` units.
 * How a `CFacility`'s `SubFacilities` value (16 bytes: count + pointers + hash) is laid out beyond "count then entries".
 * Terrain: the heightmap/mesh is not in the save (only the paint layers and occupancy bits below). The blend-weight meaning of bits 4-5 is from the code (`FUN_009e23b0`), not checked in game. The ~17 KB after the occupancy bitmap is not decoded.
-* Whether a set bit in the occupancy bitmap means "blocked" or "occupied by a placed item" (it is set over the city road and neighbouring blocks, and in thin footprints around lot buildings), and why the first 24 columns of the bitmap look striped.
+* Whether a set bit in the occupancy bitmap means "blocked" or "occupied by a placed item" (it is set over the city road and neighbouring blocks, and along some lot edges where the trailer and some hedges stand, but not under the gatehouse or the catering building), and why the first 24 columns of the bitmap look striped.
 * Whether the 2-unit grid applies to player-placed props and sets (only prebuilt tutorial ornaments have been seen).
 * The meaning of the room/object `ObjectsIn` field (`TMRoom`) and `TMFloorPlan`'s repeated `?239a5558` (4 entries pointing to ids 1305-1308: probably its rooms).
 * Where the **set pieces / props / walls placed by the player** are stored. The fresh studio has none, and the tutorial saves only show prebuilt ornaments and facilities,

@@ -1,0 +1,114 @@
+#!/usr/bin/env python3
+"""Read The Movies .msh models: texture names, materials, extra polygon chunks and named parts (with bounding boxes).
+
+    python3 tools/pak_extract.py extract "<game>/Data/pak" data/game_data/meshes "fac_gatehouse.msh" "p_hedge.msh"
+    python3 tools/msh_dump.py data/game_data/meshes/*.msh
+
+Layout, from LH_LoadMeshBinary (009deb10); the parts listed here were checked against real files (docs/MSH_FORMAT.md):
+
+    [optional "zcmp" + 16 bytes + zlib stream]              the loader inflates these first
+    header 0x24 bytes: u32 version (10), u32 n_textures, u32 n_materials, u32 n_submeshes, 8 flag bytes (0x10..0x17), then up
+           to three optional u32 chosen by control byte 0x16 (bit 1 -> 0x18, bit 6 -> next, bit 7 -> next = n_named_parts)
+    n_textures x 32-byte NUL-padded names (.dds)
+    n_materials x 0x14 bytes (0x18 when byte 0xe & 4): u8 tex0, tex1, tex2, tex3 ..., flags, u32 colour at 0x10
+    "aux polygon chunks", each present when its flag bit is set, in this order:
+        byte 0x13 != 0, byte 0x16 & 0x10, byte 0x16 & 8, byte 0x15 & 4, byte 0x16 & 4, byte 0x15 & 2, byte 0x16 & 1
+        chunk = u16 n_verts, u16 ?, u16 n_tris, u16 ?, n_verts x 3 f32, n_tris x 3 u16, padded to 4 bytes
+    n_named_parts x (32-byte name + aux polygon chunk)       ("room_*", "window*", ...)
+    submeshes (vertex/index data): not parsed here
+"""
+import struct
+import sys
+import os
+import zlib
+
+CHUNK_SLOTS = [("flag13", 0x13, 0xFF), ("b16_10", 0x16, 0x10), ("b16_08", 0x16, 0x08), ("b15_04", 0x15, 0x04),
+               ("b16_04", 0x16, 0x04), ("b15_02", 0x15, 0x02), ("b16_01", 0x16, 0x01)]
+
+
+def inflate(data):
+    if data[:4] == b"zcmp":
+        return zlib.decompress(data[20:])
+    return data
+
+
+def cstr(b):
+    return b.split(b"\0")[0].decode("latin1")
+
+
+def chunk(d, pos):
+    nv, _a, nt, _b = struct.unpack_from("<4H", d, pos)
+    pos += 8
+    verts = [struct.unpack_from("<3f", d, pos + 12 * i) for i in range(nv)]
+    pos += 12 * nv
+    tris = [struct.unpack_from("<3H", d, pos + 6 * i) for i in range(nt)]
+    pos += 6 * nt
+    return {"verts": verts, "tris": tris}, (pos + 3) & ~3
+
+
+def bbox(verts):
+    if not verts:
+        return None
+    return tuple((min(v[k] for v in verts), max(v[k] for v in verts)) for k in range(3))
+
+
+def parse(data):
+    d = inflate(data)
+    ver, ntex, nmat, nsub = struct.unpack_from("<4I", d, 0)
+    if ver != 10:
+        raise ValueError(f"unsupported mesh version {ver}")
+    flags = d[0x10:0x18]
+    ctrl = flags[6]
+    pos = 0x18
+    opt = []
+    for bit in (2, 0x40, 0x80):
+        if ctrl & bit:
+            opt.append(struct.unpack_from("<I", d, pos)[0])
+            pos += 4
+        else:
+            opt.append(0)
+    n_named = opt[2]
+    textures = [cstr(d[pos + 32 * i:pos + 32 * i + 32]) for i in range(ntex)]
+    pos += 32 * ntex
+    mats = []
+    for _ in range(nmat):
+        m = d[pos:pos + 0x18]
+        mats.append({"tex": list(m[0:4]), "flags": m[4:16].hex(), "colour": struct.unpack_from("<I", m, 0x10)[0]})
+        pos += 0x18 if m[0xE] & 4 else 0x14
+    chunks = {}
+    for name, off, mask in CHUNK_SLOTS:
+        if flags[off - 0x10] & mask:
+            chunks[name], pos = chunk(d, pos)
+    parts = []
+    for _ in range(n_named):
+        name = cstr(d[pos:pos + 32])
+        pos += 32
+        c, pos = chunk(d, pos)
+        parts.append((name, c))
+    return {"version": ver, "n_submeshes": nsub, "flags": flags.hex(), "textures": textures, "materials": mats,
+            "chunks": chunks, "parts": parts, "size": len(d), "rest": pos}
+
+
+def fmt_box(b):
+    return "none" if b is None else " ".join(f"{lo:.2f}..{hi:.2f}" for lo, hi in b)
+
+
+def show(name, m):
+    print(f"{name}: v{m['version']} {m['size']} bytes, {m['n_submeshes']} submesh(es), flags {m['flags']}")
+    print("  textures:", ", ".join(m["textures"]) or "-")
+    for i, x in enumerate(m["materials"]):
+        print(f"  material {i}: texture idx {x['tex']} colour {x['colour']:08x}")
+    for k, c in m["chunks"].items():
+        print(f"  chunk {k}: {len(c['verts'])} verts, {len(c['tris'])} tris, box x/y/z {fmt_box(bbox(c['verts']))}")
+    for n, c in m["parts"]:
+        print(f"  part {n!r}: {len(c['verts'])} verts, box x/y/z {fmt_box(bbox(c['verts']))}")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        sys.exit(__doc__)
+    for p in sys.argv[1:]:
+        try:
+            show(os.path.basename(p), parse(open(p, "rb").read()))
+        except Exception as e:  # keep going over a batch
+            print(f"{os.path.basename(p)}: {e}")

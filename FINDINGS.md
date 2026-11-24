@@ -69,7 +69,7 @@ All present in the export: `CStudioAI_CreateGlobalInstance` (`0041f4e0`), `CStud
 
 ## `.msh` mesh format
 
-Parsed by `LH_LoadMeshBinary` (`009deb10`, `decomp_0045.c`). Details below come from the loaders' own annotations in the export plus a re-read of the code; none were checked against real `.msh` files here.
+Parsed by `LH_LoadMeshBinary` (`009deb10`, `decomp_0045.c`). Details below come from the loaders' own annotations in the export plus a re-read of the code; the header, texture table, materials and polygon chunks are checked against real files in docs/MSH_FORMAT.md (`tools/msh_dump.py`); the submesh vertex data is not.
 
 **File header** (`LH_LoadMeshHeader`, `009dadd0`), 0x24 bytes when the control byte is `0xC2`:
 
