@@ -129,6 +129,7 @@ Read only the last screenshot of a scripted sequence (the user asked for that); 
 ```
 python3 tools/jad_dump.py "<save>.jad"                                        # summary; --class CStar, --lists, --map [--svg f.svg], two saves = diff
 python3 tools/pak_extract.py extract "<game>/Data/pak" data/game_data/save_assets facility_gatehouse.ini ...   # inis, then the meshes and textures they name
+python3 tools/fetch_assets.py "<save>.jad" "<game>/Data/pak"                      # extract every ini/mesh/texture a save needs (about 2 min)
 python3 tools/msh_dump.py data/game_data/meshes/*.msh                         # textures, materials, polygon chunks, room parts
 python3 tools/jad_dump.py "<save>.jad" --terrain out.png --footprints <ini+msh dir> --roofs <dds dir> --ground <land dds dir> --crop -64,-8,64,72
 ```

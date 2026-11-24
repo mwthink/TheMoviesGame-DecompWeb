@@ -8,6 +8,7 @@ What we can read out of a The Movies save, from three saves made on the Wine/Cro
 | `crossover… 2354` | tutorial, first star hired, no facility yet |
 | `crossover… 2355` | tutorial, a facility (catering) queued/pending |
 | `wine studios… 2357` | straight after the tutorial: blank lot, $150,000, 1 Jan 1920 |
+| `quick film studios… 0114` | Quick Start after loading in (added 2026-11-24): 1 Jan 1960, $1,247,923, state label `QUICKSTART`, 24 placed facilities, 252 ornaments, 7 `CSet` sets, ~30 `*Room` classes, 3,845 objects, 1.19 MB |
 
 Tool: [tools/jad_dump.py](../tools/jad_dump.py) (summary, `--class`, two-save diff). Everything here is **observed from
 saves and cross-checked against the decompiled save code** (see `FINDINGS.md` and `docs/MOVIE_SUCCESS.md` "Save mechanics");
@@ -260,8 +261,8 @@ the cash drop) but which building the 3,000.00 is, is not recorded in the spent 
 * Whether a set bit in the occupancy bitmap means "blocked" or "occupied by a placed item" (it is set over the city road and neighbouring blocks, and along some lot edges where the trailer and some hedges stand, but not under the gatehouse or the catering building), and why the first 24 columns of the bitmap look striped.
 * Whether the 2-unit grid applies to player-placed props and sets (only prebuilt tutorial ornaments have been seen).
 * The meaning of the room/object `ObjectsIn` field (`TMRoom`) and `TMFloorPlan`'s repeated `?239a5558` (4 entries pointing to ids 1305-1308: probably its rooms).
-* Where the **set pieces / props / walls placed by the player** are stored. The fresh studio has none, and the tutorial saves only show prebuilt ornaments and facilities,
-  so a save with a player-built set (`SetItemList`/`PropItemList`) is needed.
+* What is **inside** a placed set (its props and set pieces): the Quick Start save has seven `CSet` objects (`set/set_hotelbedroom_shabby`, `set_stagecoach`, `set_landscape_desert`, ... with `SourcePath`,
+  `POSITION`, `MyAngle` like every placed asset, in a backlot area at x -140..-80), but how their contents and the player's own set edits are stored is not decoded; a save with a player-built set is still needed.
 
 **Behaviour**
 * Whether the game accepts an edited save (cross-references, counts and the static lists must stay consistent; the lists contain every object id, so adding an
@@ -282,3 +283,14 @@ python3 tools/jad_dump.py <save>.jad --terrain out.png [--occupancy]            
 python3 tools/jad_dump.py <save>.jad --terrain out.png --footprints <ini+msh dir> --roofs <dds dir> --ground <land dds dir> --crop -64,-8,64,72   # textured top-down view (docs/MSH_FORMAT.md)
 python3 tools/jad_dump.py <a>.jad <b>.jad                                               # diff
 ```
+
+## Quick Start save (2026-11-24)
+
+`CSet` objects are in the save with the same placed-asset base (`SourcePath` such as `set/set_stagecoach`), so `jad_dump.py --map` and the renders include them. Each set's mesh has one floor
+room (`room_wood`, `room_1_carpet`, `room_1_sand`, `room_earth`, `room_1_tile`, `room_5_earth`). Room names per building (from the meshes, drawn by `--rooms`): the stage school's five
+(in-game labels "Create Extra", "Create Actor", "Create Director", "Reject" and the striped star-maker pad, confirmed from a screenshot), the gatehouse (staff_fire, hire_janitor, hire_builder),
+wardrobe (hall, custom, auto), pre-production (hall, actors, activate, extras, crew, shootit, director), research (fac, fire, set, cos, mov, hall), custom script (create, canit, blank, hall),
+script offices (hall, office, fire and horror/comedy/scifi/romdrama/action), bar (mainbar, vipbar), sell, crew, production (review, archive, postproduction, release, finance), catering (vip, main), detox, trailers.
+The save also holds a `TMRoom` family per room (`CHireRoom`, `CFireRoom`, `CCastRoom`, `CReleaseRoom`, `CArchiveRoom`, ...), not yet matched to those polygons.
+
+`tools/fetch_assets.py <save> "<game>/Data/pak"` extracts everything a save needs for rendering (inis, meshes, textures, ground textures; about 2 minutes for this save).

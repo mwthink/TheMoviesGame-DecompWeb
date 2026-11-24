@@ -5,7 +5,7 @@
     python3 tools/jad_dump.py save.jad --class CFinance   # every field of the objects of one class
     python3 tools/jad_dump.py save.jad --lists            # the 24 global object registries from [STATICS]
     python3 tools/jad_dump.py save.jad --map [--svg out.svg]  # placed assets (SourcePath + POSITION + MyAngle), grid analysis, ASCII plan
-    python3 tools/jad_dump.py save.jad --terrain out.png [--occupancy] [--footprints DIR] [--roofs TEXDIR [--outlines] [--markers] [--no-lightmaps] [--cutaway Z]] [--rooms] [--ground LANDTEXDIR [--tile UNITS]] [--crop x0,y0,x1,y1]
+    python3 tools/jad_dump.py save.jad --terrain out.png [--occupancy] [--footprints DIR] [--roofs TEXDIR [--outlines] [--markers] [--no-lightmaps] [--cutaway Z]] [--rooms] [--ppu N] [--ground LANDTEXDIR [--tile UNITS]] [--crop x0,y0,x1,y1]
                                                        # ground paint + assets as a PNG (x right, y up); DIR holds ini + msh files
     python3 tools/jad_dump.py a.jad b.jad              # field-level diff (statics + objects matched by id)
 
@@ -348,6 +348,11 @@ ROOM_COLOURS = [(230, 25, 75), (60, 180, 75), (255, 225, 25), (0, 130, 200), (24
                 (240, 50, 230), (210, 245, 60), (250, 190, 212), (0, 128, 128), (170, 110, 40)]
 
 
+# What the game prints on the floor of these rooms (seen in game, stage school with the star-maker room in the middle); other rooms: not checked yet.
+ROOM_LABELS = {"room_ss_extras": "Create Extra", "room_ss_actors": "Create Actor", "room_ss_directors": "Create Director",
+               "room_ss_fire": "Reject", "room_ss_starmaker": "(striped star-maker pad)"}
+
+
 def draw_rooms(put, tri, line, to_px, items, meshes, k):
     """Fill each named room floor polygon (mesh parts called room_*) in its own colour at the asset's placement and label it with a number; the unnamed
     `room_` part (the whole walkable floor) is skipped. Prints a legend: number = room name per mesh."""
@@ -382,7 +387,7 @@ def draw_rooms(put, tri, line, to_px, items, meshes, k):
                                         put(cx + (ci * 4 + gx) * sc + dx - len(lab) * 2 * sc, cy + gy * sc + dy - 2 * sc, (0, 0, 0))
         if apath not in seen:
             seen.add(apath)
-            print(f"  rooms in {apath}: " + ", ".join(f"{i + 1}={n}" for i, n in enumerate(legend)))
+            print(f"  rooms in {apath}: " + ", ".join(f"{i + 1}={n}" + (f' ("{ROOM_LABELS[n]}" in game)' if n in ROOM_LABELS else "") for i, n in enumerate(legend)))
 
 
 def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None, roofs=None, outlines=True, markers=True, ground=None, tile=12.0, lightmaps=True, cutaway=None, rooms=False):
@@ -604,6 +609,9 @@ def main(argv):
     cut = argv[argv.index("--cutaway") + 1] if "--cutaway" in argv else None
     if cut:
         args.remove(cut)
+    ppu_arg = argv[argv.index("--ppu") + 1] if "--ppu" in argv else None
+    if ppu_arg:
+        args.remove(ppu_arg)
     tile = argv[argv.index("--tile") + 1] if "--tile" in argv else "12"
     if "--tile" in argv:
         args.remove(tile)
@@ -613,7 +621,7 @@ def main(argv):
             show_terrain(p, png, "--occupancy" in argv, fp, tuple(float(v) for v in crop.split(",")) if crop else None,
                          roofs=roofs, outlines=not roofs or "--outlines" in argv, markers=not roofs or "--markers" in argv,
                          ground=ground, tile=float(tile), lightmaps="--no-lightmaps" not in argv,
-                         cutaway=float(cut) if cut else None, rooms="--rooms" in argv)
+                         cutaway=float(cut) if cut else None, rooms="--rooms" in argv, ppu=int(ppu_arg) if ppu_arg else None)
         elif "--map" in argv:
             show_map(p, svg)
         elif "--lists" in argv:
