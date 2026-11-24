@@ -5,7 +5,7 @@
     python3 tools/save_cast.py "<save>.jad" --json out.json
 
 From a CStar / CWannabe: `Head[0]` (a .hd file name, e.g. head_f_japanese_girl.hd; `Head[1]` + `HeadMix` blend a second head), `PCurrentCostume` and `PNormalCostume`
-(object ids of CCostume objects), `name` (UTF-16 string, when present). A CCostume object has no tagged variables: its body is a raw blob that holds the costume name
+(object ids of CCostume objects), `name` (UTF-16 string, when present), `WEIGHT` (kg, f32) and `Birth` (f32 day number; age = (current day - Birth) / 365). A CCostume object has no tagged variables: its body is a raw blob that holds the costume name
 (`f_cheerleader_1`), its .cos file (`f_cheerleader_1.cos`, see tools/cos_dump.py), makeup textures (`mup_eyes_v00.dds`, `mup_feyebrow_v00.dds`) and the hair mesh
 (`hair_20s_f12.msh`) as length-prefixed or NUL-padded strings. The blob is read here by finding those strings, not by a decoded layout.
 """
@@ -66,9 +66,18 @@ def costume_blob(body):
     return out
 
 
+def game_day(p, names):
+    """The game's current day (days since year 0 at 365 days a year): the PreviousAwardsDate.YearInDays static (1 January of the current year, so up to a year behind)."""
+    for t, v in p["statics"]:
+        if names.get(t, t) == "PreviousAwardsDate.YearInDays" and len(v) >= 4:
+            return struct.unpack_from("<f", v, 0)[0]
+    return None
+
+
 def cast(path):
     names = jad_dump.load_names()
     p = jad_dump.parse(path)
+    today = game_day(p, names)
     costumes = {cid: costume_blob(body) for cls, cid, body in raw_objects(path) if cls == "CCostume"}
     people = []
     for o in p["objects"]:
@@ -85,7 +94,10 @@ def cast(path):
                        "head": pstr(f["Head[0]"]) if "Head[0]" in f else None, "head2": pstr(f["Head[1]"]) if "Head[1]" in f else None,
                        "headMix": struct.unpack_from("<f", f["HeadMix"], 0)[0] if "HeadMix" in f and len(f["HeadMix"]) >= 4 else None,
                        "costumeId": ref("PCurrentCostume"), "costume": cur.get("name"), "cos": cur.get("cos"), "hair": cur.get("hair"),
-                       "makeup": [t for t in cur.get("textures", []) if t.lower().startswith("mup_")]})
+                       "makeup": [t for t in cur.get("textures", []) if t.lower().startswith("mup_")],
+                       "weight": struct.unpack_from("<f", f["WEIGHT"], 0)[0] if "WEIGHT" in f and len(f["WEIGHT"]) >= 4 else None,
+                       # Birth is a day number like the date above (days since year 0, 365 a year); the age is approximate (see game_day)
+                       "age": (today - struct.unpack_from("<f", f["Birth"], 0)[0]) / 365.0 if today and "Birth" in f and len(f["Birth"]) >= 4 else None})
     return people
 
 

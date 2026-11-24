@@ -20,7 +20,7 @@ portable C++ reimplementation, written from the decompiled code and the document
 | Runtime tracing | first-call coverage tracer + this-class log run on a Windows test box: 9,458 distinct functions (27%) seen over 2 game years; steady-state set about 3,800 functions; 3,673 functions with an observed `this` class |
 | Windows test box | set up, key login from the Mac, game runs windowed under software Direct3D (see `WINDOWS_TEST_BOX.md`, `DECOMP_PIPELINE.md`) |
 | Wine on the Mac | the game runs under CrossOver (menu, Quick Start, gameplay, sound); loads are very slow (Rosetta). Debugger DLL: hooks and first-call coverage work there, `this`-class mode crashes (trap flag under Rosetta). See `WINE_CROSSOVER.md` |
-| Saved games *(2026-11-24)* | `.jad` container parsed and field names resolved (`tools/jad_dump.py`, `docs/SAVE_FORMAT.md`), from three Wine saves. Terrain paint map, occupancy bitmap, placed-asset positions decoded. Python only: nothing in `src/` yet, nothing loaded back into the game |
+| Saved games *(2026-11-24)* | `.jad` container parsed and field names resolved (`tools/jad_dump.py`, `docs/SAVE_FORMAT.md`), from three Wine saves. Terrain paint map, the path (pavement) bitmap, placed-asset positions decoded. Python only: nothing in `src/` yet, nothing loaded back into the game |
 | Lot, placement, models *(2026-11-24)* | world-to-grid formula (2 units per cell, 256 x 256, origin at cell 128), the placement-footprint path in the code (`docs/MSH_FORMAT.md`), `.msh` header/materials/polygons/render geometry parsed (`tools/msh_dump.py`), DDS decoder (`tools/dds.py`), textured top-down render of a save (`jad_dump.py --terrain ... --ground --roofs`). Checked by eye against the running game: placement, rotation, ground blend, textures and lighting match |
 | Not started | struct/type recovery, library function identification, anything beyond the movie/staff economy in `src/`, any real renderer/UI/engine work (the render above is a one-off Python view), animation/skeleton/`.flm` playback, the simulation outside movies and staff |
 
@@ -114,7 +114,7 @@ Read only the last screenshot of a scripted sequence (the user asked for that); 
    `tools/jad_dump.py`. Next: port the reader into `src/` with tests that read saves (three exist: `~/Documents/The Movies/Saved Games` from the Wine run; the
    fresh studio, a tutorial save and a tutorial save with a queued facility); make a save with player-built sets/props (where they are stored is unknown); check
    whether the game accepts an edited save (lists of object ids and counts must stay consistent; untested); look at a save with released movies, a later decade and
-   the non-Wine game. Open details are listed at the end of `SAVE_FORMAT.md` (the ~17 KB after the terrain occupancy bitmap, the runtime cell-grid flag bits,
+   the non-Wine game. Open details are listed at the end of `SAVE_FORMAT.md` (the ~17 KB after the terrain path bitmap, the runtime cell-grid flag bits,
    the meaning of the other mesh polygon chunks, ground tile scale 12 units and lightmap gain 2x which are assumed).
 7. **Open decisions for the user**: whether the decompiler export (`data/identified_organized`) stays tracked; the licence of `src/`;
    the overall strategy (replace the original's functions from the inside through the injected DLL, versus building a standalone engine); how far

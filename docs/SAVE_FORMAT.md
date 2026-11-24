@@ -96,7 +96,7 @@ Counts are for the fresh-studio save (the tutorial saves add the tutorial scaffo
 
 **Lot and buildings**
 * `CLot` (1): camera (`SL_CamPos`, `SL_CamFoc`, `SL_CamRot`, `SL_CamZoo` (name truncated in the save), `SL_GameSpeed`) and `SL_Version` = `Build 001015 (12:25:19, Apr 27 2006)`.
-  The terrain is a separate object, `TMLandscape`: see "Terrain and the occupancy grid" below.
+  The terrain is a separate object, `TMLandscape`: see "Placement: coordinates, the 2-unit grid and the terrain" below (its 8 KB bitmap is the **path mask**, see the end of this file).
 * Every placed asset shares one base layout: `SourcePath` (asset path), `PFixedAssetCosts`, `Knackered`, `NearlyKnackered`, `StateOfRepair`
   (1.0 = new), `BuildWorkDone`/`BuildWorkNeeded`, `DecayBegin`, `PPossessor` (owner), `PFloorPlan`, `POSITION`, `MyAngle`, `GUID`. The same
   base is used by `CFacility`, `CFacilityStageSchool`, `CFacilityTrailer`, `CSponsoredBillboard`, `COrnament`, `CLot`.
@@ -122,7 +122,7 @@ assets on top (x to the right, y up; red squares = facilities, blue dots = ornam
 
 **World to grid.** `WorldToOccupancyGridCoord` (`0046bfd0`) is `cell = round((world + 256) / 2)` for x and y. A cell is
 **2 x 2 world units**, the grid is **256 x 256** and spans world -256..+256, world (0, 0) is cell (128, 128). The first index is x, the second y.
-This is the same grid for the occupancy bitmap and the terrain paint. Observed: 31 of 32 tutorial ornaments sit on odd integer coordinates (cell
+This is the same grid for the path bitmap and the terrain paint. Observed: 31 of 32 tutorial ornaments sit on odd integer coordinates (cell
 centres), on quarter-turn rotations; facilities and the billboard are off-grid (fixed lot slots, e.g. catering at (-24.457, 26.873)).
 Laying the assets on the terrain puts every one of them on the grass lot at the gate where the lot meets the road.
 
@@ -132,18 +132,16 @@ Laying the assets on the terrain puts every one of them on the grass lot at the 
 u32 length (of the rest)  u32 version (2)  u32 texture count (7)
 7 x 32-byte NUL-padded names: Land_sand00, Land_grass00, Land_grass02, Land_grass01, Land_earth00, Land_tarmac00, Land_sidewalk02
 65,793 cells x 3 bytes        = 256 rows x 257: index x*257 + y; the 257th column is a 0x3f edge sentinel
-8,192 bytes                   occupancy bitmap, 256 x 256 bits: bit x*256 + y (byte = bit >> 3, mask 1 << (bit & 7))
+8,192 bytes                   path (pavement) bitmap, 256 x 256 bits: bit x*256 + y (byte = bit >> 3, mask 1 << (bit & 7))
 ~17 KB                        not decoded
 ```
 
 Each cell byte is masked with `0x3f` by the loader and is one **paint layer**: three layers per cell. Low nibble = texture index (0xF = none);
 bits 4-5 = blend weight `(value + 1) * 0.25` (from `FUN_009e23b0`). Layer 0 is the base (sand almost everywhere, hi bits 3 = opaque); layers 1 and 2
 paint over it (grass, earth, tarmac). In the tutorial save most of the lot is grass with a dirt border, and the road is tarmac; the blank-lot save
-has the same lot with different painting, and its own occupancy bits.
+has the same lot with different painting, and its own path bits.
 
-The occupancy bitmap is the grid used by lot building code (`CLot_RefreshOccupancyGridForBounds`, `00465a50`). In the tutorial save 9,305 of 65,536
-cells are set (8,897 in the blank-lot save); the lot's grass area is mostly clear, and testing the mesh footprints against it
-(`docs/MSH_FORMAT.md`) shows the bits are not where the buildings are: it is a terrain/lot blocking mask, with the placed objects probably added at load time.
+The bitmap is the **path mask** (found 2026-11-24, see "The 8 KB bitmap is the path mask" at the end): a set bit means the 2 x 2 unit cell is paved path, drawn with the sidewalk texture. 9,305 of 65,536 cells are set in the tutorial save, 8,897 in the blank-lot save and 9,420 in the Quick Start save (the city's sidewalks and the lot's paths). Placed buildings are not in it; the lot building code (`CLot_RefreshOccupancyGridForBounds`, `00465a50`) turns every set bit into blocked sub-cells of the finer placement grid.
 
 ## From save names to game files
 
@@ -257,8 +255,8 @@ the cash drop) but which building the 3,000.00 is, is not recorded in the spent 
   (126 each), `Gardens`, `MyPeople`, `MyDesireMap.Values` have no known layout.
 * Ornament/facility `GUID` (8 bytes) semantics, `StateOfRepair` / `BuildWorkDone` units, `SL_CamRot`/`SL_CamZoo` units.
 * How a `CFacility`'s `SubFacilities` value (16 bytes: count + pointers + hash) is laid out beyond "count then entries".
-* Terrain: the heightmap/mesh is not in the save (only the paint layers and occupancy bits below). The blend-weight meaning of bits 4-5 is from the code (`FUN_009e23b0`), not checked in game. The ~17 KB after the occupancy bitmap is not decoded.
-* Whether a set bit in the occupancy bitmap means "blocked" or "occupied by a placed item" (it is set over the city road and neighbouring blocks, and along some lot edges where the trailer and some hedges stand, but not under the gatehouse or the catering building), and why the first 24 columns of the bitmap look striped.
+* Terrain: the heightmap/mesh is not in the save (only the paint layers and the path bits below). The blend-weight meaning of bits 4-5 is from the code (`FUN_009e23b0`), not checked in game. The ~17 KB after the path bitmap is mostly zeros with scattered per-patch records (not decoded).
+* Whether the sidewalk slab scale in the render (one texture tile per 2 world units) matches the game; the paths' exact blending at their edges.
 * Whether the 2-unit grid applies to player-placed props and sets (only prebuilt tutorial ornaments have been seen).
 * The meaning of the room/object `ObjectsIn` field (`TMRoom`) and `TMFloorPlan`'s repeated `?239a5558` (4 entries pointing to ids 1305-1308: probably its rooms).
 * What is **inside** a placed set (its props and set pieces): the Quick Start save has seven `CSet` objects (`set/set_hotelbedroom_shabby`, `set_stagecoach`, `set_landscape_desert`, ... with `SourcePath`,
@@ -279,7 +277,7 @@ python3 tools/jad_dump.py "$HOME/Documents/The Movies/Saved Games/<save>.jad"   
 python3 tools/jad_dump.py <save>.jad --lists                                            # static registries
 python3 tools/jad_dump.py <save>.jad --class CStar                                      # one class with field names
 python3 tools/jad_dump.py <save>.jad --map [--svg out.svg]                               # placed assets, grid check, plan
-python3 tools/jad_dump.py <save>.jad --terrain out.png [--occupancy]                      # terrain paint + assets as a PNG
+python3 tools/jad_dump.py <save>.jad --terrain out.png [--no-paths] [--occupancy]            # terrain paint + paths + assets as a PNG
 python3 tools/jad_dump.py <save>.jad --terrain out.png --footprints <ini+msh dir> --roofs <dds dir> --ground <land dds dir> --crop -64,-8,64,72   # textured top-down view (docs/MSH_FORMAT.md)
 python3 tools/jad_dump.py <a>.jad <b>.jad                                               # diff
 ```
@@ -332,9 +330,17 @@ stunt school (`stuntschool_create`, `_fire`), the 4-star script office, trailers
 
 `jad_dump.py --rooms --strings <stringdatabase.lhts[,addon]>` draws these texts. The string database is game content: it stays local (the repo only has the reader).
 
-### Paths are not in the terrain paint (open, 2026-11-24)
+### The 8 KB bitmap is the path mask (2026-11-24)
 
-In game the beige paved paths between the buildings (the `land_sidewalk` slabs) are visible, but they are **not** in the saved terrain: the sidewalk texture (index 6) has no cell in any of the four saves, and
-no object class or field named path/pavement exists in the Quick Start save (`CBuildButtonData` lists only facility, set and prop items). The undecoded ~17 KB after the occupancy bitmap is mostly zeros with a few non-zero
-words (patch records, not a path mask). The loader (`FUN_009e5540`) clears a second 8 KB bitmap (`DAT_0105f8dc`) for version-2 terrain instead of reading one, so path data is probably rebuilt at load from something else
-(`terrain_path`, `is_landscaping_path` and `PIP_PLACING_PATH` strings exist). Where it comes from is not known; the renders therefore show grass where the game shows paths.
+The beige paved paths between the buildings (and the sidewalks of the city streets) are the set bits of the 256 x 256 bitmap that follows the terrain cells. Evidence: rendering the bits (`jad_dump.py --terrain ... --occupancy`) reproduces
+the in-game path network (the spine up the lot, the cross paths, paths round each building and the plaza, the street sidewalk) against screenshots of the Quick Start lot; the sidewalk texture (index 6) has no terrain cell in any save, so
+paving is not stored as paint. In the code:
+
+* `Object_SpawnSurfacePatches` (`00980c10`, called when a building is placed, with the reverse on removal) walks the mesh's named tag points (mesh + 0x48 count, 0x50-byte records, position at +0x44):
+  `_sp_pavement_0*` marks that cell as path (`FUN_009e1980`: sets the cell's bit in both bitmaps, `DAT_0105f8d8` (saved) and `DAT_0105f8dc` (transient, zeroed on loading version-2 terrain), and fixes up its paint layers);
+  `_sp_tarmac<W>_<H>` stamps a W x H block of cells (2 units each) with texture index `count - 2` (tarmac); `_sp_grass<W>_<H>` stamps grass (index 1, four passes); `_sp_sand<W>_<H>` stamps sand (index 0, four passes) then 0-3 random passes of earth (index 4).
+  Removing a building clears the path bits it set (`FUN_009e1ff0`). So the tarmac plazas, the grass and the dirt patches around each building in the terrain paint are **stamps made by that building's tags**, and its pavement cells are the path bits.
+* The player's path tool (`terrain_path`, `terrain_pathdelete`, `is_landscaping_path` / `_antipath`, `PIP_PLACING_PATH`) sets and clears the same bits (`FUN_009e1980` with the flag `DAT_0105ef80`, anti-path = clear).
+* `FUN_00465650(gx, gy, on)` expands each set cell into the 0.5-unit placement grid, so paths are cells a new building cannot be placed on.
+
+Not checked: the tags' exact positions per mesh (the locator list of the mesh, not parsed by `msh_dump.py`), how the sidewalk is drawn at path edges, the meaning of the `DAT_0105f8dc` transient bitmap while the player is painting.

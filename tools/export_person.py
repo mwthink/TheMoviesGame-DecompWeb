@@ -7,8 +7,9 @@
 
 A person comes from tools/save_cast.py (head .hd, costume .cos, hair mesh). The costume file (tools/cos_dump.py) names the body mesh; the head is generic_head.msh with
 the texture named inside the .hd file (its first string, at 0x0c); the hair is its own mesh. All of them share the 30-bone skeleton (docs/ANM_FORMAT.md).
-Not done: the head's shape morph (the rest of the .hd), makeup, hair/skin tint, accessories (hats, glasses, rings), the costume's texture layers. The body's own
-texture atlas is used as it is.
+The head shape is the .hd morph (tools/hd_dump.py): the person's age and weight (from the save, or --age / --weight) and Head[1] + HeadMix when the save has a second head.
+A person without a stored head gets the game's defaults (head_f_white_jane.hd / head_m_white_joe.hd, from the loader code).
+Not done: makeup, hair/skin tint, accessories (hats, glasses, rings), the costume's texture layers. The body's own texture atlas is used as it is.
 
 Files are found in the archives by name. Textures are searched in the directories data\\textures\\ first, then costumes, hair, makeup, people, sm, ui and the others; the
 thumbs\\ directories (small UI icons with the same names) last. Files read from the paks are cached under --cache (default data/game_data/people/<dir>/<name>).
@@ -21,6 +22,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cos_dump
 import export_character
+import hd_dump
+import msh_dump
 import pak_extract
 import save_cast
 
@@ -77,6 +80,9 @@ def main():
     ap.add_argument("--cos")
     ap.add_argument("--head")
     ap.add_argument("--hair")
+    ap.add_argument("--age", type=float, help="age in years for the head morph (default: from the save, else 25)")
+    ap.add_argument("--weight", type=float, help="weight in kg for the head morph (default: from the save, else 70)")
+    ap.add_argument("--no-morph", action="store_true", help="use generic_head.msh unchanged")
     ap.add_argument("--anims", default=",".join(DEFAULT_ANIMS))
     ap.add_argument("--out", default="viewer/data")
     ap.add_argument("--cache", default="data/game_data/people")
@@ -87,11 +93,15 @@ def main():
                 print("%5d %-9s head %-28s cos %-24s hair %s" % (q["id"], q["class"], q["head"], q["cos"], q["hair"]))
         return
     cos, head, hair, who = a.cos, a.head, a.hair, a.cos
+    head2, mix, age, weight = None, 0.0, a.age, a.weight
     if a.person is not None:
         q = next((q for q in save_cast.cast(a.save) if q["id"] == a.person), None)
         if not q or not q["cos"]:
             sys.exit("person %s not found, or the save stores no costume for them" % a.person)
         cos, head, hair, who = q["cos"], head or q["head"], hair or q["hair"], "%s %d" % (q["class"], q["id"])
+        head2, mix = q["head2"], q["headMix"] or 0.0
+        age = age if age is not None else q["age"]
+        weight = weight if weight is not None else q["weight"]
     if not cos:
         sys.exit("give --person (with --save) or --cos")
     paks = Paks(a.pakdir, a.cache)
@@ -101,20 +111,41 @@ def main():
         sys.exit("costume %s not found in the archives" % cos)
     c = cos_dump.parse(open(cpath, "rb").read())
     meshes = [paks.find(c["body"])]
-    meshes.append(paks.find("generic_head.msh"))
-    remap = {}
-    if head:
-        hp = paks.find(head)
-        if hp:
-            remap["head_m_white_joe.dds"] = hd_texture(hp)     # generic_head.msh names this texture; the person's .hd names the real one
-        else:
-            print("head file %s not found; using the default head texture" % head)
+    gh = paks.find("generic_head.msh")
+    meshes.append(gh)
+    remap, parsed = {}, {}
+    if not head:
+        head = "head_f_white_jane.hd" if cos.lower().startswith("f_") else "head_m_white_joe.hd"
+    hp = paks.find(head)
+    hd0 = hd1 = None
+    if hp:
+        hd0 = hd_dump.parse(open(hp, "rb").read())
+        remap["head_m_white_joe.dds"] = hd0["texture"]     # generic_head.msh names this texture; the person's .hd names the real one
+        if head2 and paks.find(head2):
+            hd1 = hd_dump.parse(open(paks.find(head2), "rb").read())
+    else:
+        print("head file %s not found; using the generic head" % head)
+    if hd0 and not a.no_morph:
+        p4, p5 = hd_dump.age_weight(age if age is not None else 25.0, weight if weight is not None else 70.0)
+        shape = hd_dump.morph(hd0, p4, p5, hd1, mix)
+        m = msh_dump.parse(open(gh, "rb").read())
+        i = 0
+        for node in m["nodes"]:
+            for prim in node["prims"]:
+                for j, v in enumerate(prim["verts"]):
+                    prim["verts"][j] = tuple(shape[i]) + tuple(v[6:])
+                    i += 1
+        if i != hd_dump.N:
+            sys.exit("generic_head.msh has %d vertices, the .hd morph %d" % (i, hd_dump.N))
+        parsed[gh] = m
+        print("head morph: %s age %.1f -> %.2f, weight %.1f kg -> %.2f%s" % (head, age if age is not None else 25.0, p4, weight if weight is not None else 70.0, p5,
+                                                                         (", mixed %.2f with %s" % (mix, head2)) if hd1 else ""))
     if hair and paks.find(hair):
         meshes.append(paks.find(hair))
     if not meshes[0]:
         sys.exit("body mesh %s not found" % c["body"])
     anims = [p for p in (paks.find(n + ".anm") for n in a.anims.split(",") if n) if p]
-    export_character.write_character(meshes, anims, a.out, remap, find=paks.texture, name="%s: %s (%s, %s)" % (who, cos[:-4], head or "-", hair or "-"))
+    export_character.write_character(meshes, anims, a.out, remap, find=paks.texture, parsed=parsed, name="%s: %s (%s, %s)" % (who, cos[:-4], head or "-", hair or "-"))
 
 
 if __name__ == "__main__":

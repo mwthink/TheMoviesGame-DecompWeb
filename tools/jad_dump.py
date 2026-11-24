@@ -5,7 +5,7 @@
     python3 tools/jad_dump.py save.jad --class CFinance   # every field of the objects of one class
     python3 tools/jad_dump.py save.jad --lists            # the 24 global object registries from [STATICS]
     python3 tools/jad_dump.py save.jad --map [--svg out.svg]  # placed assets (SourcePath + POSITION + MyAngle), grid analysis, ASCII plan
-    python3 tools/jad_dump.py save.jad --terrain out.png [--occupancy] [--footprints DIR] [--roofs TEXDIR [--outlines] [--markers] [--no-lightmaps] [--cutaway Z]] [--rooms [--labelscale N] [--no-numbers] [--strings stringdatabase.lhts[,addon.lhts]]] [--ppu N] [--ground LANDTEXDIR [--tile UNITS]] [--crop x0,y0,x1,y1]
+    python3 tools/jad_dump.py save.jad --terrain out.png [--occupancy (tints the path mask)] [--footprints DIR] [--roofs TEXDIR [--outlines] [--markers] [--no-lightmaps] [--cutaway Z]] [--rooms [--labelscale N] [--no-numbers] [--strings stringdatabase.lhts[,addon.lhts]]] [--ppu N] [--ground LANDTEXDIR [--tile UNITS]] [--no-paths] [--crop x0,y0,x1,y1]
                                                        # ground paint + assets as a PNG (x right, y up); DIR holds ini + msh files
     python3 tools/jad_dump.py a.jad b.jad              # field-level diff (statics + objects matched by id)
 
@@ -493,7 +493,7 @@ def draw_rooms(put, tri, line, to_px, items, meshes, k, room_data=None, label_sc
                 print(f"    {i + 1} = {n}" + (f'  "{text}"' if text else "") + (f' ("{ROOM_LABELS[n]}" seen in game)' if n in ROOM_LABELS else "") + f"  [{info}]")
 
 
-def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None, roofs=None, outlines=True, markers=True, ground=None, tile=12.0, lightmaps=True, cutaway=None, rooms=False, label_scale=1, numbers=True, strings=None):
+def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None, roofs=None, outlines=True, markers=True, ground=None, tile=12.0, lightmaps=True, cutaway=None, rooms=False, label_scale=1, numbers=True, strings=None, paths=True, path_tile=2.0):
     """Top-down PNG: ground paint (cell g = round((world + 256) / 2), centred on even world coordinates), optionally the occupancy bits,
     the placed assets (red = facility, blue = ornament) and, with a directory of ini + msh files, each asset's mesh polygons rotated by
     MyAngle and moved to POSITION: b15_02 footprint = orange fill, b16_01 = yellow outline, facility room floors = cyan outline."""
@@ -526,6 +526,12 @@ def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None,
             if os.path.exists(f):
                 gtex[i] = dds.load(f)
 
+    sidewalk = next((i for i, n in enumerate(names) if n.lower().startswith("land_sidewalk")), None)
+
+    def is_path(gx, gy):
+        """The saved 8 KB bitmap (docs/SAVE_FORMAT.md): bit gx*256 + gy = a paved path cell (2 x 2 world units centred on the grid vertex)."""
+        return 0 <= gx < 256 and 0 <= gy < 256 and occ[(gx * 256 + gy) >> 3] >> ((gx * 256 + gy) & 7) & 1
+
     def vertex_colour(gx, gy, samples):
         """Composite one terrain vertex: layer 0 opaque, layers 1/2 painted over with alpha (bits 4-5 + 1) * 0.25."""
         if not (0 <= gx < 256 and 0 <= gy < 256):
@@ -554,6 +560,9 @@ def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None,
                 c01, c11 = vertex_colour(ix, iy + 1, samples), vertex_colour(ix + 1, iy + 1, samples)
                 col = tuple(int((c00[j] * (1 - tx) + c10[j] * tx) * (1 - ty) + (c01[j] * (1 - tx) + c11[j] * tx) * ty) for j in range(3))
                 gx = round(fx)
+                if paths and sidewalk in gtex and is_path(gx, gy):
+                    sw, sh, spx = gtex[sidewalk]
+                    col = spx[(int(wy / path_tile * sh) % sh) * sw + int(wx / path_tile * sw) % sw][:3]
                 if occupancy and 0 <= gx < 256 and 0 <= gy < 256 and occ[(gx * 256 + gy) >> 3] >> ((gx * 256 + gy) & 7) & 1:
                     col = tuple(int(c * 0.4 + t * 0.6) for c, t in zip(col, (230, 40, 40)))
                 o = (yy * W + xx) * 3
@@ -568,6 +577,8 @@ def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None,
                 i = gx * 256 + gy
                 if occupancy and occ[i >> 3] >> (i & 7) & 1:
                     col = tuple(int(c * 0.4 + t * 0.6) for c, t in zip(col, (230, 40, 40)))
+            if paths and is_path(gx, gy):
+                col = LAND_COLORS["sidew"]
             o = (yy * W + xx) * 3
             px[o:o + 3] = bytes(col)
     items = [a for a in placed_assets(p) if a[0] != "CLot"]
@@ -732,7 +743,8 @@ def main(argv):
                          ground=ground, tile=float(tile), lightmaps="--no-lightmaps" not in argv,
                          cutaway=float(cut) if cut else None, rooms="--rooms" in argv, ppu=int(ppu_arg) if ppu_arg else None,
                          label_scale=int(lscale) if lscale else 1, numbers="--no-numbers" not in argv,
-                         strings=lhts.load(*strfile.split(",")) if strfile else None)
+                         strings=lhts.load(*strfile.split(",")) if strfile else None,
+                         paths="--no-paths" not in argv)
         elif "--map" in argv:
             show_map(p, svg)
         elif "--lists" in argv:

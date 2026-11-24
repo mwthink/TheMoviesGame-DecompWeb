@@ -56,7 +56,7 @@ Add `--outlines` for the footprint/room polygons and `--markers` for the origin 
 * **Named parts** are floor polygons at z ~0.01-0.03 for the rooms a facility is made of, in the same model space (gatehouse: `room_staff_fire`,
   `room_staff_hire_janitor`, `room_staff_hire_builder`; stage school: `room_ss_actors`, `room_ss_directors`, `room_ss_starmaker`, `room_ss_extras`, `room_ss_fire`).
   They match the room names in the save (`TMRoom`, `CHireRoom`, `CStarMakerRoom`).
-* **Footprint vs the save's occupancy grid.** Rotating each chunk by the placed asset's `MyAngle` and testing it against the occupancy bitmap
+* **Footprint vs the save's path bitmap.** Rotating each chunk by the placed asset's `MyAngle` and testing it against the saved 8 KB bitmap (which is the path mask, `docs/SAVE_FORMAT.md`)
   (`docs/SAVE_FORMAT.md`) does not select any one chunk: the gatehouse footprint has 0 of 80 cells set and the catering building 0 of 15, while the trailer's is fully set.
   So the bitmap in the save is not a record of where buildings stand.
 
@@ -80,8 +80,8 @@ Chunk slots on the loaded mesh object (set by `LH_LoadMeshBinary`): `+0x50` = `f
    whether it is free; any covered cell that is not free fails the placement (and, if the debug flag is on, marks it). Masks seen: `0x41`, `0x3ff`, `0x2f`, `0xfffffc01`, `0xffffffd1`
    (`FUN_0046d730` sets/clears the asset's footprint flags in the grid with them).
 4. **The lot cell grid** (`DAT_0104913c`, `DAT_01049130/34` = size, `FUN_0046cad0` converts world to cell) is finer than the 256 x 256 bitmap in the save: `FUN_00465650(gx, gy, on)`
-   expands one saved 2-unit occupancy cell into the 0.5-unit sub-cells (a 4 x 4 block, flag masks `0x30`/`0x3e` and their complements) of that finer grid.
-   `CLot_RefreshOccupancyGridForBounds` (`00465a50`) calls it for every bitmap bit that is set. So the saved bitmap is the **coarse, static "blocked" seed**; the live
+   expands one saved 2-unit path cell into the 0.5-unit sub-cells (a 4 x 4 block, flag masks `0x30`/`0x3e` and their complements) of that finer grid.
+   `CLot_RefreshOccupancyGridForBounds` (`00465a50`) calls it for every bitmap bit that is set. So the saved bitmap is the **path mask** (paved cells block placement); the live
    per-asset footprints are registered on the fine grid at runtime and are not in the save.
 
 Not traced: the exact meaning of each flag bit in the cell grid's word, and the code that registers each placed asset's footprint on the grid.

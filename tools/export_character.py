@@ -64,9 +64,9 @@ def write_png(path, w, h, px):
                 chunk(b"IDAT", zlib.compress(raw, 6)) + chunk(b"IEND", b""))
 
 
-def build_parts(path, out, remap, find=None):
+def build_parts(path, out, remap, find=None, parsed=None):
     """One part per primitive: its own vertex arrays and diffuse texture (written as PNG)."""
-    m = msh_dump.parse(open(path, "rb").read())
+    m = (parsed or {}).get(path) or msh_dump.parse(open(path, "rb").read())
     parts = []
     for node in m["nodes"]:
         for pi, p in enumerate(node["prims"]):
@@ -97,13 +97,13 @@ def build_parts(path, out, remap, find=None):
     return m, parts
 
 
-def write_character(meshes, anims, out, remap=None, find=None, name=None):
-    """meshes: .msh paths sharing one skeleton (the first provides the bones); anims: .anm paths; find(name) -> texture path or None.
-    Writes <out>/character.json and the PNG textures."""
+def write_character(meshes, anims, out, remap=None, find=None, name=None, parsed=None):
+    """meshes: .msh paths sharing one skeleton (the first provides the bones); anims: .anm paths; find(name) -> texture path or None;
+    parsed: {path: already parsed msh_dump result} for meshes that were modified (e.g. a morphed head). Writes <out>/character.json and the PNG textures."""
     os.makedirs(out, exist_ok=True)
     parts, bones = [], None
     for path in meshes:
-        m, ps = build_parts(path, out, remap or {}, find)
+        m, ps = build_parts(path, out, remap or {}, find, parsed)
         parts += ps
         bones = bones or m["bones"]
     if not bones:
