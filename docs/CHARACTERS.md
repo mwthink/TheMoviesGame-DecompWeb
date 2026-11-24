@@ -1,6 +1,6 @@
 # Characters from a saved game
 
-`tools/export_person.py "<game>/Data/pak" --save "<save>.jad" --list` lists the people of a save that have a costume; `--person <id>` builds `viewer/data/character.json`, shown by `viewer/index.html`
+`tools/export_person.py "<game>/Data/pak" --save "<save>.jad" --list` lists the people of a save that have a costume; `--person <id>` builds one character and `--all` every person with a costume, each into `viewer/data/<id>/` (and `viewer/data/index.json`, the list the viewer's selector shows; the archives are indexed once per run, about 10 s, then each person takes about a second). `viewer/index.html` shows them
 (see `docs/ANM_FORMAT.md` for the viewer, skeleton, skinning and animation). `--cos <name>` builds a costume without a save.
 
 ## What a save stores about a person (`tools/save_cast.py`)

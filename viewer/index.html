@@ -14,6 +14,7 @@
 <body>
 <div id="ui">
   <b id="title">loading…</b>
+  <label>Character <select id="char"></select></label>
   <label>Animation <select id="clip"></select></label>
   <label><input type="checkbox" id="play" checked> play</label>
   <label>Speed <input type="range" id="speed" min="0.1" max="2" step="0.05" value="1"></label>
@@ -54,77 +55,124 @@ const grid = new THREE.GridHelper(6, 24, 0x667, 0x334);
 grid.rotation.x = Math.PI / 2;
 scene.add(grid);
 
-const data = await (await fetch('data/character.json')).json();
-$('title').textContent = data.name;
+// The characters: data/index.json lists them (tools/export_person.py --all writes it); without it, a single data/character.json
+let list;
+try { list = (await (await fetch('data/index.json', { cache: 'no-cache' })).json()).characters; } catch (e) { list = null; }
+if (!list || !list.length) list = [{ id: 'character', name: 'character', path: 'character.json' }];
+for (const c of list) { const o = document.createElement('option'); o.value = c.id; o.textContent = c.name; $('char').appendChild(o); }
 
-// skeleton in the bind pose (bone transforms are local; the root's local is its world bind)
-const bones = data.bones.map(b => {
-  const bone = new THREE.Bone();
-  bone.name = b.name;
-  bone.position.set(...b.pos);
-  bone.quaternion.set(...b.quat);
-  return bone;
-});
-let root = null;
-data.bones.forEach((b, i) => { if (b.parent >= 0) bones[b.parent].add(bones[i]); else root = bones[i]; });
-
-// one skinned mesh per part (body, head, eyes, hair ...), all bound to the same skeleton
 const loader = new THREE.TextureLoader();
-const mats = [], skinned = [];
-for (const part of data.parts) {
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(part.position, 3));
-  g.setAttribute('normal', new THREE.Float32BufferAttribute(part.normal, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(part.uv, 2));
-  g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(part.skinIndex, 4));
-  g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(part.skinWeight, 4));
-  g.setIndex(part.index);
-  const map = part.texture ? loader.load('data/' + part.texture) : null;
-  if (map) { map.colorSpace = THREE.SRGBColorSpace; map.flipY = false; map.anisotropy = 8; map.wrapS = map.wrapT = THREE.RepeatWrapping; }
-  const mat = new THREE.MeshStandardMaterial({ map, roughness: 0.8, metalness: 0, side: THREE.DoubleSide, alphaTest: 0.5 });
-  mat.userData.map = map;
-  mats.push(mat);
-  const mesh = new THREE.SkinnedMesh(g, mat);
-  mesh.name = part.name;
-  mesh.frustumCulled = false;
-  skinned.push(mesh);
-  scene.add(mesh);
+const qa = new THREE.Quaternion(), qb = new THREE.Quaternion();
+let cur = null;          // the model on screen: { bones, skinned, mats, helper, skeleton, clips }
+let clip = null, t = 0, token = 0;
+
+function unload() {
+  if (!cur) return;
+  scene.remove(cur.helper);
+  cur.helper.dispose();
+  for (const m of cur.skinned) { scene.remove(m); m.geometry.dispose(); }
+  for (const m of cur.mats) { if (m.userData.map) m.userData.map.dispose(); m.dispose(); }
+  cur.skeleton.dispose();
+  cur = null; clip = null;
 }
-skinned[0].add(root);
-scene.updateMatrixWorld(true);
-const skeleton = new THREE.Skeleton(bones);
-for (const m of skinned) m.bind(skeleton, skinned[0].matrixWorld);
-const helper = new THREE.SkeletonHelper(skinned[0]);
-helper.visible = false;
-scene.add(helper);
+
+async function load(entry) {
+  const mine = ++token;                                        // a newer selection cancels this one
+  const dir = 'data/' + entry.path.split('/').slice(0, -1).join('/') + (entry.path.includes('/') ? '/' : '');
+  const data = await (await fetch('data/' + entry.path, { cache: 'no-cache' })).json();
+  if (mine !== token) return;
+  const keep = clip ? clip.name : null;                        // the selected clip carries over to the next character
+  unload();
+  $('title').textContent = data.name;
+
+  // skeleton in the bind pose (bone transforms are local; the root's local is its world bind)
+  const bones = data.bones.map(b => {
+    const bone = new THREE.Bone();
+    bone.name = b.name;
+    bone.position.set(...b.pos);
+    bone.quaternion.set(...b.quat);
+    return bone;
+  });
+  let root = null;
+  data.bones.forEach((b, i) => { if (b.parent >= 0) bones[b.parent].add(bones[i]); else root = bones[i]; });
+
+  // one skinned mesh per part (body, head, eyes, hair ...), all bound to the same skeleton
+  const mats = [], skinned = [];
+  for (const part of data.parts) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(part.position, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(part.normal, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(part.uv, 2));
+    g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(part.skinIndex, 4));
+    g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(part.skinWeight, 4));
+    g.setIndex(part.index);
+    const map = part.texture ? loader.load(dir + part.texture) : null;
+    if (map) { map.colorSpace = THREE.SRGBColorSpace; map.flipY = false; map.anisotropy = 8; map.wrapS = map.wrapT = THREE.RepeatWrapping; }
+    const mat = new THREE.MeshStandardMaterial({ map: $('tex').checked ? map : null, roughness: 0.8, metalness: 0, wireframe: $('wire').checked,
+      side: $('flip').checked ? THREE.BackSide : THREE.DoubleSide, alphaTest: 0.5 });
+    mat.userData.map = map;
+    mats.push(mat);
+    const mesh = new THREE.SkinnedMesh(g, mat);
+    mesh.name = part.name;
+    mesh.frustumCulled = false;
+    skinned.push(mesh);
+    scene.add(mesh);
+  }
+  skinned[0].add(root);
+  scene.updateMatrixWorld(true);
+  const skeleton = new THREE.Skeleton(bones);
+  for (const m of skinned) m.bind(skeleton, skinned[0].matrixWorld);
+  const helper = new THREE.SkeletonHelper(skinned[0]);
+  helper.visible = $('bones').checked;
+  scene.add(helper);
+  cur = { bones, skinned, mats, helper, skeleton, clips: data.clips };
+
+  // animations: keep the selected clip by name when the new character has it
+  $('clip').textContent = '';
+  for (const c of data.clips) { const o = document.createElement('option'); o.textContent = c.name + '  (' + c.frames.length + ' frames, ' + c.duration.toFixed(2) + ' s)'; $('clip').appendChild(o); }
+  const at = Math.max(0, data.clips.findIndex(c => c.name === keep));
+  $('clip').selectedIndex = at;
+  clip = data.clips[at] || null;
+  $('info').textContent = data.parts.reduce((n, p) => n + p.position.length / 3, 0) + ' verts, ' + data.parts.length + ' parts, ' + bones.length + ' bones';
+  window.__viewer = { bones, skinned, camera, controls, setT: v => { $('play').checked = false; t = v; } };
+}
 
 // animation: manual sampling (slerp between frames, the last frame equals the first so the clip loops)
-const clips = data.clips;
-for (const c of clips) { const o = document.createElement('option'); o.textContent = c.name + '  (' + c.frames.length + ' frames, ' + c.duration.toFixed(2) + ' s)'; $('clip').appendChild(o); }
-const qa = new THREE.Quaternion(), qb = new THREE.Quaternion();
 function pose(clip, u) {                     // u in [0, 1)
   const n = clip.frames.length;
   const f = u * (n - 1), i = Math.floor(f) % (n - 1), j = i + 1, k = f - Math.floor(f);
-  for (let b = 0; b < bones.length; b++) {
+  for (let b = 0; b < cur.bones.length; b++) {
     const A = clip.frames[i][b], B = clip.frames[j][b];
     qa.set(A[0], A[1], A[2], A[3]); qb.set(B[0], B[1], B[2], B[3]);
-    bones[b].quaternion.copy(qa.slerp(qb, k));
-    bones[b].position.set(A[4] + (B[4] - A[4]) * k, A[5] + (B[5] - A[5]) * k, A[6] + (B[6] - A[6]) * k);
+    cur.bones[b].quaternion.copy(qa.slerp(qb, k));
+    cur.bones[b].position.set(A[4] + (B[4] - A[4]) * k, A[5] + (B[5] - A[5]) * k, A[6] + (B[6] - A[6]) * k);
   }
 }
-let clip = clips[0], t = 0;
-$('clip').onchange = () => { clip = clips[$('clip').selectedIndex]; t = 0; };
-$('tex').onchange = () => { for (const m of mats) { m.map = $('tex').checked ? m.userData.map : null; m.needsUpdate = true; } };
-$('wire').onchange = () => { for (const m of mats) m.wireframe = $('wire').checked; };
-$('bones').onchange = () => { helper.visible = $('bones').checked; };
-$('flip').onchange = () => { for (const m of mats) { m.side = $('flip').checked ? THREE.BackSide : THREE.DoubleSide; m.needsUpdate = true; } };
+
+function select(id) {
+  const e = list.find(c => c.id === id) || list[0];
+  $('char').value = e.id;
+  history.replaceState(null, '', '#' + e.id);
+  return load(e);
+}
+$('char').onchange = () => select($('char').value);
+addEventListener('keydown', ev => {                          // [ and ] (or the arrow keys when the selector is not focused) step through the characters
+  if (ev.target.tagName === 'SELECT' || ev.target.tagName === 'INPUT') return;
+  const d = (ev.key === ']' || ev.key === 'ArrowRight') ? 1 : (ev.key === '[' || ev.key === 'ArrowLeft') ? -1 : 0;
+  if (d) select(list[(list.findIndex(c => c.id === $('char').value) + d + list.length) % list.length].id);
+});
+$('clip').onchange = () => { if (cur) { clip = cur.clips[$('clip').selectedIndex]; t = 0; } };
+$('tex').onchange = () => { if (cur) for (const m of cur.mats) { m.map = $('tex').checked ? m.userData.map : null; m.needsUpdate = true; } };
+$('wire').onchange = () => { if (cur) for (const m of cur.mats) m.wireframe = $('wire').checked; };
+$('bones').onchange = () => { if (cur) cur.helper.visible = $('bones').checked; };
+$('flip').onchange = () => { if (cur) for (const m of cur.mats) { m.side = $('flip').checked ? THREE.BackSide : THREE.DoubleSide; m.needsUpdate = true; } };
 $('scrub').oninput = () => { $('play').checked = false; t = parseFloat($('scrub').value); };
 
 const timer = new THREE.Timer();
 renderer.setAnimationLoop(ts => {
   timer.update(ts);
   const dt = timer.getDelta();
-  if (clip) {
+  if (cur && clip) {
     if ($('play').checked) { t = (t + dt * parseFloat($('speed').value) / clip.duration) % 1; $('scrub').value = t; }
     pose(clip, t);
   }
@@ -132,8 +180,7 @@ renderer.setAnimationLoop(ts => {
   renderer.render(scene, camera);
 });
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
-$('info').textContent = data.parts.reduce((n, p) => n + p.position.length / 3, 0) + ' verts, ' + data.parts.length + ' parts, ' + bones.length + ' bones';
-window.__viewer = { bones, skinned, camera, controls, setT: v => { $('play').checked = false; t = v; } };
+await select(decodeURIComponent(location.hash.slice(1)) || list[0].id);
 </script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 # `.anm` animations, skeletons and skinning
 
-`tools/anm_dump.py <file.anm>` decodes a clip; `tools/export_character.py` turns a costume + clips into `viewer/data/character.json`, shown by `viewer/index.html` (three.js, vendored in `viewer/vendor/`; start with the `character-viewer` entry of `.claude/launch.json`, or `python3 -m http.server --directory viewer`).
+`tools/anm_dump.py <file.anm>` decodes a clip; `tools/export_character.py` turns a costume + clips into `viewer/data/<id>/character.json` (default `viewer/data/sample/`, added to `viewer/data/index.json`), shown by `viewer/index.html` (a Character selector, also `[` / `]` or the arrow keys, and `#<id>` in the URL; see `docs/CHARACTERS.md`) (three.js, vendored in `viewer/vendor/`; start with the `character-viewer` entry of `.claude/launch.json`, or `python3 -m http.server --directory viewer`).
 Layout read from `Anim_ReadHeader` (`00984ad0`), `Anim_ReadSetHeader` (`00984b40`), `Anim_ReadTrackSet` (`009859c0`), `Anim_ReadChannel` (`00a4e030`), `Anim_DecodeRleArray` (`00a4db20`), `Anim_BuildTranslationTable` (`009852c0`), `Matrix_FromPackedPoseSample` (`009ab4a0`), `FUN_009ab3f0` (Euler to matrix).
 
 ## Checked against real files

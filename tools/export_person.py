@@ -3,6 +3,7 @@
 
     python3 tools/export_person.py "<game>/Data/pak" --save "<save>.jad" --list
     python3 tools/export_person.py "<game>/Data/pak" --save "<save>.jad" --person 1245 [--anims walk,walk_casual] [--out viewer/data]
+    python3 tools/export_person.py "<game>/Data/pak" --save "<save>.jad" --all            # every person with a costume; the viewer's selector lists them
     python3 tools/export_person.py "<game>/Data/pak" --cos f_cheerleader_1 [--head head_f_japanese_girl.hd] [--hair hair_20s_f12.msh]
 
 A person comes from tools/save_cast.py (head .hd, costume .cos, hair mesh). The costume file (tools/cos_dump.py) names the body mesh; the head is generic_head.msh with
@@ -71,40 +72,12 @@ def hd_texture(path):
     return d[0x0C:0x2C].split(b"\0")[0].decode("latin1")
 
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("pakdir")
-    ap.add_argument("--save")
-    ap.add_argument("--list", action="store_true")
-    ap.add_argument("--person", type=int)
-    ap.add_argument("--cos")
-    ap.add_argument("--head")
-    ap.add_argument("--hair")
-    ap.add_argument("--age", type=float, help="age in years for the head morph (default: from the save, else 25)")
-    ap.add_argument("--weight", type=float, help="weight in kg for the head morph (default: from the save, else 70)")
-    ap.add_argument("--no-morph", action="store_true", help="use generic_head.msh unchanged")
-    ap.add_argument("--anims", default=",".join(DEFAULT_ANIMS))
-    ap.add_argument("--out", default="viewer/data")
-    ap.add_argument("--cache", default="data/game_data/people")
-    a = ap.parse_args()
-    if a.list:
-        for q in save_cast.cast(a.save):
-            if q["cos"]:
-                print("%5d %-9s head %-28s cos %-24s hair %s" % (q["id"], q["class"], q["head"], q["cos"], q["hair"]))
-        return
-    cos, head, hair, who = a.cos, a.head, a.hair, a.cos
-    head2, mix, age, weight = None, 0.0, a.age, a.weight
-    if a.person is not None:
-        q = next((q for q in save_cast.cast(a.save) if q["id"] == a.person), None)
-        if not q or not q["cos"]:
-            sys.exit("person %s not found, or the save stores no costume for them" % a.person)
-        cos, head, hair, who = q["cos"], head or q["head"], hair or q["hair"], "%s %d" % (q["class"], q["id"])
-        head2, mix = q["head2"], q["headMix"] or 0.0
-        age = age if age is not None else q["age"]
-        weight = weight if weight is not None else q["weight"]
-    if not cos:
-        sys.exit("give --person (with --save) or --cos")
-    paks = Paks(a.pakdir, a.cache)
+def slug(text):
+    return "".join(c if c.isalnum() else "_" for c in text.lower()).strip("_")
+
+
+def build_person(paks, cos, head, hair, who, out, age=None, weight=None, head2=None, mix=0.0, anims=DEFAULT_ANIMS, morph_head=True):
+    """Write one character folder <out> (character.json + textures)."""
     cos = cos if cos.lower().endswith(".cos") else cos + ".cos"
     cpath = paks.find(cos)
     if not cpath:
@@ -125,7 +98,7 @@ def main():
             hd1 = hd_dump.parse(open(paks.find(head2), "rb").read())
     else:
         print("head file %s not found; using the generic head" % head)
-    if hd0 and not a.no_morph:
+    if hd0 and morph_head:
         p4, p5 = hd_dump.age_weight(age if age is not None else 25.0, weight if weight is not None else 70.0)
         shape = hd_dump.morph(hd0, p4, p5, hd1, mix)
         m = msh_dump.parse(open(gh, "rb").read())
@@ -152,14 +125,61 @@ def main():
                     w = t * t * (3 - 2 * t)
                     prims[pi]["verts"][j] = tuple(o[c] + w * (v[c] - o[c]) for c in range(3)) + tuple(v[3:])
         parsed[gh] = m
-        print("head morph: %s age %.1f -> %.2f, weight %.1f kg -> %.2f%s" % (head, age if age is not None else 25.0, p4, weight if weight is not None else 70.0, p5,
-                                                                         (", mixed %.2f with %s" % (mix, head2)) if hd1 else ""))
+        print("%s: head morph %s age %.1f -> %.2f, weight %.1f kg -> %.2f%s" % (who, head, age if age is not None else 25.0, p4, weight if weight is not None else 70.0, p5,
+                                                                              (", mixed %.2f with %s" % (mix, head2)) if hd1 else ""))
     if hair and paks.find(hair):
         meshes.append(paks.find(hair))
     if not meshes[0]:
         sys.exit("body mesh %s not found" % c["body"])
-    anims = [p for p in (paks.find(n + ".anm") for n in a.anims.split(",") if n) if p]
-    export_character.write_character(meshes, anims, a.out, remap, find=paks.texture, parsed=parsed, name="%s: %s (%s, %s)" % (who, cos[:-4], head or "-", hair or "-"))
+    anim_paths = [p for p in (paks.find(n + ".anm") for n in anims if n) if p]
+    label = "%s: %s (%s, %s)" % (who, cos[:-4], head or "-", hair or "-")
+    export_character.write_character(meshes, anim_paths, out, remap, find=paks.texture, parsed=parsed, name=label)
+    root = os.path.dirname(os.path.normpath(out)) or "."
+    export_character.register(root, os.path.basename(os.path.normpath(out)), label, os.path.basename(os.path.normpath(out)) + "/character.json")
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("pakdir")
+    ap.add_argument("--save")
+    ap.add_argument("--list", action="store_true")
+    ap.add_argument("--person", type=int)
+    ap.add_argument("--all", action="store_true", help="export every person of the save that has a costume (needs --save)")
+    ap.add_argument("--cos")
+    ap.add_argument("--head")
+    ap.add_argument("--hair")
+    ap.add_argument("--age", type=float, help="age in years for the head morph (default: from the save, else 25)")
+    ap.add_argument("--weight", type=float, help="weight in kg for the head morph (default: from the save, else 70)")
+    ap.add_argument("--no-morph", action="store_true", help="use generic_head.msh unchanged")
+    ap.add_argument("--anims", default=",".join(DEFAULT_ANIMS))
+    ap.add_argument("--out", default="viewer/data", help="the viewer's data folder: each character goes to <out>/<id>/ and is added to <out>/index.json")
+    ap.add_argument("--cache", default="data/game_data/people")
+    a = ap.parse_args()
+    if a.list:
+        for q in save_cast.cast(a.save):
+            if q["cos"]:
+                print("%5d %-9s head %-28s cos %-24s hair %s" % (q["id"], q["class"], q["head"], q["cos"], q["hair"]))
+        return
+    anims = [n for n in a.anims.split(",") if n]
+    jobs = []
+    if a.all or a.person is not None:
+        if not a.save:
+            sys.exit("--person and --all need --save")
+        for q in save_cast.cast(a.save):
+            if q["cos"] and (a.all or q["id"] == a.person):
+                who = "%s %d" % (q["class"], q["id"])
+                jobs.append(dict(cos=q["cos"], head=a.head or q["head"], hair=a.hair or q["hair"], who=who, cid=slug("%s_%d_%s" % (q["class"], q["id"], q["cos"][:-4])),
+                                 age=a.age if a.age is not None else q["age"], weight=a.weight if a.weight is not None else q["weight"], head2=q["head2"], mix=q["headMix"] or 0.0))
+        if not jobs:
+            sys.exit("no person with a stored costume matches")
+    elif a.cos:
+        jobs.append(dict(cos=a.cos, head=a.head, hair=a.hair, who=a.cos, cid=slug(a.cos), age=a.age, weight=a.weight, head2=None, mix=0.0))
+    else:
+        sys.exit("give --person or --all (with --save), or --cos")
+    paks = Paks(a.pakdir, a.cache)            # indexing the archives takes ~10 s: done once for all characters
+    os.makedirs(a.out, exist_ok=True)
+    for j in jobs:
+        build_person(paks, j["cos"], j["head"], j["hair"], j["who"], os.path.join(a.out, j["cid"]), j["age"], j["weight"], j["head2"], j["mix"], anims, not a.no_morph)
 
 
 if __name__ == "__main__":

@@ -2,9 +2,9 @@
 """Export a skinned character and animation clips for the three.js viewer (viewer/).
 
     python3 tools/pak_extract.py extract "<game>/Data/pak" data/game_data/chars cos_m_50s_1.msh cos_m_50s_1.dds 'walk*.anm'
-    python3 tools/export_character.py data/game_data/chars/cos_m_50s_1.msh,data/game_data/chars/generic_head.msh data/game_data/chars/walk*.anm --out viewer/data
+    python3 tools/export_character.py data/game_data/chars/cos_m_50s_1.msh,data/game_data/chars/generic_head.msh data/game_data/chars/walk*.anm --out viewer/data/sample
 
-Writes <out>/character.json (mesh, skeleton, skinning, clips) and <out>/<texture>.png. The coordinate system is left as the game has it
+Writes <out>/character.json (mesh, skeleton, skinning, clips) and <out>/<texture>.png, and lists the character in the index.json of <out>'s parent folder (the viewer's selector). The coordinate system is left as the game has it
 (Z up); the viewer sets camera.up = +Z. Bones carry LOCAL transforms: position in the parent's frame and a quaternion. The game stores
 rotations as 3x3 matrices whose ROWS are the child's axes (row-vector convention); three.js wants columns, so the matrix is transposed.
 """
@@ -141,14 +141,30 @@ def write_character(meshes, anims, out, remap=None, find=None, name=None, parsed
     print("wrote %s: %d parts, %d verts, %d bones, %d clips" % (out, len(parts), sum(len(p["position"]) // 3 for p in parts), len(jb), len(clips)))
 
 
+def register(root, cid, label, rel):
+    """Add (or replace) a character in <root>/index.json, the list the viewer's selector shows: {"characters": [{"id", "name", "path"}]}."""
+    path = os.path.join(root, "index.json")
+    try:
+        idx = json.load(open(path))
+    except (OSError, ValueError):
+        idx = {"characters": []}
+    chars = [c for c in idx.get("characters", []) if c.get("id") != cid]
+    chars.append({"id": cid, "name": label, "path": rel})
+    chars.sort(key=lambda c: c["id"])
+    with open(path, "w") as f:
+        json.dump({"characters": chars}, f, indent=1)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("meshes", help="comma-separated .msh files sharing one skeleton (body, head, hair ...); the first provides the bones")
     ap.add_argument("anims", nargs="*")
-    ap.add_argument("--out", default="viewer/data")
+    ap.add_argument("--out", default="viewer/data/sample", help="folder for this character; it is added to the index.json of its parent folder")
     ap.add_argument("--map", action="append", default=[], help="texture override NAME=OTHER (use another file for a texture a model names, e.g. a colour variant such as hair_50s_m1.dds=hair_50s_m1_bk.dds)")
     a = ap.parse_args()
     write_character(a.meshes.split(","), a.anims, a.out, dict(x.split("=", 1) for x in a.map))
+    out = os.path.normpath(a.out)
+    register(os.path.dirname(out) or ".", os.path.basename(out), os.path.basename(a.meshes.split(",")[0]), os.path.basename(out) + "/character.json")
 
 
 if __name__ == "__main__":
