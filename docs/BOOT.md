@@ -45,7 +45,7 @@ State at `GameStateManager+0x04`. `+0x14` is a "skip requested" flag, cleared on
 
 ## Measured: boot1 (Wine/CrossOver, coverage tracer injected before `WinMain`)
 
-Setup: `TheMoviesInjector.exe --launch` as in WINE_CROSSOVER.md, no input sent. Registry: `Skip Front End=0` (so the intro runs),
+Setup (boot1): `TheMoviesInjector.exe --launch` as in WINE_CROSSOVER.md, no input sent. Registry: `Skip Front End=0` (so the intro runs),
 `Open Count=18`, `GD: Level=0`, and the stale `Game running:` cleared first (it is what brings up the "improper shutdown" dialog;
 killing the game sets it again, so clear it before every run). Read with `tools/boot_trace.py`. Note the log's address column is
 an RVA (VA - 0x400000).
@@ -87,11 +87,34 @@ What this settles:
   The call site passes `(mainObject+0xC8 != 0)` (0 here). The path after it that was not taken, `FUN_0068F550` on the singleton and
   `Savegame_LoadAndRestoreGame` (0x4B3550), looks like "go straight to a save"; it did not run.
 
-What it does not settle:
-- **Total intro time disagrees with the model.** The intro ran 17.606 s to 33.017 s = 15.4 s; four 3 s splashes would be 12 s. Either
-  loading each image under Rosetta adds about 1 s each (the 3 s deadline starts after the load), or there is an extra step. A
-  first-call log cannot tell. A full-call trace of `FUN_0045E090` / `FUN_0045E1D0`, or a run on the Windows box, would.
-- The Activision, Intel and ATI transitions individually, the skip flag, and the legal notice (state 5) were not exercised.
+## Intro timing (Wine `+file` trace)
+
+The first-call log cannot time the splashes, so a second plain run (no injector) recorded Wine's file trace with millisecond
+timestamps (`tools/boot_reads.py`; the summary is in `data/runtime/boot1/intro_reads.txt`). The splash images come out of the pak by
+index, so their names never appear; the evidence is the spacing of the asset reads. Between the intro's first read burst and the
+game's own start-up the reads fall at (seconds from process start):
+
+| t | gap since previous | reading |
+|---|---|---|
+| 18.64 | | intro manager built, first splash loaded |
+| 21.75 | 3.11 | second splash loaded |
+| 24.76 | 3.02 | third |
+| 30.20 | **5.44** | fourth |
+| 34.28 | **4.08** | `Game_MainLoop` / main object start (62 reads) |
+
+Total 18.64 to 34.28 = 15.6 s, against 15.4 s in boot1 (a different run, with the tracer instead of the file trace), so the length is
+repeatable. The first two intervals are the model's 3 s plus a short load. The last two exceed 3 s by 2.4 s and 1.1 s, which is the
+whole of the 3.4 s excess over 4 x 3 s.
+
+This is an inference, not a measurement of each state: it assumes each burst is one splash's load, in the model's order. What it
+supports is that **the 3 s display time is right and the extra time sits in the transitions out of the third and fourth splashes
+(load, free, teardown), not in the state machine.** In the original the deadline is `GetTickCount() + 3000` taken after the image
+load returns, so a slow load stretches the gap between loads without lengthening the display. `IntroSequence` models the display
+deadline only, and leaves load time to the platform layer; that is consistent with this, so the code is unchanged.
+
+Not settled: which splash is which (an image-name trace would say), why the third and fourth transitions are slow (a large DDS
+decode and upload under Rosetta is the obvious candidate), the skip flag, the legal notice (state 5), and whether the Windows box
+shows the same gaps.
 
 ## Open questions
 
