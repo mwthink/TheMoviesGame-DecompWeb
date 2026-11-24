@@ -2,8 +2,7 @@
 """Export a skinned character and animation clips for the three.js viewer (viewer/).
 
     python3 tools/pak_extract.py extract "<game>/Data/pak" data/game_data/chars cos_m_50s_1.msh cos_m_50s_1.dds 'walk*.anm'
-    python3 tools/export_character.py data/game_data/chars/cos_m_50s_1.msh,data/game_data/chars/generic_head.msh data/game_data/chars/walk*.anm \\
-        --map head_m_white_joe.dds=head_m_white_man2.dds --out viewer/data
+    python3 tools/export_character.py data/game_data/chars/cos_m_50s_1.msh,data/game_data/chars/generic_head.msh data/game_data/chars/walk*.anm --out viewer/data
 
 Writes <out>/character.json (mesh, skeleton, skinning, clips) and <out>/<texture>.png. The coordinate system is left as the game has it
 (Z up); the viewer sets camera.up = +Z. Bones carry LOCAL transforms: position in the parent's frame and a quaternion. The game stores
@@ -103,7 +102,7 @@ def main():
     ap.add_argument("meshes", help="comma-separated .msh files sharing one skeleton (body, head, hair ...); the first provides the bones")
     ap.add_argument("anims", nargs="*")
     ap.add_argument("--out", default="viewer/data")
-    ap.add_argument("--map", action="append", default=[], help="texture override NAME=OTHER (a model names a texture that is not shipped, e.g. head_m_white_joe.dds=head_m_white_man2.dds)")
+    ap.add_argument("--map", action="append", default=[], help="texture override NAME=OTHER (use another file for a texture a model names, e.g. a colour variant such as hair_50s_m1.dds=hair_50s_m1_bk.dds)")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     remap = dict(x.split("=", 1) for x in a.map)
