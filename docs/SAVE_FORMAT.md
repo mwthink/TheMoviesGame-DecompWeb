@@ -350,3 +350,51 @@ paving is not stored as paint. In the code:
 * `FUN_00465650(gx, gy, on)` expands each set cell into the 0.5-unit placement grid, so paths are cells a new building cannot be placed on.
 
 Not checked: what the pavement tags are for (see above), how the sidewalk is drawn at path edges, the meaning of the `DAT_0105f8dc` transient bitmap while the player is painting, the `_sp_grass` / `_sp_sand` stamps (no building in these saves has one).
+
+## Gameplay objects: relationships, performance, costs, legacy, credits (2026-11-24)
+
+Decoded from the Quick Start save `quick film studios4 July 1960…` (4 stars, 47 `CStaffCosts`, 18 released films). Cross-checked against the
+decompile (`ChemistryManager.cpp` functions near `FUN_0042b030`, `FUN_0042cf..`) and `relationships.ini` (extract with `pak_extract.py`; it is in
+`Addon_2704_0000.pak`, not in `data/game_data`). Object ids in the tables are examples; ids are renumbered every save.
+
+### `CRelationships` -> `CRelationship` -> `ChemistryModifier` (star-to-star chemistry)
+* `CRelationships` (one per hired star): `POwner` = the `CStar`; `relationships` = reference list (12-byte entries) of that star's `CRelationship`
+  objects, one per *other* star (4 stars -> 3 each, 12 in total).
+* `CRelationship`: `POwner` (the star who holds the feeling), `PStar` (the other star), `BaseChemistry` (f32, 0.46..0.53 at the start: the seed value),
+  `Modifiers` = list of `ChemistryModifier` ids. The relationship is **directional** (A->B and B->A are separate objects with different base values).
+  Chemistry as read by the game = **clamp01(BaseChemistry + modsum)** (`FUN_0042b030`: `+0x9c` base plus `+0xa0` sum, clamped 0..1; `FUN_0042e910`
+  returns 0.5 when the pair has no relationship object, and when the two are the same person). `modsum` is rebuilt (the function at decomp_0002.c:15195) as the **sum of every modifier's `Value`** plus fixed bonuses looked up in the `relationships.ini` table for the pair type
+  (`[MF]`/`[FM]`/`[SS]`: `GENDERDIFF`, `AGEDIFF`, `ATTRACTDIFF`, `PERSONALITYDIFF`, `PHYSIQUEDIFF`, `STARRATINGDIFF`, `IMAGEDIFF`, `PROMOTINGSAMEFILM`,
+  `RIVALS`, `LOWERRANKINGTRAILER`, `SIMILARSTARSTATUS`) when the pair is of the same gender / same personality trait / mood
+  gap / age within 5 years etc. (the exact condition per key was only partly read; the save stores none of these bonuses, they are recomputed).
+* `ChemistryModifier` (one entry each time two stars spent time together): `POwner` = the `CRelationship`, `Value` (f32, the amount that was gained; 0.0045 and
+  falling in the example), `Degrade` (f32, 0.99994 in the example; presumably a per-tick decay multiplier, the decay code was not traced), `GenderType`
+  (0 = the owner is male, 1 = female: selects the `[MF]`/`[FM]` row, the owner's side of the pair; `[SS]` for same sex), `name` = the **place** where the time was spent: `LOT`
+  (the studio lot) or `BARNORMAL` (the bar); the game also knows `BARVIP`, `CANTEENNORMAL`, ... (list in decomp_0009.c:1480+).
+  In the example Allison Coles / Jeremie Texier have 33 modifiers (22 `LOT`, 11 `BARNORMAL`) totalling +0.171; Allison / Dustin Green 7 (+0.037).
+* `relationships.ini [General]`: `LoversChemLimit` 0.9, `NegativeRelationshipEffect` -0.02, `NegativeRelationshipDegrade` 0.9999, `CloseTrailerRange` 10;
+  `[Bonds]`: `FormThreshold` 0.9, `BreakThreshold` 0.7, `bond_mood_modifier_proportion` 0.1 (lovers: a bond forms above 0.9 chemistry and breaks below 0.7).
+* How the film uses it: `QualityCalc_StarChemistry` averages the chemistry of each lead's pair with the others in the shot (director counted twice) and returns 0.5 with no pairs;
+  `CStar_ComputeRelationshipsComponent` is the star-rating component (see `MOVIE_QUALITY.md`).
+
+### `CStarPerformance` (the per-actor performance record of a film, `MOVIE_QUALITY.md` section 3)
+`PStaff` (star/actor), `StaffExperience` (genre experience factor), `StaffMood` (mood factor 0.8..1.2), `StaffGenreFit` (0.9..1.1), `Overall`, `OverallUnweighted`, `StarRating` (f32 + a
+constant `08000000` tail). **Verified on all 3 rows read**: `Overall = StaffExperience x StaffGenreFit x StaffMood` (1.076 x 1.1 x 1.2 = 1.421) and
+`OverallUnweighted = clamp01((Overall - 0.75) / 0.75)` (0.894). 17 records exist in the Quick Start save; which film each belongs to is not determined.
+
+### `CStaffCosts` (employee pay; stars use `CStarCosts`)
+`PStaff`, `Salary` (appears twice: salary and the settled salary), `AnnualCost`, `DailyRate`, `PurchaseCost`, `TotalSpentFix`, `TotalSpentUse`, `TotalCharged`, `Bought` (`00 08000000`: a bool + the
+tail). Money = 64-bit fixed point **x 2^23** (confirmed again: `000000f401000000` = 1000.0, `000000dc05000000` = 3000.0). Values in the save: crew with a job 1000/yr
+(23 `CStaff`), the extra 3000 (= `starting_extra_salary` in `global.ini`), `CWannabe` 0. Five `CStaff` have `Salary` 0 but `AnnualCost` 1000 (not investigated), and all
+running totals are 0 in this save.
+
+### `CProjectLegacy` (the film history shown for a director/star)
+One per **released** film: `Title`, `MajorGenre` (`genre_comedy`, ...), `Quality`, `StarRating`, `ReleaseStarRating`, `SuccessOverall`, `ReleaseDate` (f32; **a plain day count equal to
+Python's `date.toordinal()`**: 701143.75 = 31 Aug 1920; it increases with the film order in the list), `PDirector`, `DirectorPerformance`, `Actors` + `Actors[x]` (count and star/extra ids), `ActorPerformances` +
+`ActorPerformances[x]` (one f32 per actor, same order), `TotalStuntLevels` and `BestStunt` (both 0 before stunts exist). The 18 films run from 1920 to 1957 (the last is `McGun In The Ninetieth Century`), with quality climbing
+0.07 -> 0.60. `ActorPerformances[x]` is 0.000 for some actors in the same film (Dustin Green in most; the extra Kevin Storrie): what a zero means (not credited as a lead? not recorded?) is **not determined**.
+
+### `CCredit` (the credits roll of a project)
+`PProject`, `PStaff`, `CreditAs` (the character or job name, empty for the director), `CreditIs` (the person's name, with a constant `08000000` tail), and a kind field `5da19cf3`: 2 = actor
+(star or extra), 3 = director, 7 = camera operator, 8 = sound recordist, 12 = clapperboard (the numeric kinds are crew role types; only these five seen). The project lists its credits in a `Credits` reference list.
+The 7 credits belong to the released film `McGun In The Ninetieth Century` (project 1579): director Allison Coles, actors Jeremie Texier ("The Sarge"), Helen Farrer ("Mrs. Kowalski"), extra Kevin Storrie ("Roy Dent"), and three crew.
