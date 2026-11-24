@@ -21,7 +21,7 @@ entry                      0x00AD2451   CRT startup (heap, mtinit, ioinit, cinit
      CVar registration, Game_Bootstrap (0x4244A0, a long list of registrations), object setup
      0x004290D5            WFrontEnd_GetOrCreate(mainObject+0xC8 != 0)   0x00695DA0
        operator_new(0x718); WFrontEnd_Constructor 0x00695460; singleton in DAT_0104DAFC
- WFrontEnd_Tick            0x006921C0   from the first frame: the menu (FRONTEND_RESUME / NEW / LOAD / OPTIONS / CREDITS / QUIT ...)
+ WFrontEnd_Tick            0x006921C0   from the first frame: the menu (FRONTEND_RESUME / NEW / LOAD / OPTIONS / CREDITS / QUIT ...)  (docs/FRONTEND.md)
 ```
 
 `ShouldSkipFrontEnd` (0x004EF580) is the config int "Skip Front End", default 0.
@@ -106,8 +106,8 @@ What this settles:
   |---|---|---|
   | `-safemode` | `WinMain` 0x543072 | window size 800x600 (0x320 x 0x258) |
   | `-reenter` | `Game_ParseCommandLine` | `Game+0x84` = 1 |
-  | `-editor` | same | `Game+0x85` = 1; `Game_StartupSequence` then calls `FUN_007843B0(0,0,0,0)` |
-  | `-download <value>` | same | `Game+0xC8` = 1, value (at most 100 characters) assigned to the global string `DAT_00E57B40`; `Game_StartupSequence` then calls `WFrontEnd_GetOrCreate(1)`, sets `DAT_0104DAE0` and calls `FUN_0068F550` on the front end |
+  | `-editor` | same | `Game+0x85` = 1; `Game_StartupSequence` then calls `TrailerEditor_Open` (`FUN_007843B0`) |
+  | `-download <value>` | same | `Game+0xC8` = 1, value (at most 100 characters) assigned to the global string `DAT_00E57B40`; `Game_StartupSequence` then calls `WFrontEnd_GetOrCreate(1)`, sets `DAT_0104DAE0` and calls `WFrontEnd_ExternOnline` (`FUN_0068F550`) on the front end, which opens the online screen |
 
   `DAT_00E57B40` is read by `FUN_006C31A0`, `FUN_006C7240`, `FUN_006C73C0`, `FUN_006D5B00`, `FUN_006D6690` and `FUN_004217B0`, none of
   which has been read. None of the switches was used in boot1 or close1.
@@ -194,7 +194,7 @@ fits a main thread that is busy loading the next splash (the slow transition in 
    Not run: a real key press under Wine has not been tried, so the Open Count gate on the Intel and ATI splashes is still untested.
 3. **Resolved:** `WFrontEnd` is created at 0x4290D5 in `Game_StartupSequence` (see boot1). Other callers of `WFrontEnd_GetOrCreate`
    (`FUN_00687BC0`, `FUN_006D7AC0`, `FUN_006D7F50`, the debug console) were not reached; they are probably how the menu comes back
-   after a game. What `FUN_0068F550` and `FUN_007843B0` do is not read.
+   after a game. `FUN_0068F550` and `FUN_007843B0` are now read: the Online button's handler and the trailer editor (FRONTEND.md).
 4. **State 5's trigger** (locale 0xD via `FUN_009B4250`) is named from the asset only.
 5. The first-run `MessageBoxW` in WinMain (`DAT_0105BE04`, `SM_FIRST_TIME_*`) is not modelled.
 6. **Why `Game_Bootstrap` takes 18.5 s here.** The two big inits (`swfcache`, `preload`) are asset loading; whether that time is

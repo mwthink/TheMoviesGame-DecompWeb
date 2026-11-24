@@ -2365,3 +2365,25 @@ address,old_name,new_name,evidence
 004afe20,FUN_004afe20,PSandbox_Init,"Game_Bootstrap init (second half, 0x428414..0x4289AF): references the persistence name ""PSandbox""; role read from the strings only, not from the code"
 0053c3a0,FUN_0053c3a0,ObjectSelect_RegisterMessages,"Game_Bootstrap init (second half, 0x428414..0x4289AF): registers the message ids MT_OBJECT_SELECT, MT_OBJECT_DESELECT, MT_OBJECT_LOCKOUTLINE; role read from the strings only, not from the code"
 0045df30,Input_CheckGlobalShortcuts,CIntroScreenManager_PollSkipKeys,"method of the intro manager, called once per frame from LH_MasterGameLoop before UpdateIntroSplashScreens: if the game window is in front and Esc, Space or Enter is down (GetAsyncKeyState 0x1B/0x20/0x0D) and the latch DAT_00F88F3C is clear, sets manager+0x14 (skip) and the latch; the latch clears on a frame where none is held. No window message involved"
+00690f10,FUN_00690f10,WFrontEnd_OnEvent,"event handler (WFrontEnd vtable): ignores everything while state == 5, otherwise switches on the EventManager id: 0x7E5 resume, 0x515 new game, 0x5B5 sandbox, 0x795 tutorial, 0x8FD add-on quick start, 0x71D credits, 0x7BD online, 0x62D trailer editor, 0x5DD/0x605 open game; 0x80D/0x835/0x85D/0x885/0x8AD drive Flash panels"
+00690e40,FUN_00690e40,WFrontEnd_SetState,"sets the state at +0x610 and resets the frame counter (+0x618); the limit at +0x61C becomes 1 for state 0, 25 for state 5, -1 otherwise (state 1 keeps it and shows the menu once); all 13 external callers pass 1"
+006905d0,FUN_006905d0,WFrontEnd_StartBackgroundLoop,"sets audio state 4 (tier < 2) or 0 (Audio_SetState), then plays data/intro/frontend_loop.wmv looping through the background movie object, once (flag +0x6E4)"
+0068f7e0,FUN_0068f7e0,WFrontEnd_StartMenuReadyTimer,clears DAT_00E5E281 (menu ready) and sets +0x714 to now + 750 ms; WFrontEnd_Tick sets the flag again when the deadline passes
+00692a90,FUN_00692a90,WFrontEnd_RegisterExternCallbacks,"registers the 35 named Extern* callbacks the menu Flash movie calls (ExternStartNewGame, ExternResume, ExternCredits, ExternQuitGame, ...) through FUN_0087DE50(name, this, handler); AddOn1Qstart and ExternContinue only when FUN_00541F60(0) is true (always)"
+00693c80,FUN_00693c80,WFrontEnd_SetupMenuItems,"fills the 19 menu items: a localized FRONTEND_* caption and a $command name each (the names sit in 0x20-byte slots from this+0x348), plus the tooltips; quickstart and continue only when FUN_00541F60 is true"
+0068f4c0,FUN_0068f4c0,WFrontEnd_ExternStartNewGame,posts event 0x515 through EventManager_PostEvent(DAT_0104917C)
+0068f550,FUN_0068f550,WFrontEnd_ExternOnline,posts event 0x7BD; this is also what -download calls through Game_StartupSequence
+00692530,FUN_00692530,WFrontEnd_ExternContinue,"ExternContinue callback, registered by WFrontEnd_RegisterExternCallbacks only for the add-on build path"
+0068fe10,FUN_0068fe10,WFrontEnd_ExternGamebutClosed,"ExternGamebutClosed callback: references the Flash names ""saveoff"" and ""savebutton"""
+0068fee0,FUN_0068fee0,WFrontEnd_ExternGamebutOpen,"ExternGamebutOpen callback: references the Flash names ""saveon"" and ""savebutton"""
+00541e50,FUN_00541e50,Config_GetOrCreateBool,"(key, default): reads the registry string, writes the default if the key is missing, returns the value != 0; the decompile drops the key. Callers: ""Audio Off"" (WinMain), ""Played Basics"", ""CompletedGame"", ""CompletedStuntTutorial"", ""CompletedNewGameTutorial"""
+00541de0,FUN_00541de0,Config_GetBool,"(key, default): reads the registry string and returns the value != 0, or the default if missing; WinMain uses it for ""Fullscreen"""
+006e3200,FUN_006e3200,NewGame_Start,"allocates a 0x578-byte object and runs FUN_006E2350(mode, ...); WFrontEnd_OnEvent calls it with mode 0 (new game), 1 (sandbox) and 3 (add-on quick start)"
+007843b0,FUN_007843b0,TrailerEditor_Open,called by WFrontEnd_OnEvent for event 0x62D (cb_trailereditor) and by Game_StartupSequence for -editor
+006d0e80,FUN_006d0e80,OnlineScreen_Open,called by WFrontEnd_OnEvent for event 0x7BD
+0071acf0,FUN_0071acf0,LoadGameScreen_Open,called by WFrontEnd_OnEvent for events 0x5DD and 0x605
+004f3b20,FUN_004f3b20,Audio_GetInstance,"returns DAT_0104B0E4, the audio manager singleton; callers pass a channel that it ignores"
+004f30a0,FUN_004f30a0,Audio_GetVolume,(channel): returns the float at DAT_0104B0AC[channel]; channel 1 is the music volume and 2 the sound volume (ExternMusicVolUp / ExternSoundVolUp)
+004f9000,FUN_004f9000,Audio_AdjustVolume,"(&delta, channel): adds delta to DAT_0104B0AC[channel], clamps to 0..1 and applies it with FUN_009B1000; WFrontEnd uses +-0.1"
+004f98f0,FUN_004f98f0,Audio_SetState,"(state, owner, flag): makes `state` the current audio state at +0xAA8, fading out the previous one (FUN_004F9190) and starting the new (FUN_004F77D0); WFrontEnd uses state 4 (tier < 2) or 0"
+004f9b70,FUN_004f9b70,Audio_RemoveState,"(state, owner, flag): searches the (state, owner) pairs at +0xAB0..+0xAB4; WFrontEnd calls it with state 0 when the credits movie ends"
