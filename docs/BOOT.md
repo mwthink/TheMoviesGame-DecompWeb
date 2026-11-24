@@ -64,28 +64,41 @@ an RVA (VA - 0x400000).
 
 What this settles:
 - **The fork is as read.** `ShouldSkipFrontEnd` returned 0, `LH_MasterGameLoop` ran, and `Game_MainLoop` followed it directly once the
-  manager was destroyed. So when the intro runs to the end, `LH_MasterGameLoop` returns 0 (open question 1, for the normal path; a
-  window close is still unobserved).
+  manager was destroyed. So when the intro runs to the end, `LH_MasterGameLoop` returns 0 (the window-close case is close1, below).
 - **Image mode is what the registry predicts.** `GD: Level=0` and no `LogoScreen_Initialize`, `LH_State_IntroSplashScreen` or movie
   functions were called, matching the `DAT_0105BE08 == 0` branch. The manager class is `CIntroScreenManager` (the Ghidra name
   `GameStateManager` is ours).
 - **The first splash lasts 3 s**, matching `splashMs`.
 - **The menu is not part of the intro.** `WFrontEnd` is created at the end of `Game_StartupSequence`, which `Game_Constructor` runs
-  as the first thing `Game_MainLoop` does (open question 3, see below). The 20.9 s between the constructor and the menu is that
-  function's own work (timestamps are first calls, in Wine on Rosetta):
+  as the first thing `Game_MainLoop` does. `Game_StartupSequence` is mostly `Game_Bootstrap` (0x4244A0, 18 KB, ~18.5 s of the 20.9 s).
+  Timestamps are first calls, in Wine on Rosetta:
 
-  | t (s) | step inside `Game_StartupSequence` |
+  | t (s) | step |
   |---|---|
-  | 33.020 | CVar registration (`FUN_009ABD80`, `CVarSystem_Register_STUBBED`) |
-  | 35.37 | `FUN_005E6D10`, `FUN_0041FD60`, `FUN_00551D40` (2.3 s after the CVar step) |
-  | 35.434 | `Game_Bootstrap` (registrations: handlers per `FUN_00ACDB9E` name, `Secur32.dll` loaded) |
-  | 42.061 | first `FUN_005434B0` (6.6 s after `Game_Bootstrap` began, so that time is `Game_Bootstrap` and the code after it) |
-  | 53.924 | `FUN_005E16D0`, `FUN_0053D440`, `FUN_00424080`, `FUN_009A1560` (11.9 s after the first `FUN_005434B0`, the largest stall; first-call times cannot say which call inside it is slow) |
+  | 33.020 | `Game_StartupSequence` starts: CVar registration (`FUN_009ABD80`, `CVarSystem_Register_STUBBED`) |
+  | 35.434 | `Game_Bootstrap` starts: about a hundred subsystem inits, each registered with a progress handler (`FUN_0098FA50` / `FUN_0098F9E0`) and then called in turn |
+  | 35.77 to 42.06 | **6.3 s** in the init called just before `ContentUnlock_Constructor`: `FUN_008770e0` (now `SWFCache_LoadConfig`, reads the `swfcache` entries) |
+  | 42.08 to 48.21 | **6.1 s** in `FUN_00490E80` (now `Preload_LoadList`, reads the `preload` list; the mesh loader `LH_LoadMeshBinary` fires inside it) |
+  | 49.21 to 50.96 | 1.75 s in `FUN_006A4050` (UI tuning: `FadeDuration`, `DropIconRange`...) |
+  | 52.48 to 53.63 | 1.15 s in `FUN_0048FFA0` (campaign year loading) |
+  | 53.924 | `Game_Bootstrap` returns; `FUN_005E16D0`, `FUN_0053D440`, `FUN_00424080`, `FUN_009A1560` |
   | 53.925 | `WFrontEnd_GetOrCreate` (0x4290D5) |
   | 60.941 | `FUN_00421090`, then `WFrontEnd_Tick` at 60.947 |
 
-  The call site passes `(mainObject+0xC8 != 0)` (0 here). The path after it that was not taken, `FUN_0068F550` on the singleton and
-  `Savegame_LoadAndRestoreGame` (0x4B3550), looks like "go straight to a save"; it did not run.
+  Those four inits account for about 15 of the 18.5 s; the rest are tens of 0.01 to 0.6 s steps. An earlier version of this section
+  called the 11.9 s after the first `FUN_005434B0` "a stall" after `Game_Bootstrap`; that was wrong: `Game_Bootstrap` itself runs until
+  53.924 s and the `FUN_005434B0` stubs are first reached inside it.
+
+  The call site passes `(mainObject+0xC8 != 0)`. That field is the `-download <value>` command-line switch (see "Command line").
+
+- **The command line.** `Game_Constructor` hands the command line to `Game_ParseCommandLine` (0x421A70), which looks for three switches
+  with `CmdLine_GetSwitch` (0x567860, finds `-key [value]`): `-reenter` (`+0x84`), `-editor` (`+0x85`) and `-download <value>` (`+0xC8`,
+  value stored through `FUN_004015D0`). In `Game_StartupSequence`: `-download` makes the call `WFrontEnd_GetOrCreate(1)`, sets
+  `DAT_0104DAE0`, and afterwards calls `FUN_0068F550` on the front end (presumably to open the online/download screen); `-editor`
+  calls `FUN_007843B0(0,0,0,0)`. None was used in boot1 or close1.
+- **The "load a save at start-up" branch is dead.** `0x4290B0` reads `DAT_00E4E604` and, if nonzero, loads a save via
+  `Savegame_LoadAndRestoreGame` instead. `DAT_00E4E600` is a string whose initial bytes in the executable are an empty buffer (size 0)
+  and the only other reference to it is its static destructor, so nothing ever assigns it: the branch cannot run in this build.
 
 ## Intro timing (Wine `+file` trace)
 
@@ -116,18 +129,36 @@ Not settled: which splash is which (an image-name trace would say), why the thir
 decode and upload under Rosetta is the obvious candidate), the skip flag, the legal notice (state 5), and whether the Windows box
 shows the same gaps.
 
+## Measured: close1 (window closed during the intro)
+
+Same setup as boot1 (tracer injected, no input), then a non-forced `wine taskkill /im MoviesSE.exe` about 4 s after
+`UpdateIntroSplashScreens` first ran. Wine's `taskkill` without `/f` posts WM_CLOSE to the process's top-level windows.
+
+| t (s) | event |
+|---|---|
+| 23.17 | `UpdateIntroSplashScreens` (intro started), first image shown |
+| 26.18 | first image freed (3.0 s later, as in boot1) |
+| 31.736 | `CIntroScreenManager` destructor, then `MediaPlayer` teardown |
+| 31.744 | `FUN_009B27D0`, the first of `WinMain`'s shutdown functions |
+| 32.23 to 32.26 | the rest of the tail: `FUN_00A09770`, `FUN_009B4640`, `FUN_009A3BA0`, `FUN_00A0EF90`, `FUN_009B3730` |
+| | `Game_MainLoop`, `Game_Constructor` and `WFrontEnd` are **never called**; the process ends |
+
+So closing the window mid-intro makes `LH_MasterGameLoop` return nonzero, `WinMain` skips `Game_MainLoop` and shuts down. Together with
+boot1 (finishing the intro returns 0 and `Game_MainLoop` runs) this fixes the return value in both cases. It is encoded as
+`NextAfterIntro(IntroOutcome)` in `src/game/boot/IntroSequence.*`. The message reached the loop about 3 s after it was sent, which
+fits a main thread that is busy loading the next splash (the slow transition in the section above). Closing at other points
+(the first splash, the animation and movie variants) was not tried.
+
 ## Open questions
 
-1. **`LH_MasterGameLoop`'s return value.** Ghidra shows `unaff_EBX >> 24`, i.e. nothing useful. boot1 shows a normal finish returns
-   0 (then `Game_MainLoop` runs). What a window close during the intro returns is unobserved, so `ChooseBootPath` still only models
-   the skip setting.
+1. **Resolved:** `LH_MasterGameLoop` returns 0 when the intro finishes and nonzero when the window is closed (boot1, close1).
+   Not covered: closing during the animation or movie variants of the first two splashes.
 2. **Who sets the skip flag (`+0x14`).** Not found; presumably a key handler in the window procedure (`LAB_00542380`). The
    reimplementation exposes it as `RequestSkip()`.
-3. **Where `WFrontEnd` is created.** Answered: `Game_StartupSequence` at 0x4290D5 (see "Measured: boot1"). The decompile hid it
-   because Ghidra cut that function's body short; found by scanning the executable for `call 0x695DA0`. Other callers exist
-   (`FUN_00687BC0`, `FUN_006D7AC0`, `FUN_006D7F50`, the debug console) and were not reached in boot1. Still open: what is in the
-   11.9 s stall before it (between the `FUN_005434B0` calls at 0x428E5B..0x428FD5 and `FUN_005E16D0` at 0x429052), what `mainObject+0xC8` is, and the 0x4290EB.. branch.
+3. **Resolved:** `WFrontEnd` is created at 0x4290D5 in `Game_StartupSequence` (see boot1). Other callers of `WFrontEnd_GetOrCreate`
+   (`FUN_00687BC0`, `FUN_006D7AC0`, `FUN_006D7F50`, the debug console) were not reached; they are probably how the menu comes back
+   after a game. What `FUN_0068F550` and `FUN_007843B0` do is not read.
 4. **State 5's trigger** (locale 0xD via `FUN_009B4250`) is named from the asset only.
 5. The first-run `MessageBoxW` in WinMain (`DAT_0105BE04`, `SM_FIRST_TIME_*`) is not modelled.
-
-To close 1: close the window during the intro in a run and see whether `Game_MainLoop` still follows.
+6. **Why `Game_Bootstrap` takes 18.5 s here.** The two big inits (`swfcache`, `preload`) are asset loading; whether that time is
+   Rosetta and Wine overhead or the same on the Windows box is not known.

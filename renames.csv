@@ -1978,3 +1978,7 @@ address,old_name,new_name,evidence
 00695460,FUN_00695460,WFrontEnd_Constructor,"the only direct caller is WFrontEnd_GetOrCreate; first WFrontEnd function reached in boot1 (53.926 s)"
 004289e0,FUN_004289e0,Game_StartupSequence,"real extent is 0x4289E0..0x4291A0 (the Ghidra body is cut at ~95 lines): CVar registration, FUN_005e6d10, Game_Bootstrap, object setup, then WFrontEnd_GetOrCreate at 0x4290D5; called from FUN_004291c0"
 004291c0,FUN_004291c0,Game_Constructor,"Game_MainLoop's operator_new(0xCC) object; calls Game_StartupSequence (boot1: 33.018 s)"
+008770e0,FUN_008770e0,SWFCache_LoadConfig,"Game_Bootstrap init that reads the ""swfcache"" entries (name, number, is3d); ~6.3 s between it and the next init in boot1 (docs/BOOT.md)"
+00490e80,FUN_00490e80,Preload_LoadList,"Game_Bootstrap init that reads the ""preload"" list; ~6.1 s in boot1, and the mesh loader LH_LoadMeshBinary first fires inside it"
+00421a70,FUN_00421a70,Game_ParseCommandLine,"called from Game_Constructor with the command line; sets +0x84 for -reenter, +0x85 for -editor, +0xC8 for -download <value>"
+00567860,FUN_00567860,CmdLine_GetSwitch,"(cmdline, ""key"", out, size): finds ""-key [value]"" in the command line; used for reenter/editor/download"
