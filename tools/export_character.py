@@ -64,7 +64,7 @@ def write_png(path, w, h, px):
                 chunk(b"IDAT", zlib.compress(raw, 6)) + chunk(b"IEND", b""))
 
 
-def build_parts(path, out, remap):
+def build_parts(path, out, remap, find=None):
     """One part per primitive: its own vertex arrays and diffuse texture (written as PNG)."""
     m = msh_dump.parse(open(path, "rb").read())
     parts = []
@@ -85,8 +85,8 @@ def build_parts(path, out, remap):
             texfile = None
             if tex:
                 tex = remap.get(tex, tex)
-                src = os.path.join(os.path.dirname(path), tex)
-                if os.path.exists(src):
+                src = find(tex) if find else os.path.join(os.path.dirname(path), tex)
+                if src and os.path.exists(src):
                     w_, h_, px = dds.load(src)
                     texfile = os.path.splitext(tex)[0] + ".png"
                     write_png(os.path.join(out, texfile), w_, h_, px)
@@ -97,22 +97,17 @@ def build_parts(path, out, remap):
     return m, parts
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("meshes", help="comma-separated .msh files sharing one skeleton (body, head, hair ...); the first provides the bones")
-    ap.add_argument("anims", nargs="*")
-    ap.add_argument("--out", default="viewer/data")
-    ap.add_argument("--map", action="append", default=[], help="texture override NAME=OTHER (use another file for a texture a model names, e.g. a colour variant such as hair_50s_m1.dds=hair_50s_m1_bk.dds)")
-    a = ap.parse_args()
-    os.makedirs(a.out, exist_ok=True)
-    remap = dict(x.split("=", 1) for x in a.map)
+def write_character(meshes, anims, out, remap=None, find=None, name=None):
+    """meshes: .msh paths sharing one skeleton (the first provides the bones); anims: .anm paths; find(name) -> texture path or None.
+    Writes <out>/character.json and the PNG textures."""
+    os.makedirs(out, exist_ok=True)
     parts, bones = [], None
-    for path in a.meshes.split(","):
-        m, ps = build_parts(path, a.out, remap)
+    for path in meshes:
+        m, ps = build_parts(path, out, remap or {}, find)
         parts += ps
         bones = bones or m["bones"]
     if not bones:
-        sys.exit("no skeleton in " + a.meshes)
+        sys.exit("no skeleton in " + meshes[0])
     # bind pose -> local transforms
     jb = []
     for b in bones:
@@ -125,7 +120,7 @@ def main():
             lt = vm([t[k] - p["pos"][k] for k in range(3)], tr(p["rot"]))
         jb.append({"name": b["name"], "parent": b["parent"], "pos": lt, "quat": quat_from_rows(lr)})
     clips = []
-    for path in a.anims:
+    for path in anims:
         try:
             an = anm_dump.parse(open(path, "rb").read())
         except Exception as e:
@@ -137,13 +132,23 @@ def main():
         frames = [[quat_from_rows(R) + list(t) for (R, t) in fr] for fr in an["frames"]]
         clips.append({"name": os.path.splitext(os.path.basename(path))[0], "duration": an["duration"], "frames": frames,
                       "rootMove": an["root"][9:12]})
-    out = {"name": os.path.basename(a.meshes.split(",")[0]), "bones": jb, "parts": parts, "clips": clips}
+    doc = {"name": name or os.path.basename(meshes[0]), "bones": jb, "parts": parts, "clips": clips}
 
     def r(o):
         return round(o, 5) if isinstance(o, float) else o
-    with open(os.path.join(a.out, "character.json"), "w") as f:
-        json.dump(out, f, default=r, separators=(",", ":"))
-    print("wrote %s: %d parts, %d verts, %d bones, %d clips" % (a.out, len(parts), sum(len(p["position"]) // 3 for p in parts), len(jb), len(clips)))
+    with open(os.path.join(out, "character.json"), "w") as f:
+        json.dump(doc, f, default=r, separators=(",", ":"))
+    print("wrote %s: %d parts, %d verts, %d bones, %d clips" % (out, len(parts), sum(len(p["position"]) // 3 for p in parts), len(jb), len(clips)))
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("meshes", help="comma-separated .msh files sharing one skeleton (body, head, hair ...); the first provides the bones")
+    ap.add_argument("anims", nargs="*")
+    ap.add_argument("--out", default="viewer/data")
+    ap.add_argument("--map", action="append", default=[], help="texture override NAME=OTHER (use another file for a texture a model names, e.g. a colour variant such as hair_50s_m1.dds=hair_50s_m1_bk.dds)")
+    a = ap.parse_args()
+    write_character(a.meshes.split(","), a.anims, a.out, dict(x.split("=", 1) for x in a.map))
 
 
 if __name__ == "__main__":
