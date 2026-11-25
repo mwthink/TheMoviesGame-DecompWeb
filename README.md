@@ -25,8 +25,7 @@ first, bugs included, then improve on it.
 ## Repository layout
 
 ```
-web/        the game: TypeScript, Babylon.js, Vite (docs/WEB.md)
-src/        the simulation modules in C++17, being ported into web/ (docs/REIMPLEMENTATION.md)
+web/        the game: TypeScript, Babylon.js, Vite (docs/WEB.md); web/src/sim/ is the simulation (docs/REIMPLEMENTATION.md)
 docs/       the documents above; docs/generated/ is local only
 tools/      Python analysis and extraction tools (docs/SETUP.md lists them by task); tools/winbox/ drives the Windows test box; tools/wine/ patches the exe for CrossOver
 ghidra/     Ghidra scripts: apply names, export, fingerprints, targeted decompiles (the Ghidra projects themselves are local)

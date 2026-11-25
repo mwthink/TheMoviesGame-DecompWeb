@@ -30,7 +30,8 @@ Decisions so far:
 cd web
 npm install
 npm run dev        # http://localhost:5173 (port is fixed; the dev server fails if it is taken)
-npm test           # parser tests (need the game archives and a save, see below; they skip when absent)
+npm test           # the simulation and parser tests (the ones that need the game archives or a save skip when absent)
+npm run movie-calc -- --help   # the movie quality / success / box-office calculator (REIMPLEMENTATION.md)
 npm run typecheck  # tsc --noEmit, strict
 npm run build      # typecheck, then the production bundle in web/dist/
 ```
@@ -74,11 +75,14 @@ web/
   src/style.css         all styling; body[data-screen="game"] shows the canvas, the other screens are .screen overlays
   src/screens/          Screen interface + splash, menu, load game, game view
   src/assets/           ByteSource (File, HTTP range), Pak (archives + index), inflate (fflate), hash, sources (folder pickers), remembered (IndexedDB)
-  src/formats/          Ini, Dds (DXT1/3/5 decode), Msh (static models), Jad (saved game: placed assets, landscape)
+  src/formats/          Ini, Csv, Dds (DXT1/3/5 decode), Msh (static models), Jad (saved game: placed assets, landscape), Rob (outside-the-lot scenery)
+  src/sim/              the simulation, ported from the game (docs/REIMPLEMENTATION.md): movie, staff, studio, ai, boot, frontend, sandbox, character
   src/world/            WorldData (loads and prepares everything; no engine types), WorldScene (builds the Babylon scene), shaders
-  src/camera/           GameCamera (the game's gameplay camera, no engine or DOM types: port of src/game/camera, docs/CAMERA.md), CameraInput (DOM events -> its per-frame input)
+  src/camera/           GameCamera (the game's gameplay camera, no engine or DOM types, docs/CAMERA.md), CameraInput (DOM events -> its per-frame input)
   src/ui/               DOM overlays above the canvas: MenuBar (fixed to the top; `toolbar` is the empty slot for the game's toolbar), DevMenu (fixed bottom right)
-  tests/                node:test files and helpers; they read the real game files
+  tests/                node:test files and helpers; tests/sim/ for the simulation; the ones that read the real game files skip without them
+  tools/                command-line tools run with node (movie-calc)
+  localPaths.ts         this machine's game install and saves, from local.env (Node only)
 ```
 
 Things worth knowing before extending it:
@@ -133,7 +137,7 @@ Things worth knowing before extending it:
   same-named thumbnails under `thumbs\` are never picked. DDS images are decoded on the CPU to RGBA and
   uploaded with generated mipmaps, so S3TC support in the GPU or browser is not needed. (Memory: 4 bytes per pixel instead of 0.5 to 1. Fine at this size.)
 - **Cameras.** Two, switched in the dev menu (the default is the first). The **default** is a plain Babylon orbit camera placed south of the lot looking north. The **game camera**
-  is `src/camera/GameCamera.ts`, a port of the original's normal-state camera (`docs/CAMERA.md`; the C++ twin with the tests is `src/game/camera/`): it starts where the save had
+  is `src/camera/GameCamera.ts`, a port of the original's normal-state camera (`docs/CAMERA.md`): it starts where the save had
   the camera (`SL_CamFoc` / `SL_CamRot` / `SL_CamZoo`, read in `Jad.ts`; the eye it computes matches the saved `SL_CamPos`), scrolls with acceleration, maximum velocity and damping
   from `data\ui\camera.ini`, zooms along the game's curve, rotates, and is kept inside the lot rectangle (`lotBounds` in `Perimeter.ts`) by testing where the screen's corners and top
   centre land on the ground. `GameView` runs it every frame and copies its eye, focus, horizontal field of view and near plane (far is 300) into a Babylon `FreeCamera` (game (x, y, z) -> Babylon (x, z, y)).
@@ -151,7 +155,7 @@ Things worth knowing before extending it:
 
 ## Checked
 
-- `npm test` (19 tests; the camera tests are `tests/camera.test.ts`): the case-folding hash; the ini reader; the pak index (the patched `facility_gatehouse.ini` comes from the Addon archive, thumbnails are
+- `npm test` (91 tests; the simulation's are in `tests/sim/`, listed in REIMPLEMENTATION.md; the camera's in `tests/camera.test.ts`). The world view's: the case-folding hash; the ini reader; the pak index (the patched `facility_gatehouse.ini` comes from the Addon archive, thumbnails are
   not picked for textures); DDS decoding of DXT1, DXT3 against `tools/dds.py` (sums over every pixel); the gatehouse mesh against `tools/msh_dump.py` (31
   textures, 30 materials, 22,773 vertices, 10,997 triangles, the collision chunks and room parts, vertex sums); the save (the three placed assets, the
   landscape's texture names, 8,897 path cells, layer sums); the world loader (every ground texture found, blend weights sum to 255, no warnings).

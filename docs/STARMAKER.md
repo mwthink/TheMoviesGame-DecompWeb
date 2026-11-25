@@ -5,10 +5,10 @@ Status: the editor's star format, face sliders, facial expressions and makeup / 
 | Question | Where | Tool / code |
 |---|---|---|
 | What is StarMaker, how it was compared with the game | sections 1 to 3 | `ghidra/scripts/FunctionHashes.java`, `tools/match_binaries.py` |
-| The star file `info.sm`, `star.hd`, `thumb.dds` | sections 6, 10 | `src/game/character/StarFile`, `HeadFile` |
-| The 43 face sliders | section 7 | `tools/starmaker_sliders.py`, `src/game/character/FaceRig` |
+| The star file `info.sm`, `star.hd`, `thumb.dds` | sections 6, 10 | `web/src/sim/character/StarFile.ts`, `HeadFile.ts` |
+| The 43 face sliders | section 7 | `tools/starmaker_sliders.py`, `web/src/sim/character/FaceRig.ts` |
 | Facial expressions (`.fan`, `fclexp`) | section 8 | `tools/render_expression.py`, `render_expression_gif.py`, `FaceRig` |
-| Makeup, hair, iris, age, blends, weight; all function names | sections 9, 10 | `tools/render_star.py`, `render_star_sheet.py`, `src/game/character/Appearance`, `tools/starmaker_names.csv` |
+| Makeup, hair, iris, age, blends, weight; all function names | sections 9, 10 | `tools/render_star.py`, `render_star_sheet.py`, `web/src/sim/character/Appearance.ts`, `tools/starmaker_names.csv` |
 | Body / costume texture compositing, `.cos` records, `InfoTextures.fas` | section 11 | (research only, no tool yet) |
 | Finding code from a string | `docs/ANALYSIS_TOOLS.md` | `ghidra/scripts/FindRefs.java` |
 
@@ -254,7 +254,7 @@ Mesh records start the same way (name, a type byte at `+0x20` with 5 set for `ac
 
 **Considerations for building it**
 * Reuse: DDS decoding, `Texture_DrawLayer` and the face layer order are done. A costume compositor is the same code with different inputs.
-* Prototype in Python first (`tools/render_costume.py`, shaped like `render_star.py`), check against an editor screenshot, then port to `src/game/character/`.
+* Prototype in Python first (`tools/render_costume.py`, shaped like `render_star.py`), check against an editor screenshot, then port to `web/src/sim/character/`.
 * Open before it can be exact: the skin overlay alphas, the variant naming (`FUN_0042c480`, `FUN_0042c570`), the saved parameter table, the float at record `+0x24`, the third body layer at `model+0x228`.
 * Accessories (hat, glasses, watch, ring) are separate meshes attached at the slot named in the mesh record; no compositing.
 * Not touched: tattoo and nail layers on the face side, the 532 StarMaker-only functions, the editor UI.

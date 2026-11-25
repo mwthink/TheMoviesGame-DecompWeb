@@ -13,7 +13,7 @@ the details and its open questions.
   deliberately. Improving on the original comes after parity.
 - **Saves:** read the original's `.jad` files. Writing comes later; creating a new game needs a blank save of the same shape, so the save model keeps
   everything it reads, understood or not.
-- **Platform:** the web app in `web/` (TypeScript, Babylon.js). The simulation is TypeScript too and runs headless.
+- **Platform:** the web app in `web/` (TypeScript, Babylon.js). The simulation is TypeScript too (`web/src/sim/`) and runs headless.
 - **StarMaker** (the original's separate character editor) becomes part of the game, reached from the main menu.
 - Left out: the dead online services (`NETWORK.md`). No game files are ever in the repository or served: the app reads the player's own install.
 
@@ -37,7 +37,7 @@ the details and its open questions.
 
 ## Systems
 
-"Decoded" = documented from the code and data; "ported" = in the reimplementation with tests; "verified" = reproduces values logged from the running game.
+"Decoded" = documented from the code and data; "ported" = in `web/src/` with tests; "verified" = reproduces values logged from the running game.
 
 | System | Docs | Decoded | Ported | Verified |
 |---|---|---|---|---|
@@ -61,23 +61,21 @@ the details and its open questions.
 
 ## Next steps
 
-1. **Port the simulation to TypeScript.** `src/` (C++17) holds the verified economy and its tests; it moves into `web/src/sim/` with the same tests, and `src/`
-   is removed once the port passes them (`REIMPLEMENTATION.md`).
-2. **Trace making a movie.** Play or script hiring, a script, casting, a shoot, post-production and a release under Wine or on the box, with an F9 marker per step,
+1. **Trace making a movie.** Play or script hiring, a script, casting, a shoot, post-production and a release under Wine or on the box, with an F9 marker per step,
    then per-phase function lists (`tools/steady_state.py`). Also stunts, build mode, research and an awards ceremony. This is the largest gap in the runtime picture.
-3. **A differential harness.** Have the debugger log a function's inputs and result, turn the logs into test fixtures, and replay them against the port. That turns
+2. **A differential harness.** Have the debugger log a function's inputs and result, turn the logs into test fixtures, and replay them against the port. That turns
    "reimplemented" into "verified" routinely instead of by a hand-built check each time. Start with what the logs already hold: `decade_log.csv` has
    STAR_RATING, STUDIO_RATING, PAYOUT, AI_DECIDE, RESEARCH, SALARY and STAR_CHART lines that are not yet checked.
-4. **Wine against the box, once.** One identical run on both (Quick Start, F9 per step, the same game time) to confirm Wine measurements can be trusted for `verified`.
-5. **The save model.** Grow the web app's `.jad` reader into the game state: every object and variable kept, decoded or not, so a save can later be written back and
+3. **Wine against the box, once.** One identical run on both (Quick Start, F9 per step, the same game time) to confirm Wine measurements can be trusted for `verified`.
+4. **The save model.** Grow the web app's `.jad` reader into the game state: every object and variable kept, decoded or not, so a save can later be written back and
    a blank save created for a new game. Open details are at the end of `SAVE_FORMAT.md`.
-6. **A headless month.** Load a save, run the simulation at the original's 10 Hz tick (`MAIN_LOOP.md`) for a game month, and compare with a logged run.
-7. **The movie cost accrual** (`CProjectCosts_AccrueUpdate` and helpers, named): port it and check it against `PREPROD_COST` lines; that also settles whether
+5. **A headless month.** Load a save, run the simulation at the original's 10 Hz tick (`MAIN_LOOP.md`) for a game month, and compare with a logged run.
+6. **The movie cost accrual** (`CProjectCosts_AccrueUpdate` and helpers, named): port it and check it against `PREPROD_COST` lines; that also settles whether
    pre-production wages are real cash out (`MOVIE_QUALITY.md`).
-8. **StarMaker in the game:** DDS face-layer compositing in TypeScript, then the editor screen from the main menu; the open details are at the end of `STARMAKER.md`
+7. **StarMaker in the game:** DDS face-layer compositing in TypeScript, then the editor screen from the main menu; the open details are at the end of `STARMAKER.md`
    section 10.
-9. **The web app** (`WEB.md`, "Next steps"): compare the view with the original from the same camera, the rest of the lot, the other camera states, the menus.
-10. **Names:** regenerate the decompiler export after the latest names, rerun `attribute_classes.py`, and name the documented functions still left unnamed
+8. **The web app** (`WEB.md`, "Next steps"): compare the view with the original from the same camera, the rest of the lot, the other camera states, the menus.
+9. **Names:** regenerate the decompiler export after the latest names, rerun `attribute_classes.py`, and name the documented functions still left unnamed
     (`009fa970`, `009fe620`, `00a31bb0`, `00a44dd0`, `009db5f0`, `0051be40`, `00ab0150`, `00610190`).
 
 ## Before the repository is made public

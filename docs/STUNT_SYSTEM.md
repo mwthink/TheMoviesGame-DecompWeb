@@ -99,7 +99,7 @@ The slots are `*_GetHealth` (`0x1E4`) and `*_ApplyHealthDelta` (`0x1E8`); the pr
 * The take-quality score (`ShootController_ComputeTakeScore`) and the `[performance]` factors in `QualityCalc_LoadTuningData` (how stunt skill/level/likeness/injury/success scale the movie quality).
 * Who sets the stunt state's difficulty at +0x248 (probably the stunt slider channel, `sld_fall`/`sld_timebomb`) and whether a mid-take slider change re-rolls (it does not: the roll is in `StartTake`).
 
-The roll, injuries, XP and training formulas are reimplemented in `src/game/staff/Stunts` (with tests of the numbers in this document); not yet verified against the running game.
+The roll, injuries, XP and training formulas are reimplemented in `web/src/sim/staff/Stunts.ts` (with tests of the numbers in this document); not yet verified against the running game.
 
 ## 8. See also
 `TRAITS_AND_EXPERIENCE.md`: trait container (`Stunts`, `Movies`, genre traits and the diminishing-returns gain `new = old + (1-old)*delta`), the experience table (`experience.ini`), the stunt performance factors and take-score normalisation, and the movie-quality tuning (`releasing_movies.ini`).

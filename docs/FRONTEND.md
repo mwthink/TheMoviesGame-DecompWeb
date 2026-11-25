@@ -1,6 +1,6 @@
 # The main menu (WFrontEnd)
 
-Status: read from the decompile, the disassembly and the movie files' strings, ported to `src/game/frontend/FrontEnd.*` with tests. Nothing here has been compared
+Status: read from the decompile, the disassembly and the movie files' strings, ported to `web/src/sim/frontend/FrontEnd.ts` with tests. Nothing here has been compared
 with the running game; the only runtime evidence is the boot trace in BOOT.md (the class is created at 53.9 s and `WFrontEnd_Tick` first
 runs at 60.9 s). Ghidra drops arguments in several of these functions, so a few were recovered from the disassembly and say so.
 
@@ -114,7 +114,7 @@ before the Basics have been played. The defaults are in `CSandbox_ResetOptions` 
 `SandboxMode_Constructor`). I first called it "campaign parameters": it is the whole game-setup object. Its nine floats at `+0x60` are registered as
 `Option[x]` (`CSandbox_RegisterSaveVariables`, 0x4AF720), so they are **saved with every game** (SAVE_FORMAT.md lists "CSandbox (9 `Option[x]`)").
 `CSandbox_SetOption(index, value)` writes one, `CSandbox_GetOption(index)` reads one, and `CSandbox_ResetOptions` (0x4AF370, also run by the
-constructor) sets the defaults. Ported as `src/game/sandbox/SandboxOptions.*` with tests.
+constructor) sets the defaults. Ported as `web/src/sim/sandbox/SandboxOptions.ts` with tests.
 
 | # | default | meaning (read from its readers) | set by |
 |---|---|---|---|

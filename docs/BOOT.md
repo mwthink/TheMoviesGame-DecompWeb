@@ -1,7 +1,7 @@
 # Boot: entry point to the main menu
 
-Status: the path down to the intro splashes is read from the decompile and reimplemented in `src/game/boot/IntroSequence.*`
-(tests: `src/tests/IntroSequenceTest.cpp`). One boot run under Wine was recorded (`data/runtime/boot1/`, section
+Status: the path down to the intro splashes is read from the decompile and reimplemented in `web/src/sim/boot/IntroSequence.ts`
+(tests: `web/tests/sim/boot.test.ts`). One boot run under Wine was recorded (`data/runtime/boot1/`, section
 "Measured: boot1"). It confirms the order of the path but is a first-call log, so it cannot confirm each splash's timing. The
 tests still check the model against the decompile, not against that run.
 
@@ -112,7 +112,7 @@ What this settles:
   `DAT_00E57B40` is read by `FUN_006C31A0`, `FUN_006C7240`, `FUN_006C73C0`, `FUN_006D5B00`, `FUN_006D6690` and `FUN_004217B0`, none of
   which has been read. None of the switches was used in boot1 or close1.
   The parser's quirks (a `-` counts anywhere, even mid-word; the value is the next token even if it starts with `-`; keys are
-  case-sensitive; every occurrence is scanned and the last value wins) are ported in `src/game/boot/CommandLine.*` and tested, but
+  case-sensitive; every occurrence is scanned and the last value wins) are ported in `web/src/sim/boot/CommandLine.ts` and tested, but
   from reading the code only: it has not been run against the real binary.
 - **The "load a save at start-up" branch is dead.** `0x4290B0` reads `DAT_00E4E604` and, if nonzero, loads a save via
   `Savegame_LoadAndRestoreGame` instead. `DAT_00E4E600` is a string whose initial bytes in the executable are an empty buffer (size 0)
@@ -182,7 +182,7 @@ Same setup as boot1 (tracer injected, no input), then a non-forced `wine taskkil
 
 So closing the window mid-intro makes `LH_MasterGameLoop` return nonzero, `WinMain` skips `Game_MainLoop` and shuts down. Together with
 boot1 (finishing the intro returns 0 and `Game_MainLoop` runs) this fixes the return value in both cases. It is encoded as
-`NextAfterIntro(IntroOutcome)` in `src/game/boot/IntroSequence.*`. The message reached the loop about 3 s after it was sent, which
+`nextAfterIntro(outcome)` in `web/src/sim/boot/IntroSequence.ts`. The message reached the loop about 3 s after it was sent, which
 fits a main thread that is busy loading the next splash (the slow transition in the section above). Closing at other points
 (the first splash, the animation and movie variants) was not tried.
 

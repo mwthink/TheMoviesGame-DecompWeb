@@ -1,6 +1,6 @@
 /**
- * The in-lot gameplay camera ("normal" mode of the game's camera manager): a port of `src/game/camera/GameCamera.cpp`, which is the reading of the
- * decompile with every function tagged by address. Read docs/CAMERA.md first; this file keeps the same names and order so the two can be compared.
+ * The in-lot gameplay camera ("normal" mode of the game's camera manager), read from the decompile with every function tagged by address.
+ * Read docs/CAMERA.md first; the names and order follow the original's functions.
  * Game coordinates (right-handed, z up). No engine types and no DOM: the tests run it in Node.
  */
 import { Ini } from "../formats/Ini.ts";

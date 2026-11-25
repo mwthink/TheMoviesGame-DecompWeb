@@ -88,7 +88,7 @@ Then `QualityCalc_LikenessFactor` turns it into the performance multiplier: **`0
 `[boredom]` bounds 0.8 (star increase 0.15 per use; star/set/costume/genre bounds 0.8), `pre_production 300`, `star_mood_step 0.25`, `[genre_fit] max_from_ideal`.
 The final quality/success formulas live in the release calculator (`CQualityRating_Constructor` object, 0xBC bytes) and are not decoded yet.
 
-The trait map, experience table and genre experience gains of sections 1-2 are reimplemented in `src/game/staff/Traits`; the star rating combination (`docs/STARS.md` 3ab) in `src/game/staff/StarRating`.
+The trait map, experience table and genre experience gains of sections 1-2 are reimplemented in `web/src/sim/staff/Traits.ts`; the star rating combination (`docs/STARS.md` 3ab) in `web/src/sim/staff/StarRating.ts`.
 
 ## 5. Open items
 * The writers of the other traits in the container. (Slot `0x1E4` is health, set up in FRONTEND.md, "The nine start options", "Health".)

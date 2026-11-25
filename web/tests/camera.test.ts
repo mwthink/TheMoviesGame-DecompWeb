@@ -1,4 +1,4 @@
-// The gameplay camera port (src/camera/GameCamera.ts) against the same numbers as src/tests/CameraTest.cpp: the camera the game itself stored in
+// The gameplay camera port (src/camera/GameCamera.ts) against the game's own numbers: the camera the game itself stored in
 // saves (CLot SL_CamPos / SL_CamFoc / SL_CamZoo), hand-worked helpers, and the real data\ui\camera.ini.
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -126,7 +126,6 @@ test("the camera stored in a save is read, and the eye the code computes from it
 });
 
 test("a wheel turned over a window does not zoom", () => {
-  // the one check of src/tests/CameraTest.cpp the cases above did not repeat
   const c = make();
   const input = emptyInput(); input.dt = 1 / 60; input.wheel = 120; input.wheelOverUi = true;
   const z = c.zoom;

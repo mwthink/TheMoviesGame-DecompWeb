@@ -40,15 +40,34 @@ the rebuild faithful to the original, and the state of each simulation module. T
 | Camera | the in-lot gameplay camera: `camera.ini`, input, pan, zoom, rotation, eye placement, near plane, the lot clamp | the eye it derives from a save's camera equals the saved eye, in eight saves |
 | Character | the StarMaker appearance code: `.anm`, skinned `.msh`, `.hd` morphs, the face rig (43 sliders, expressions), `info.sm` read and write, makeup / hair / iris rules. Plans and geometry, no pixels yet | against stars saved in the real editor: a nine-slider star vertex for vertex (RMS 0.05 mm), `info.sm` byte for byte |
 
-Where each module lives and how to test it: see "Code" below.
+Where each module lives and how to test it: see "Code" below. In the code, each ported function says `orig: 0x...` (and `verified` where it is).
 
 Still to do for the quality and success chain: reading the inputs out of the game state (traits, cast, boredom objects), the genre-fit inputs (an actor's
 distance from the genre's ideal), the stunt take score and the take records, and the `[pr]` hype adders (`CProject_AddStarPressHype`, `AddMoviePRHype`).
 
 ## Code
 
-The modules are in `src/` (portable C++17, `cmake -S src -B build/src && cmake --build build/src && ctest --test-dir build/src --output-on-failure`), being
-ported to TypeScript under `web/src/sim/` (`STATUS.md`, next steps).
+The simulation is TypeScript in `web/src/sim/`, one folder per system; the tests are `web/tests/sim/`. Like `web/src/formats/`, it uses no browser or
+engine API, so the tests run it in Node (`cd web && npm test`). Tests that need the game's files read them from the player's archives (`OTM_GAME_DIR`,
+`docs/SETUP.md`) and skip without them.
+
+| Module | Code | Tests |
+|---|---|---|
+| Movie quality, actor performance | `movie/MovieQuality.ts`, `movie/ActorPerformance.ts` | `movieQuality.test.ts`, `actorPerformance.test.ts` |
+| Movie success, box office | `movie/MovieSuccess.ts` | `movieSuccess.test.ts` |
+| Movie estimate | `movie/MovieEstimate.ts`; the command line `npm run movie-calc` (`web/tools/movie-calc.ts`) | `estimate.test.ts` |
+| Tuning loaders | `movie/TuningLoader.ts`, `staff/StaffTuningLoader.ts`, `core/Tuning.ts` | `tuningLoader.test.ts`, `staff.test.ts` (both also against the real files) |
+| AI studio, studio rating | `ai/AiStudio.ts`, `studio/StudioRating.ts` | `studioAndAi.test.ts` |
+| Staff | `staff/Traits.ts`, `staff/Stunts.ts`, `staff/StarRating.ts` | `staff.test.ts` |
+| Boot | `boot/CommandLine.ts`, `boot/IntroSequence.ts` | `boot.test.ts` |
+| Front end, sandbox | `frontend/FrontEnd.ts`, `sandbox/SandboxOptions.ts`, `sandbox/StartingLayout.ts` | `frontEnd.test.ts`, `sandbox.test.ts` |
+| Character | `character/` (`AnmFile`, `SkinnedMesh`, `HeadFile`, `FaceRig`, `StarFile`, `Appearance`, `RigidMatrix`) | `character.test.ts` (sliders and expressions against the real files and saved stars) |
+| Camera | `web/src/camera/GameCamera.ts` (the world view drives it) | `web/tests/camera.test.ts` |
+
+The ini and csv readers they share are `web/src/formats/Ini.ts` and `Csv.ts`; zlib is fflate (`web/src/assets/inflate.ts`).
+
+These modules were first written in C++ (`src/`, removed once the TypeScript passed the same tests; it is in the git history). The calculator's output
+was checked to match the C++ tool's for the same inputs.
 
 ## Progress
 

@@ -1,4 +1,4 @@
-// Shared helpers for the simulation tests (ported from the C++ tests in src/tests, which used plain Near / CHECK macros).
+// Shared helpers for the simulation tests (ported with the modules from the earlier C++ tests).
 import assert from "node:assert/strict";
 
 export const f32 = Math.fround;

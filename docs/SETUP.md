@@ -22,15 +22,17 @@ fresh studio on 1 January 1920, a Quick Start on 22 January 1960) and skip when 
 
 ## Game files for the tools
 
-The tools read extracted files from `data/game_data/` (`OTM_GAME_DATA` overrides it); the web app needs none, it reads the archives directly.
+The Python tools read extracted files from `data/game_data/` (`OTM_GAME_DATA` overrides it). The web app and its tests need none: they read the archives
+directly (and `Data/StarMaker/starmaker.ini`, a loose file in the install).
 
 ```
 python3 tools/pak_extract.py extract "<game>/Data/pak" data/game_data releasing_movies.ini stunts.ini global.ini experience.ini awardsbonuses.ini timeline.csv
 python3 tools/fetch_assets.py "<save>.jad" "<game>/Data/pak"          # every ini, mesh and texture one save needs (about 2 minutes)
 ```
 
-The StarMaker tools and tests also use `data/game_data/sm_assets` (`mannequin_sm.anm`, `sm_generic.msh`, `generic_facialskin.msh`, `fe_*.anm`, `eyes.dds`, head
-textures, `mup_*.dds`, `hair_*`, `starmaker.ini`; extract with `--tree` where names collide with thumbnails) and stars saved in the editor.
+The StarMaker Python tools also use `data/game_data/sm_assets` (`mannequin_sm.anm`, `sm_generic.msh`, `generic_facialskin.msh`, `fe_*.anm`, `eyes.dds`, head
+textures, `mup_*.dds`, `hair_*`, `starmaker.ini`; extract with `--tree` where names collide with thumbnails) and stars saved in the editor (the web
+tests find those by what they are: an all-default male star and one with nine face sliders moved).
 
 ## Local-only state, and how to rebuild it
 
