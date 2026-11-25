@@ -2616,3 +2616,6 @@ address,old_name,new_name,evidence
 008be1b0,FUN_008be1b0,CWanderExplainer_StartAction,"picks a random point near the character, makes a temporary prop there with ai_donothing.flm and wraps it in a CActivity"
 008be090,FUN_008be090,CWanderExplainer_GetGoal,the stored point with the character's own heading; a new point at least 2 units away once the character is near it
 004eebe0,FUN_004eebe0,Character_PickRandomPointNear,"(character, minimum radius): a random offset in a square, rejected while closer than the radius, added to the position, clamped to the lot and snapped to a free cell (mask 0x31)"
+004aaea0,FUN_004aaea0,PathAgent_BaseConstructor,"sets the vtable, speed (+4) = 0 and acceleration (+8) = 0.01 units per tick squared (0x3C23D70A)"
+00406c00,FUN_00406c00,TMProp_Constructor,"TMInWorld-derived prop (vtable 00D16814, 0x2B4 bytes): defaults include +0x2B3 = 1, the flag PathAgent_UpdateSpeed reads to slow people down on approach"
+00462670,FUN_00462670,Prop_CreatePuppetActivityForAction,"makes a temporary prop at a point for the actions propinteract, task_janitor, sniff and a default, each with its scene (ai_tidy.flm, ai_dog_sniff.flm, ai_banana_slip.flm), and wraps it in a CActivity; clears +0x2B3 (the slow-approach flag) in one branch (not read closely)"

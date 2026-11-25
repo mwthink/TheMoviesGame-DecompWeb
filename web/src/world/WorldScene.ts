@@ -243,7 +243,7 @@ function buildPeople(scene: Scene, people: PersonInWorld[], nav: NavGrid | null,
       const actor: Actor = {
         get x() { return walker.x; }, get y() { return walker.y; },
         get walking() { return walker.moving; },
-        walkTo(x, y) { const path = nav?.findPath(walker, { x, y }); if (!path) return false; walker.go(path, 0); return true; },
+        walkTo(x, y) { const path = nav?.findPath(walker, { x, y }); if (!path) return false; walker.go(path, 0, true); return true; }, // a prop's goal: the slow approach applies
         turnTo: (heading, dt) => walker.turnTo(heading, dt),
         stop: () => walker.stop(),
       };

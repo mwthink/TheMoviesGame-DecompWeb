@@ -86,8 +86,12 @@ The runner never moves the character itself. The character (`TMCharacter` constr
 a pending request id (`+0xAC`) and a throttle tick (`+0xB0`). Each call (`PathAgent_UpdateRoute`, `004AD750`, slot 0):
 1. A goal within about one step of the agent's position is taken directly. Otherwise, if a finished path for the pending request exists (`PathQueue_FindResult`) its points become the route (trimmed to start near the agent).
 2. If there is no route, or the goal moved, or the route ran out, and the throttle tick has passed (a global tick counter, `DAT_0104CDF4 + 0x3C`), a new request goes to the path queue (`PathQueue_Enqueue`).
-3. `PathAgent_UpdateSpeed` (`004AB440`): speed grows by an acceleration per tick up to the character's speed for its current state (character vtable `+0x140`, the gait speed above), never under a fixed fraction of it;
-   near the prop of its activity (the prop's flag `+0x2B3`) it eases down toward a lower speed.
+3. `PathAgent_UpdateSpeed` (`004AB440`), in **units per tick** [read]. With no route the speed is 0 (a stop is immediate). The ceiling is the character's speed for its state
+   (`TMCharacter_GetMoveSpeedForState`, `005996A0`, vtable `+0x140`: the gait table entry `stride * 0.1` times a factor at `+0x4A8`); the floor is **half** of it (`0xD1694C` = 0.5). Normally the speed
+   rises by the agent's acceleration each tick (`+0x08`, set to **0.01** units per tick squared by `PathAgent_BaseConstructor`, `004AAEA0`) up to the ceiling and is raised to the floor if it is below,
+   so a person starting from rest is at half speed on the first tick and takes about 0.8 s (a walk) to reach full speed. **Slow approach:** when the prop of the person's first activity has the flag at `+0x2B3`
+   (`TMProp_Constructor`, `00406C00`, sets it to 1, so props have it by default; the temporary prop of a wander is made without it) and the agent is within a squared distance of 3 (`0xD1DCFC`) of its goal, the speed is
+   instead set to `floor + (d^2 / 3) * (ceiling - floor)` whenever that is lower than the current speed (or the speed is 0), never raised: it eases down to half speed at the goal and then stops dead.
 4. `PathAgent_PopReachedWaypoints` (`004AC670`) drops points the agent is within about one step of.
 5. `PathAgent_StepAlongRoute` (`004ABC50`): move the agent's position toward the last point by its speed; take the heading from that direction and smooth the character's heading toward it by 0.35 per tick
    (`Angle_LerpShortest`); push away from every other character within 6 units (a separation force, stronger, blend 0.5, when someone is very close, otherwise blend 0.1; coincident characters are nudged by a tiny random
@@ -127,8 +131,9 @@ character starts when several tie (`TMCharacter_TryStartAnyDesireAction`).
   such a gait uses its nearest working neighbour's clip and speed.
 - **Grid** (`NavGrid.ts`): the lot's rectangle is walkable except under each placed model's footprint (`b15_02`, turned and moved as placed). Cells are 2 units, as the game's. Routes are
   A* over the cells with line-of-sight smoothing (a stand-in for the game's finder).
-- **Walker** (`Walker.ts`): moves toward the next waypoint at the gait's speed and steers its heading 35 % of the way to the direction of travel each tick (frame-rate independent), as the game does; it does not
-  pivot. `turnTo` is the turn on the spot of the desire activity: under 5 degrees it sets the heading, otherwise it picks the turn clip once from the whole turn (`turnClipId`, `walker.turnClip`), and moves
+- **Walker** (`Walker.ts`): moves toward the next waypoint at its current speed and steers its heading 35 % of the way to the direction of travel each tick (frame-rate independent), as the game does; it does not
+  pivot. The speed follows `PathAgent_UpdateSpeed` above in units per second: half the gait's speed from rest, +1 unit/s each second up to the gait's, and for the routes the desire activities walk (`go(path, gait, true)`)
+  the slow approach within sqrt(3) units of the goal; a stop or the end of the route sets it to 0. Wandering and the player's orders have no slow approach. The game's tick is 0.1 s and the port runs in 0.1 s slices at most. `turnTo` is the turn on the spot of the desire activity: under 5 degrees it sets the heading, otherwise it picks the turn clip once from the whole turn (`turnClipId`, `walker.turnClip`), and moves
   the heading linearly over `turnSeconds` (0.7 s, `turnSeconds` of the clip). The scene plays that clip (`WorldScene.ts`) and cross-fades into and out of it.
 - **Animation**: while a person walks, `PersonAnimator.setOverride` plays the gait clip; when they stop it returns to their room scene's idle. A change of clip **cross-fades** over 0.25 s (`BLEND_MS`,
   [guess]: the game's blend time is not read); without it the person snapped between the walk and standing poses at every start and stop. The gait clips themselves are in place (the root only bobs by a few
@@ -141,4 +146,4 @@ character starts when several tie (`TMCharacter_TryStartAnyDesireAction`).
 
 ## Not done
 
-The game's own route finder (read, not ported), its collision rules, walking through doors and between rooms, people avoiding each other (the path agent's separation push), speed changes with urgency, the idle clip (id 41) between trips, the steering module, and every desire but crap, buyfood and propinteract.
+The game's own route finder (read, not ported), its collision rules, walking through doors and between rooms, people avoiding each other (the path agent's separation push), speed changes with urgency (the gait stays the stroll), whether the game scales a gait clip's playback with the speed ramp (not read; the port plays it at its own rate, so feet slide a little while the speed ramps), the idle clip (id 41) between trips, the steering module, and every desire but crap, buyfood and propinteract.

@@ -50,7 +50,7 @@ test("a walker turns, walks at its gait's speed and arrives", () => {
   const w = new PersonWalker(0, 0, 0, [1, 2, 4]);
   w.go([{ x: 10, y: 0 }], 1);
   for (let i = 0; i < 10; i++) w.step(0.1);
-  assert.ok(Math.abs(w.x - 2) < 1e-6 && Math.abs(w.y) < 1e-9); // 1 s at 2 units/s, already facing the way
+  assert.ok(Math.abs(w.x - 1.45) < 1e-9 && Math.abs(w.y) < 1e-9); // 1 s: from half the gait's 2 units/s, up 0.1 a tick (1 + 1.1 + ... + 1.9, times 0.1 s)
   assert.equal(w.moving, true);
   assert.equal(w.step(10), false);
   assert.ok(Math.abs(w.x - 10) < 1e-6);
@@ -61,7 +61,7 @@ test("a walker turns, walks at its gait's speed and arrives", () => {
   assert.ok(t.x > 0.15, "moves at once"); // 0.2 units in a tick at gait 2 (4 units a second is 0.4)
   assert.ok(Math.abs(wrapAngle(t.heading - Math.PI)) > 0.5 && Math.abs(wrapAngle(t.heading)) > 0.5, "still swinging round");
   while (t.step(0.1));
-  assert.ok(Math.abs(t.x - 10) < 1e-6 && Math.abs(wrapAngle(t.heading)) < 0.05, "ends facing its way");
+  assert.ok(Math.abs(t.x - 10) < 0.15 && Math.abs(wrapAngle(t.heading)) < 0.05, `ends facing its way: ${t.x} ${t.heading}`); // a waypoint counts as reached within 0.15
 
   t.place(3, 4);
   assert.equal(t.moving, false);
@@ -130,4 +130,59 @@ test("a turn goes the short way round, a small one is not played, and moving or 
   g.turnTo(rad(90), 0.1);
   g.go([{ x: 5, y: 0 }], 1);
   assert.equal(g.turning, false);
+});
+
+test("speed: half the gait's speed at once from rest, then +1 unit/s each second up to the gait's, whatever the frame rate", () => {
+  const a = new PersonWalker(0, 0, 0, [1, 2, 4]);
+  a.go([{ x: 1000, y: 0 }], 2); // gait speed 4, so half is 2
+  assert.equal(a.speed, 0);
+  a.step(0.1);
+  assert.equal(a.speed, 2, "the first tick is at the minimum, half of 4"); // 0 + 0.1 is under it
+  a.step(0.1);
+  assert.ok(Math.abs(a.speed - 2.1) < 1e-9, `second tick: ${a.speed}`);
+  // 0.2 s in two game ticks, or in twenty small frames: the same ramp to within the quantisation of a 0.1 s tick
+  const b = new PersonWalker(0, 0, 0, [1, 2, 4]);
+  b.go([{ x: 1000, y: 0 }], 2);
+  for (let i = 0; i < 20; i++) b.step(0.01);
+  assert.ok(Math.abs(b.speed - a.speed) < 0.12 && Math.abs(b.x - a.x) < 0.05, `${b.speed} ${b.x} vs ${a.speed} ${a.x}`);
+  for (let i = 0; i < 40; i++) a.step(0.1);
+  assert.equal(a.speed, 4); // capped at the gait's speed
+});
+
+test("speed: stopping is immediate, and a route that ends sets the speed to 0", () => {
+  const w = new PersonWalker(0, 0, 0, [1, 2, 4]);
+  w.go([{ x: 1000, y: 0 }], 1);
+  w.step(0.5);
+  assert.ok(w.speed > 0);
+  w.stop();
+  assert.equal(w.speed, 0);
+  w.go([{ x: 0.5, y: 0 }], 1);
+  while (w.step(0.1));
+  assert.equal(w.speed, 0);
+  w.go([{ x: 1000, y: 0 }], 1);
+  w.step(0.2);
+  w.go(null, 1); // an empty route
+  assert.equal(w.speed, 0);
+});
+
+test("speed: near a prop that slows people down it eases to half the gait's speed at the goal, and only ever down", () => {
+  const goal = { x: 30, y: 0 };
+  const slow = new PersonWalker(0, 0, 0, [1, 2, 4]);
+  slow.go([goal], 2, true);
+  const fast = new PersonWalker(0, 0, 0, [1, 2, 4]);
+  fast.go([goal], 2, false);
+  let lowest = Infinity, prev = Infinity;
+  for (let i = 0; i < 400 && slow.moving; i++) {
+    slow.step(0.05);
+    fast.step(0.05);
+    const d2 = (goal.x - slow.x) ** 2;
+    if (d2 < 2.5) { // clearly inside the zone (the speed is set from the distance at the start of the slice)
+      assert.ok(slow.speed <= prev + 1e-9, "never speeds up inside the zone");
+      assert.ok(slow.speed <= (((Math.sqrt(d2) + 0.25) ** 2) / 3) * 2 + 2, `eased down to the target of the slice's start: ${slow.speed}`); // up to 0.25 units earlier
+      prev = slow.speed;
+    }
+    if (slow.moving) lowest = Math.min(lowest, slow.speed); // not the 0 of arriving
+  }
+  assert.ok(lowest >= 2 - 1e-9 && lowest < 2.5, `ends at half speed, ${lowest}`); // half of 4
+  assert.ok(fast.speed === 0 || fast.speed === 4, "without the flag it keeps full speed until the route ends");
 });
