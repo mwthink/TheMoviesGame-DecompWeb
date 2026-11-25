@@ -1,10 +1,11 @@
 import "./style.css";
-import type { Screen } from "./screens/Screen";
-import { SplashScreen } from "./screens/SplashScreen";
-import { MainMenuScreen } from "./screens/MainMenuScreen";
-import { GameView } from "./screens/GameView";
+import type { Screen } from "./screens/Screen.ts";
+import { SplashScreen } from "./screens/SplashScreen.ts";
+import { MainMenuScreen } from "./screens/MainMenuScreen.ts";
+import { GameView } from "./screens/GameView.ts";
+import { LoadGameScreen } from "./screens/LoadGameScreen.ts";
 
-type ScreenId = "splash" | "menu" | "game";
+type ScreenId = "splash" | "menu" | "load" | "game";
 
 const canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
 const container = document.getElementById("screens") as HTMLElement;
@@ -22,8 +23,27 @@ function show(id: ScreenId): void {
 const gameView = new GameView(canvas, () => show("menu"));
 const screens: Record<ScreenId, () => Screen> = {
   splash: () => new SplashScreen(container, () => show("menu")),
-  menu: () => new MainMenuScreen(container, () => show("game")),
+  menu: () => new MainMenuScreen(container, () => show("load")),
+  load: () => new LoadGameScreen((world) => { gameView.world = world; show("game"); }, () => show("menu"), container),
   game: () => gameView,
 };
 
-show("splash");
+// Dev shortcut: /?autoload skips the splash and menus and opens the world from the dev server's local files.
+async function devAutoload(): Promise<void> {
+  const { localDevSources } = await import("./assets/sources.ts");
+  const { PakIndex } = await import("./assets/Pak.ts");
+  const { parseSave } = await import("./formats/Jad.ts");
+  const { loadWorldData } = await import("./world/WorldData.ts");
+  const local = await localDevSources();
+  if (!local?.save) throw new Error("autoload: the dev server has no local game files");
+  const world = await loadWorldData(await PakIndex.open(local.paks), parseSave(await local.save.read(0, local.save.size)));
+  for (const w of world.warnings) console.warn(w);
+  gameView.world = world;
+  show("game");
+}
+
+if (import.meta.env.DEV && new URLSearchParams(location.search).has("autoload")) {
+  devAutoload().catch((e) => { console.error(e); show("splash"); });
+} else {
+  show("splash");
+}

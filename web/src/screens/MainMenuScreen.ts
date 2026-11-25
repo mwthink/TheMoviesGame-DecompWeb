@@ -1,4 +1,4 @@
-import { mountScreen, unmountScreen, type Screen } from "./Screen";
+import { mountScreen, unmountScreen, type Screen } from "./Screen.ts";
 
 interface MenuItem {
   label: string;

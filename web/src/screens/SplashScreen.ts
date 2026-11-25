@@ -1,4 +1,4 @@
-import { mountScreen, unmountScreen, type Screen } from "./Screen";
+import { mountScreen, unmountScreen, type Screen } from "./Screen.ts";
 
 const SPLASH_MS = 3000;
 
