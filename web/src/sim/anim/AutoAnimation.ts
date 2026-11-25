@@ -51,13 +51,42 @@ export type PoseMode = "rebased" | "absolute";
 /** One bone's pose in model space: its axes (rows) and origin. */
 interface BonePose { rot: Mat3; pos: [number, number, number]; }
 
-/** The clip's Euler angles (x, y, z) of one channel at a fractional frame (blended between the two stored frames the short way round: the stored angles are wrapped to +-pi, so a joint crossing the wrap would otherwise swing through zero for the frames in between). */
+let smoothing = false;
+/**
+ * Sample clips with a cubic curve (Catmull-Rom through the four frames around the sample point) instead of the original's straight blend of two frames. [guess] The original blends
+ * linearly; the clips are stored at 10 frames a second, so the straight blend has a velocity jump at every stored frame. Off by default; the web app sets it from the player's settings.
+ */
+export function setPoseSmoothing(on: boolean): void { smoothing = on; }
+export function poseSmoothing(): boolean { return smoothing; }
+
+/** Catmull-Rom through p1 (u = 0) and p2 (u = 1), with p0 and p3 as the neighbours. */
+export function catmullRom(p0: number, p1: number, p2: number, p3: number, u: number): number {
+  const u2 = u * u, u3 = u2 * u;
+  return 0.5 * (2 * p1 + (p2 - p0) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u2 + (3 * p1 - p0 - 3 * p2 + p3) * u3);
+}
+
+/** The four stored frames around a fractional frame: the one before, the two it lies between, and the one after. The last frame equals the first, so the clip loops over nFrames - 1 frames. */
+function frameWindow(a: Anm, frame: number): [number, number, number, number, number] {
+  const n = a.nFrames;
+  const period = Math.max(1, n - 1);
+  const f0 = Math.min(Math.floor(frame), n - 1);
+  const wrap = (f: number) => ((f % period) + period) % period;
+  return [wrap(f0 - 1), f0, f0 + 1 < n ? f0 + 1 : 0, wrap(f0 + 2), frame - f0];
+}
+
+/** The clip's Euler angles (x, y, z) of one channel at a fractional frame (blended between the two stored frames the short way round: the stored angles are wrapped to +-pi, so a joint crossing the wrap would otherwise swing through zero for the frames in between). With smoothing on, a cubic through four frames, each unwrapped relative to the one after the sample point. */
 function localAngles(a: Anm, channel: number, frame: number): [number, number, number] {
-  const f0 = Math.min(Math.floor(frame), a.nFrames - 1);
-  const f1 = f0 + 1 < a.nFrames ? f0 + 1 : 0; // the last frame equals the first: loop
-  const u = frame - f0;
+  const [f0, f1, f2, f3, u] = frameWindow(a, frame);
   const g = (f: number, k: number) => a.angles[(f * a.nChannels + channel) * 3 + k]!;
-  const ang = (k: number) => lerpAngle(g(f0, k), g(f1, k), u);
+  if (!smoothing) {
+    const ang = (k: number) => lerpAngle(g(f1, k), g(f2, k), u);
+    return [ang(0), ang(1), ang(2)];
+  }
+  const ang = (k: number) => {
+    const b = g(f1, k);
+    const rel = (f: number) => b + lerpAngle(0, g(f, k) - b, 1); // that frame as the short way round from b
+    return catmullRom(rel(f0), b, rel(f2), rel(f3), u);
+  };
   return [ang(0), ang(1), ang(2)];
 }
 
@@ -74,11 +103,9 @@ function lerpAngle(from: number, to: number, w: number): number {
 }
 
 function localTranslation(a: Anm, channel: number, frame: number): [number, number, number] {
-  const f0 = Math.min(Math.floor(frame), a.nFrames - 1);
-  const f1 = f0 + 1 < a.nFrames ? f0 + 1 : 0;
-  const u = frame - f0;
+  const [f0, f1, f2, f3, u] = frameWindow(a, frame);
   const g = (f: number, k: number) => a.translations[(f * a.nChannels + channel) * 3 + k]!;
-  const t = (k: number) => g(f0, k) + (g(f1, k) - g(f0, k)) * u;
+  const t = (k: number) => (smoothing ? catmullRom(g(f0, k), g(f1, k), g(f2, k), g(f3, k), u) : g(f1, k) + (g(f2, k) - g(f1, k)) * u);
   return [t(0), t(1), t(2)];
 }
 

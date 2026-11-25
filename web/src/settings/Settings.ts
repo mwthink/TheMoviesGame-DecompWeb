@@ -20,6 +20,8 @@ export interface Settings {
   smoothEdges: boolean;
   /** The browser's own multisampling (MSAA) on the canvas: sharper edges, a lot more GPU work. Read when the page loads. */
   multisampling: boolean;
+  /** Smooth animation: sample the 10-frames-a-second clips with a cubic curve through four frames instead of the original's straight blend of two. Not what the original does. */
+  smoothAnimation: boolean;
   /** Show the frames-per-second counter in the game view. */
   showFps: boolean;
   /** How much help the game gives; "none" turns the tooltips off. */
@@ -30,7 +32,7 @@ export interface Settings {
   soundVolume: number;
 }
 
-export const DEFAULT_SETTINGS: Readonly<Settings> = { renderScale: 1, anisotropy: 4, smoothEdges: true, multisampling: false, showFps: false, helpLevel: "max", musicVolume: 1, soundVolume: 1 };
+export const DEFAULT_SETTINGS: Readonly<Settings> = { renderScale: 1, anisotropy: 4, smoothEdges: true, multisampling: false, smoothAnimation: false, showFps: false, helpLevel: "max", musicVolume: 1, soundVolume: 1 };
 
 export const ANISOTROPY_CHOICES = [1, 2, 4, 8, 16] as const;
 /** The volume steps the original's buttons make (`ExternMusicVolUp` and friends: +-0.1). */
@@ -55,6 +57,7 @@ export function normalizeSettings(raw: unknown): Settings {
     anisotropy: (ANISOTROPY_CHOICES as readonly number[]).includes(aniso) ? aniso : d.anisotropy,
     smoothEdges: typeof o.smoothEdges === "boolean" ? o.smoothEdges : d.smoothEdges,
     multisampling: typeof o.multisampling === "boolean" ? o.multisampling : d.multisampling,
+    smoothAnimation: typeof o.smoothAnimation === "boolean" ? o.smoothAnimation : d.smoothAnimation,
     showFps: typeof o.showFps === "boolean" ? o.showFps : d.showFps,
     helpLevel: HELP_LEVELS.includes(o.helpLevel as HelpLevel) ? (o.helpLevel as HelpLevel) : d.helpLevel,
     musicVolume: volume(num(o.musicVolume, d.musicVolume)),

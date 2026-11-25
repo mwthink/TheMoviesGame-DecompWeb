@@ -43,6 +43,7 @@ export class OptionsScreen implements Screen {
           <label>Texture sharpness <select data-key="anisotropy">${ANISOTROPY_CHOICES.map((v) => option(v, `${v}x`, v === s.anisotropy)).join("")}</select></label>
           <label class="check"><input type="checkbox" data-key="smoothEdges"${s.smoothEdges ? " checked" : ""}> Smooth jagged edges (FXAA)</label>
           <label class="check"><input type="checkbox" data-key="multisampling"${s.multisampling ? " checked" : ""}> Multisampling (MSAA, slower)</label>
+          <label class="check"><input type="checkbox" data-key="smoothAnimation"${s.smoothAnimation ? " checked" : ""}> Smoother animation (not the original's)</label>
           <label class="check"><input type="checkbox" data-key="showFps"${s.showFps ? " checked" : ""}> Show frames per second</label>
           <label class="check"><input type="checkbox" data-fullscreen${document.fullscreenElement ? " checked" : ""}> Full screen</label>
           <p class="hint">Render size below 100 % draws fewer pixels and is faster; above 100 % is sharper. Texture sharpness applies the next time a game loads; multisampling the next time the page loads.</p>

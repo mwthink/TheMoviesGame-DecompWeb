@@ -1,4 +1,5 @@
 import "./style.css";
+import { setPoseSmoothing } from "./sim/anim/AutoAnimation.ts";
 import type { Screen } from "./screens/Screen.ts";
 import { SplashScreen } from "./screens/SplashScreen.ts";
 import { MainMenuScreen } from "./screens/MainMenuScreen.ts";
@@ -60,6 +61,8 @@ function loadWorld(task: LoadTask<WorldData>, back: (message: string) => void = 
 
 const settings = new SettingsStore(typeof localStorage === "undefined" ? null : localStorage);
 setEngineMultisampling(settings.get().multisampling);
+setPoseSmoothing(settings.get().smoothAnimation);
+settings.subscribe((s) => setPoseSmoothing(s.smoothAnimation));
 
 // Audio: each screen holds the audio states the original's matching window sets (docs/AUDIO.md, "Audio states"). Music files are read from the dev server's
 // local files; a build without them stays silent.

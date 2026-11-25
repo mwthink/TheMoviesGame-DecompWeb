@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { anmDurationMs, anmFramePosition } from "../../src/formats/Anm.ts";
 import { parseMsh, type Msh } from "../../src/formats/Msh.ts";
-import { AutoAnimator, clipFits } from "../../src/sim/anim/AutoAnimation.ts";
+import { AutoAnimator, catmullRom, clipFits, poseSmoothing } from "../../src/sim/anim/AutoAnimation.ts";
 import { loadAutoAnimClips } from "../../src/world/WorldData.ts";
 import { haveGame, pakIndex } from "../helpers.ts";
 
@@ -66,4 +66,14 @@ test("the lot gate's flag clip fits its skeleton and poses to finite vertices", 
     animator.step(600);
     for (const s of animator.skinned) for (const v of s.positions) assert.ok(Number.isFinite(v));
   }
+});
+
+test("smoothing: Catmull-Rom hits the stored frames, is smooth through them, and is off by default", () => {
+  assert.equal(poseSmoothing(), false);
+  assert.equal(catmullRom(0, 1, 2, 3, 0), 1);
+  assert.equal(catmullRom(0, 1, 2, 3, 1), 2);
+  assert.ok(Math.abs(catmullRom(0, 1, 2, 3, 0.5) - 1.5) < 1e-12); // a straight run stays straight
+  // a ramp that stops: the straight blend turns at the knot, the cubic eases (slope into frame 2 is gentler than the segment's mean)
+  const slopeIn = catmullRom(0, 1, 2, 2, 1) - catmullRom(0, 1, 2, 2, 0.99);
+  assert.ok(slopeIn < 0.01 * 1);
 });
