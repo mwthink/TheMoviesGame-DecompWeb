@@ -30,7 +30,9 @@ function readLocalEnv(): Record<string, string> {
 const fileEnv = readLocalEnv();
 const get = (key: string): string | undefined => process.env[key] ?? fileEnv[key];
 
-const gameDir = get("OTM_GAME_DIR");
+/** The game install (OTM_GAME_DIR), or undefined. */
+export const GAME_DIR: string | undefined = get("OTM_GAME_DIR");
+const gameDir = GAME_DIR;
 export const PAK_DIR: string | undefined = get("OTM_PAK_DIR") ?? (gameDir ? join(gameDir, "Data", "pak") : undefined);
 export const SAVE_DIR: string = get("OTM_SAVE_DIR") ?? join(homedir(), "Documents", "The Movies", "Saved Games");
 export const STAR_DIR: string = get("OTM_STAR_DIR") ?? join(homedir(), "Documents", "The Movies", "StarMaker");

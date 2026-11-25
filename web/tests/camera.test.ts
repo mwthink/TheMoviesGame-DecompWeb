@@ -124,3 +124,12 @@ test("the camera stored in a save is read, and the eye the code computes from it
   c.restore({ x: sc.focus[0], y: sc.focus[1], z: sc.focus[2] }, sc.angle, sc.zoom);
   near(c.eye.x, sc.eye[0]); near(c.eye.y, sc.eye[1]); near(c.eye.z, sc.eye[2]);
 });
+
+test("a wheel turned over a window does not zoom", () => {
+  // the one check of src/tests/CameraTest.cpp the cases above did not repeat
+  const c = make();
+  const input = emptyInput(); input.dt = 1 / 60; input.wheel = 120; input.wheelOverUi = true;
+  const z = c.zoom;
+  c.tick(input);
+  near(c.zoom, z);
+});
