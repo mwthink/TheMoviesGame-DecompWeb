@@ -2492,3 +2492,9 @@ address,old_name,new_name,evidence
 0059ee40,FUN_0059ee40,Anim_GetLengthMs,clip length in ms: 100 per frame minus 100; with flag bit 1 only every third frame counts ((n-1)/3+1); at least 100
 00985eb0,FUN_00985eb0,Anim_GetFrameAtTime,(ms) -> frame index pair and fraction: (nFrames-1) * t / length; wraps for looping clips
 009ca9d0,FUN_009ca9d0,FileList_Scan,"(pattern, directory, recurse): lists the files matching a pattern; used for the loading screen pictures (*.dds in data\textures\ui\loadingscreens\) and the pak files"
+0073ade0,FUN_0073ade0,WToolTip_Constructor,"builds the one tooltip window: an HTML child (the text) over a ui/tooltip2.dds backdrop, anchored left/top at the pointer; state DAT_0104e0e4 = 0, timestamp DAT_0104e0e8"
+0073b200,FUN_0073b200,WToolTip_PositionAndSize,"sizes the tooltip: when the text is wider than the room left on screen it wraps it in an HTML table 0.9 x (screen width - x - 20) wide; places the window at the anchor + (12, 12)"
+0073b440,FUN_0073b440,WToolTip_Tick,"per UI tick: counts the show delay (+0x364) down; at 0 the global state DAT_0104e0e4 goes 1 (pending, with a timestamp) and the tooltip is shown (vtable +4) unless state is 3 (shown); then re-runs PositionAndSize"
+0073b4a0,FUN_0073b4a0,Tooltip_Show,"(text, followMouse, mode, ..., anchor point, flag): takes the singleton tooltip (DAT_0104e104), sets its text, anchor (the pointer, or the given point), mode and shows it; resets state DAT_0104e0e4 = 0"
+00447aa0,FUN_00447aa0,AnimId_GetName,"(id): the animation name for an animation id, from a 32-byte-stride table at DAT_00f87fc0 that is filled at run time; TMCharacter_ResetToIdlePose plays id 0x29"
+00455410,FUN_00455410,World_GetGroundHeight,"(&pos): the ground height at x, y; TMCharacter_PlaceAt uses it when the given z is 0 [inferred from that use]"

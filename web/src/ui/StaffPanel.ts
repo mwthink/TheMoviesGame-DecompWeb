@@ -22,7 +22,7 @@ export class StaffPanel {
     const el = document.createElement("aside");
     el.className = "staffpanel";
     el.setAttribute("aria-label", "Staff");
-    el.innerHTML = `<header><span>Staff <b class="count"></b></span><button type="button" title="Collapse" aria-label="Collapse staff panel">–</button></header><div class="body"></div>`;
+    el.innerHTML = `<header><span>Staff <b class="count"></b></span><button type="button" data-tooltip="Show or hide the staff list." aria-label="Collapse staff panel">–</button></header><div class="body"></div>`;
     this.element = el;
     el.querySelector(".count")!.textContent = String(staff.length);
     const toggle = el.querySelector("button")!;

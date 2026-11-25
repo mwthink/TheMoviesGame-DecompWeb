@@ -19,6 +19,7 @@ import { DevMenu, type CameraMode } from "../ui/DevMenu.ts";
 import { MenuBar } from "../ui/MenuBar.ts";
 import { GameToolbar } from "../ui/GameToolbar.ts";
 import { StaffPanel } from "../ui/StaffPanel.ts";
+import { Tooltip } from "../ui/Tooltip.ts";
 import { GameClock, type GameSpeed } from "../sim/core/GameClock.ts";
 
 interface RoomInfo { name: string; lines: string[]; x: number; y: number; chunk: MshChunk }
@@ -37,6 +38,7 @@ export class GameView implements Screen {
   private menuBar: MenuBar | null = null;
   private toolbar: GameToolbar | null = null;
   private staffPanel: StaffPanel | null = null;
+  private tooltip: Tooltip | null = null;
   /** The game's date and speed (sim/core/GameClock.ts), advanced from the render loop at the original's fixed 10 Hz tick. */
   private clock = new GameClock(1920 * 365);
   /** Moves the flags on, by real frame time (world/WorldScene.ts `stepAutoAnimations`); independent of the clock and the pause. */
@@ -160,9 +162,10 @@ export class GameView implements Screen {
     this.menuBar?.dispose();
     this.toolbar?.dispose();
     this.staffPanel?.dispose();
+    this.tooltip?.dispose();
     this.hud?.remove();
     this.stepAutoAnimations = null;
-    this.hud = this.devMenu = this.menuBar = this.toolbar = this.staffPanel = this.input = this.gameCamera = this.gameBabylon = this.orbit = null;
+    this.hud = this.devMenu = this.menuBar = this.toolbar = this.staffPanel = this.tooltip = this.input = this.gameCamera = this.gameBabylon = this.orbit = null;
     this.scene?.dispose();
     this.scene = null;
   }
@@ -194,6 +197,8 @@ export class GameView implements Screen {
     this.toolbar.setStatus(this.clock.date, w?.header?.cash ?? null);
     this.staffPanel = new StaffPanel(w?.staff ?? []);
     this.staffPanel.mount(this.hud);
+    this.tooltip = new Tooltip();
+    this.tooltip.attach(this.hud);
     this.devMenu = new DevMenu((m) => this.selectCamera(m), this.gameCamera !== null);
     this.devMenu.mount(this.hud);
   }
@@ -249,8 +254,12 @@ export class GameView implements Screen {
     this.hoverMs = now;
     this.hoverDirty = false;
     const at = this.hoverAt;
-    if (!at) { this.setHovered(null); return; }
+    if (!at) { this.tooltip?.show(null); this.setHovered(null); return; }
     const k = this.engine.getRenderWidth() / window.innerWidth;
+    // a person under the pointer: their name goes to the tooltip
+    const who = this.scene.pick(at.x * k, at.y * k, (m) => m.isPickable && m.isEnabled() && !!(m.metadata as { person?: unknown } | null)?.person);
+    const person = who?.hit ? (who.pickedMesh?.metadata as { person: { name: string; cls: string } }).person : null;
+    this.tooltip?.show(person ? `${person.name || "Someone"}${person.cls === "CStar" ? " (star)" : person.cls === "CWannabe" ? " (wannabe)" : ""}` : null);
     const hit = this.scene.pick(at.x * k, at.y * k, (m) => m.isPickable && m.isEnabled() && ((m.metadata as Meta | null)?.rooms?.some((r) => r.lines.length) ?? false));
     const md = hit?.hit ? (hit.pickedMesh?.metadata as Meta | null) : null;
     this.setHovered(md?.rooms?.some((r) => r.lines.length) ? md : null);

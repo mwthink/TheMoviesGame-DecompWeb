@@ -6,6 +6,11 @@ const ICONS: Record<GameSpeed, string> = {
   fast: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 2 L8 8 L1.5 14 Z"/><path d="M8 2 L14.5 8 L8 14 Z"/></svg>`,
 };
 const LABELS: Record<GameSpeed, string> = { pause: "Pause", play: "Play", fast: "Fast forward" };
+const TIPS: Record<GameSpeed, string> = {
+  pause: "Pause: the date stops. Flags and the camera keep moving.",
+  play: "Play: normal speed.",
+  fast: "Fast forward: the date runs three times as fast.",
+};
 
 /**
  * The game toolbar: the speed buttons (pause, play, fast), the in-game date and the studio's money. It only shows what it is given and reports
@@ -20,14 +25,14 @@ export class GameToolbar {
   constructor(onSpeed: (speed: GameSpeed) => void) {
     const el = document.createElement("div");
     el.className = "gametoolbar";
-    el.innerHTML = `<div class="speed" role="group" aria-label="Game speed"></div><span class="date" title="Date"></span><span class="money" title="Cash"></span>`;
+    el.innerHTML = `<div class="speed" role="group" aria-label="Game speed"></div><span class="date" data-tooltip="The date in the studio's world."></span><span class="money" data-tooltip="Your studio's cash."></span>`;
     this.element = el;
     const group = el.querySelector(".speed")!;
     for (const speed of ["pause", "play", "fast"] as GameSpeed[]) {
       const b = document.createElement("button");
       b.type = "button";
       b.className = `speedbtn ${speed}`;
-      b.title = LABELS[speed];
+      b.dataset.tooltip = TIPS[speed];
       b.setAttribute("aria-label", LABELS[speed]);
       b.innerHTML = ICONS[speed];
       b.addEventListener("click", () => onSpeed(speed));

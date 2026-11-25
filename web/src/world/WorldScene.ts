@@ -1,5 +1,9 @@
 import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera";
 import { Constants } from "@babylonjs/core/Engines/constants";
+import { Color3 } from "@babylonjs/core/Maths/math.color";
+import { Material } from "@babylonjs/core/Materials/material";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial";
 import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
@@ -14,7 +18,7 @@ import type { Scene } from "@babylonjs/core/scene";
 import type { Rgba } from "../formats/Dds.ts";
 import { AutoAnimator } from "../sim/anim/AutoAnimation.ts";
 import { registerShaders } from "./shaders.ts";
-import type { MeshAsset, TerrainData, WorldData } from "./WorldData.ts";
+import type { MeshAsset, PersonInWorld, TerrainData, WorldData } from "./WorldData.ts";
 
 /**
  * Coordinates. The game is right-handed with z up and the ground in x, y (seen from above: x right, y up). Babylon is left-handed with y up.
@@ -189,6 +193,66 @@ function buildSources(scene: Scene, m: MeshAsset, caches: Caches, cut = false): 
 }
 
 
+/**
+ * Draw the people (docs/PEOPLE.md). Each person is a node at their saved world position, turned by their saved facing the way placed assets are
+ * (`rotation.y = -angle`; game counter-clockwise = Babylon clockwise in the mirrored space), holding a mesh per model part (body, head, hair) in the
+ * game's (x, y, z up) -> Babylon (x, z, y) mapping. Parts are lit by their texture alone for now (the game's people take the lightmap of where they stand).
+ * The node and its meshes carry `metadata.person` for picking.
+ */
+function buildPeople(scene: Scene, people: PersonInWorld[]): TransformNode[] {
+  const materials = new Map<string, StandardMaterial>();
+  const nodes: TransformNode[] = [];
+  for (const entry of people) {
+    const { person } = entry;
+    const node = new TransformNode(`person/${person.id}`, scene);
+    node.position.set(person.position[0], person.position[2], person.position[1]);
+    node.rotation.y = -person.angle;
+    const info = { person: { id: person.id, cls: person.cls, name: person.name } };
+    node.metadata = info;
+    entry.parts.forEach((part, i) => {
+      const n = part.positions.length / 3;
+      const positions = new Float32Array(n * 3);
+      const normals = new Float32Array(n * 3);
+      for (let v = 0; v < n; v++) {
+        positions.set([part.positions[v * 3]!, part.positions[v * 3 + 2]!, part.positions[v * 3 + 1]!], v * 3);
+        normals.set([part.normals[v * 3]!, part.normals[v * 3 + 2]!, part.normals[v * 3 + 1]!], v * 3);
+      }
+      const mesh = new Mesh(`person/${person.id}/${i}`, scene);
+      const data = new VertexData();
+      data.positions = positions;
+      data.normals = normals;
+      data.uvs = part.uv;
+      data.indices = Uint32Array.from(part.indices);
+      data.applyToMesh(mesh);
+      const key = `${part.texture.toLowerCase()}|${part.cutout ? 1 : 0}`;
+      let mat = materials.get(key);
+      if (!mat) {
+        mat = new StandardMaterial(`person|${key}`, scene);
+        const img = entry.textures.get(part.texture.toLowerCase());
+        const tex = makeTexture(scene, img ?? white);
+        mat.diffuseTexture = tex;
+        mat.emissiveTexture = tex; // unlit: the texture is the colour
+        mat.disableLighting = true;
+        mat.specularColor = Color3.Black();
+        mat.backFaceCulling = true;
+        if (part.cutout) {
+          tex.hasAlpha = true;
+          mat.useAlphaFromDiffuseTexture = true;
+          mat.transparencyMode = Material.MATERIAL_ALPHATEST;
+          mat.alphaCutOff = 0.4;
+        }
+        materials.set(key, mat);
+      }
+      mesh.material = mat;
+      mesh.parent = node;
+      mesh.metadata = info;
+      mesh.isPickable = true;
+    });
+    nodes.push(node);
+  }
+  return nodes;
+}
+
 export interface BuiltWorld {
   camera: ArcRotateCamera;
   /** The buildings that have rooms, by `<source>#<id>`: the normal instances (enabled) and the cutaway ones (disabled until the building is hovered). */
@@ -198,6 +262,8 @@ export interface BuiltWorld {
    * it is deliberately independent of the game clock, as in the original (`AutoAnimation.ts`).
    */
   stepAutoAnimations(dtMs: number): void;
+  /** One node per person drawn. */
+  people: TransformNode[];
   /** How many models are auto-animated here (for the dev menu). */
   autoAnimated: { model: string; clip: () => number }[];
 }
@@ -283,5 +349,6 @@ export function buildWorld(scene: Scene, canvas: HTMLCanvasElement, world: World
   camera.wheelPrecision = 5;
   camera.panningSensibility = 60;
   camera.attachControl(canvas, true);
-  return { camera, instances, stepAutoAnimations, autoAnimated };
+  const peopleNodes = buildPeople(scene, world.people);
+  return { camera, instances, stepAutoAnimations, autoAnimated, people: peopleNodes };
 }

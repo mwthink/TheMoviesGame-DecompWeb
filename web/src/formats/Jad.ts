@@ -49,7 +49,39 @@ export interface SavedStaff {
   hired: number;
 }
 
+/** The names a saved `CCostume` blob mentions (it has no tagged fields; the strings are found by scanning, as `tools/save_cast.py` does). */
+export interface SavedCostume {
+  /** The costume's own name (the first string), e.g. `f_cheerleader_1`. */
+  name: string;
+  /** The `.cos` file, e.g. `f_cheerleader_1.cos`; "" when the blob names none. */
+  cos: string;
+  /** The hair mesh (`hair_20s_f12.msh`); "" when none. */
+  hair: string;
+}
+
+/** A person standing in the world: a staff member, a star or a wannabe, with where and how (docs/PEOPLE.md). */
+export interface SavedPerson {
+  id: number;
+  cls: "CStaff" | "CStar" | "CWannabe";
+  name: string;
+  /** World position (x, y on the ground, z up). Saved people have POSITION in world space even when they are inside a building. */
+  position: [number, number, number];
+  /** Facing about the vertical axis, radians, counter-clockwise seen from above (same as placed assets). */
+  angle: number;
+  employer: number;
+  costume: SavedCostume | null;
+  /** `Head[0]`, `Head[1]` and `HeadMix` of a star or wannabe; "" when the person has no saved head (crew have none). */
+  head: string;
+  head2: string;
+  headMix: number;
+  weight: number;
+  /** Birth day (game day count); 0 when absent. */
+  birth: number;
+}
+
 export interface Save {
+  /** Everyone with a body in the world (staff, stars, wannabes), also those who are not the player's. */
+  people: SavedPerson[];
   header: SaveHeader | null;
   /** Everyone the player's studio employs, in the order of the save. */
   staff: SavedStaff[];
@@ -111,6 +143,8 @@ export function parseSave(d: Uint8Array): Save {
   const staffRaw: { id: number; cls: "CStaff" | "CStar"; name: string; employer: number; subFacility: number; hired: number }[] = [];
   const careers = new Map<number, string>(); // CSubFacility id -> StaffCareer
   let playerStudio = -1;
+  const costumes = new Map<number, SavedCostume>();
+  const peopleRaw: { id: number; cls: SavedPerson["cls"]; first: Map<string, Uint8Array> }[] = [];
   const tName = tagOf("name"), tEmployer = tagOf("PEmployer"), tSub = tagOf("PSubFacility"), tHired = tagOf("Hired"), tCareer = tagOf("StaffCareer");
 
   const open = enc("[OBJ]\n");
@@ -138,6 +172,8 @@ export function parseSave(d: Uint8Array): Save {
     const first = new Map<string, Uint8Array>();
     for (const f of fields) if (!first.has(f.tag)) first.set(f.tag, f.value);
     if (cls === "CLot" && !lotCamera) lotCamera = readCamera(first);
+    if (cls === "CCostume") costumes.set(id, readCostume(d.subarray(bodyStart + 12 + nameLen, b)));
+    if (cls === "CStaff" || cls === "CStar" || cls === "CWannabe") peopleRaw.push({ id, cls, first });
     if (cls === "CStudioPlayer") playerStudio = id;
     else if (cls === "CSubFacility") careers.set(id, readNarrow(first.get(tCareer)));
     else if (cls === "CStaff" || cls === "CStar") {
@@ -166,7 +202,22 @@ export function parseSave(d: Uint8Array): Save {
   const staff: SavedStaff[] = staffRaw
     .filter((r) => r.employer === playerStudio && playerStudio >= 0)
     .map((r) => ({ id: r.id, cls: r.cls, name: r.name, career: careers.get(r.subFacility) ?? "", hired: r.hired }));
-  return { header: readHeader(d, v), staff, placed, landscape: landscapeBlob ? parseLandscape(landscapeBlob) : null, lotCamera };
+  const tPos2 = tPos, tAng2 = tAng, tCostume = tagOf("PCurrentCostume"), tH0 = tagOf("Head[0]"), tH1 = tagOf("Head[1]"), tMix = tagOf("HeadMix"), tW = tagOf("WEIGHT"), tBirth = tagOf("Birth");
+  const people: SavedPerson[] = peopleRaw.map(({ id, cls, first }) => {
+    const pos = first.get(tPos2);
+    const pv = pos && pos.length >= 12 ? view(pos) : null;
+    return {
+      id, cls,
+      name: readWide(first.get(tName)),
+      position: pv ? [pv.getFloat32(0, true), pv.getFloat32(4, true), pv.getFloat32(8, true)] : [0, 0, 0],
+      angle: readF32(first.get(tAng2)),
+      employer: readU32(first.get(tEmployer)),
+      costume: costumes.get(readU32(first.get(tCostume))) ?? null,
+      head: readNarrow(first.get(tH0)), head2: readNarrow(first.get(tH1)), headMix: readF32(first.get(tMix)),
+      weight: readF32(first.get(tW)), birth: readF32(first.get(tBirth)),
+    };
+  });
+  return { people, header: readHeader(d, v), staff, placed, landscape: landscapeBlob ? parseLandscape(landscapeBlob) : null, lotCamera };
 }
 
 /** The header's two leading floats: the date, then the cash. */
@@ -174,6 +225,24 @@ function readHeader(d: Uint8Array, v: DataView): SaveHeader | null {
   const at = find(d, enc("[HEADER]\n"), 0);
   if (at < 0 || at + 17 > d.length) return null;
   return { date: v.getFloat32(at + 9, true), cash: v.getFloat32(at + 13, true) };
+}
+
+/** The printable strings of a costume blob; the first is the name, then the `.cos` file and the hair mesh by their endings. */
+function readCostume(body: Uint8Array): SavedCostume {
+  const strings: string[] = [];
+  let cur = "";
+  for (const byte of body) {
+    if (byte >= 0x20 && byte < 0x7f) cur += String.fromCharCode(byte);
+    else { if (cur.length >= 4) strings.push(cur); cur = ""; }
+  }
+  if (cur.length >= 4) strings.push(cur);
+  const out: SavedCostume = { name: strings[0] ?? "", cos: "", hair: "" };
+  for (const s of strings) {
+    const low = s.toLowerCase();
+    if (low.endsWith(".cos")) out.cos = s;
+    else if (low.endsWith(".msh") && low.includes("hair")) out.hair = s;
+  }
+  return out;
 }
 
 const view = (b: Uint8Array) => new DataView(b.buffer, b.byteOffset, b.byteLength);

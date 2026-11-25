@@ -1,7 +1,10 @@
 import type { PakIndex } from "../assets/Pak.ts";
 import { decodeDds, type Rgba } from "../formats/Dds.ts";
 import { Ini } from "../formats/Ini.ts";
-import type { Landscape, PlacedAsset, Save, SaveHeader, SavedStaff } from "../formats/Jad.ts";
+import type { Landscape, PlacedAsset, Save, SaveHeader, SavedPerson, SavedStaff } from "../formats/Jad.ts";
+import { parseCos } from "../formats/Cos.ts";
+import { parseHead, type HeadFile } from "../sim/character/HeadFile.ts";
+import { ageYears, defaultHeadFor, meshParts, morphedHead, poseParts, STANDING_POSE_CLIP, type ModelPart } from "../sim/character/PersonModel.ts";
 import { parseAnm, type Anm } from "../formats/Anm.ts";
 import { parseMsh, type Msh, type MshChunk } from "../formats/Msh.ts";
 import { clipFits } from "../sim/anim/AutoAnimation.ts";
@@ -57,6 +60,69 @@ export async function loadAutoAnimClips(pak: PakIndex, meshName: string, msh: Ms
   return clips;
 }
 
+/**
+ * Everyone the save puts in the world, as drawable models. Placement rule (docs/PEOPLE.md): a saved person's `POSITION` and `MyAngle` are world coordinates
+ * (also inside buildings) and the model's origin is at the feet; people at (0, 0) are not in the world (the casting pool) and are skipped, as are people
+ * without a costume. The model is the costume's body mesh, the person's head (their `.hd` morph of the generic head, or the default for their sex) and
+ * their hair, all in the skeleton's bind pose for now (no animation yet).
+ */
+async function loadPeople(
+  pak: PakIndex, save: Save, texture: (name: string) => Promise<Rgba | null>, warnings: string[], progress: (text: string) => void,
+): Promise<PersonInWorld[]> {
+  const out: PersonInWorld[] = [];
+  const mshCache = new Map<string, Promise<ReturnType<typeof parseMsh> | null>>();
+  const msh = (name: string) => {
+    let m = mshCache.get(name.toLowerCase());
+    if (!m) mshCache.set(name.toLowerCase(), (m = pak.readByName(name).then((b) => (b ? parseMsh(b) : null))));
+    return m;
+  };
+  const hdCache = new Map<string, Promise<HeadFile | null>>();
+  const hd = (name: string) => {
+    let h = hdCache.get(name.toLowerCase());
+    if (!h) hdCache.set(name.toLowerCase(), (h = pak.readByName(name).then((b) => (b ? parseHead(b) : null))));
+    return h;
+  };
+  const generic = await msh("generic_head.msh");
+  const today = save.header?.date;
+  const poseBytes = await pak.readByName(STANDING_POSE_CLIP);
+  const pose: Anm | null = poseBytes ? parseAnm(poseBytes) : null;
+  if (!pose) warnings.push(`${STANDING_POSE_CLIP} not found: people are drawn in the bind pose`);
+  for (const person of save.people) {
+    if (!person.costume?.cos || (person.position[0] === 0 && person.position[1] === 0)) continue;
+    try {
+      progress(`Person ${person.name || person.id}`);
+      const cosBytes = await pak.readByName(person.costume.cos);
+      if (!cosBytes) throw new Error(`no ${person.costume.cos}`);
+      const cos = parseCos(cosBytes);
+      const body = await msh(cos.body);
+      if (!body) throw new Error(`no body mesh ${cos.body}`);
+      const parts: PersonInWorld["parts"] = meshParts(body).map((p) => ({ ...p, cutout: false }));
+      const headName = person.head || defaultHeadFor(person.costume.cos);
+      const first = await hd(headName);
+      if (generic && first) {
+        const second = person.head2 ? await hd(person.head2) : null;
+        const weight = person.weight > 0 ? person.weight : 70;
+        for (const p of morphedHead(generic, first, second, person.headMix, ageYears(person.birth, today), weight, first.names[0])) parts.push({ ...p, cutout: false });
+      } else warnings.push(`${person.name}: no head ${headName}`);
+      if (person.costume.hair) {
+        const hair = await msh(person.costume.hair);
+        if (hair) for (const p of meshParts(hair)) parts.push({ ...p, cutout: true });
+      }
+      const textures = new Map<string, Rgba>();
+      for (const part of parts) {
+        const key = part.texture.toLowerCase();
+        if (!key || textures.has(key)) continue;
+        const img = await texture(key);
+        if (img) textures.set(key, img);
+      }
+      out.push({ person, parts: pose && clipFits(body.skeleton, pose) ? (poseParts(parts, body.skeleton, pose) as PersonInWorld["parts"]) : parts, textures });
+    } catch (e) {
+      warnings.push(`${person.name || person.id}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  return out;
+}
+
 export function chunkCentre(c: MshChunk): { x: number; y: number } {
   let ax = 0, ay = 0, area = 0;
   for (let t = 0; t < c.tris.length; t += 3) {
@@ -82,7 +148,16 @@ export interface Placement {
   scale?: number;
 }
 
+/** A person standing in the world, with the parts of their model (body, head, hair) in bind pose and the textures those use (docs/PEOPLE.md). */
+export interface PersonInWorld {
+  person: SavedPerson;
+  parts: (ModelPart & { /** hair is drawn with an alpha cut-off */ cutout: boolean })[];
+  textures: Map<string, Rgba>;
+}
+
 export interface WorldData {
+  /** The people who are in the world (a position and a costume), at their saved positions. */
+  people: PersonInWorld[];
   /** The gameplay camera's settings (`data\\ui\\camera.ini`); null if the archives have none. */
   camera: CameraConfig | null;
   /** The lot rectangle the gameplay camera stays inside, and the camera the save stored. Null when the save has no lot. */
@@ -313,5 +388,6 @@ export async function loadWorldData(
     }
   }
   const meshes = [...new Set(placements.map((p) => p.mesh))];
-  return { camera, lot, terrain, meshes, placements, header: save.header, staff: save.staff, warnings };
+  const people = await loadPeople(pak, save, texture, warnings, progress);
+  return { people, camera, lot, terrain, meshes, placements, header: save.header, staff: save.staff, warnings };
 }

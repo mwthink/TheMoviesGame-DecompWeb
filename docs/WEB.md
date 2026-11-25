@@ -80,7 +80,7 @@ web/
   src/sim/              the simulation, ported from the game (docs/REIMPLEMENTATION.md): movie, staff, studio, ai, boot, frontend, sandbox, character
   src/world/            WorldData (loads and prepares everything; no engine types), WorldScene (builds the Babylon scene), shaders
   src/camera/           GameCamera (the game's gameplay camera, no engine or DOM types, docs/CAMERA.md), CameraInput (DOM events -> its per-frame input)
-  src/ui/               DOM overlays above the canvas: MenuBar (fixed to the top; `toolbar` is the slot GameToolbar mounts into), GameToolbar (speed buttons, date, cash), StaffPanel (left, under the bar), DevMenu (fixed bottom right)
+  src/ui/               DOM overlays above the canvas: Tooltip (bottom-right bubble, `data-tooltip`), MenuBar (fixed to the top; `toolbar` is the slot GameToolbar mounts into), GameToolbar (speed buttons, date, cash), StaffPanel (left, under the bar), DevMenu (fixed bottom right)
   tests/                node:test files and helpers; tests/sim/ for the simulation; the ones that read the real game files skip without them
   tools/                command-line tools run with node (movie-calc)
   localPaths.ts         this machine's game install and saves, from local.env (Node only)
@@ -176,7 +176,7 @@ Things worth knowing before extending it:
 - **No shadows or dynamic light, no sky.** Lighting is only the baked lightmaps (which assume a 2x gain; unconfirmed). The world ends at 256 units where
   the terrain does, against the clear colour.
 - **Ground.** `land_alpha.dds` (a ragged edge vignette; its use in the draw code is not read) is not used. The terrain is flat because no height data was found.
-- **Not drawn:** facility interiors and room floors, the other lot meshes, anything but the assets in the save (no people, litter, cars).
+- **Not drawn:** facility interiors and room floors, the other lot meshes, litter and cars. People are drawn standing in a stand-in pose, unlit, without costume layers, makeup or hair colour (`PEOPLE.md`).
 - **Saves:** the placed assets, the landscape, the header (date, cash) and the player's employees' names and roles are read. Films and everything else in `.jad` is ignored.
 - **Clock and toolbar:** the date runs from the save's date at the original's 10 Hz tick scaled by the pause / play / fast buttons (`AUTO_ANIMATION.md`); the pace per day and the fast speed are guesses, and the cash does not change (no economy yet).
 - **Flags:** the lot gate's and the flag props' cloth waves (`AUTO_ANIMATION.md`); one animator per model, so all flags are in step; the pose mode is a guess.
