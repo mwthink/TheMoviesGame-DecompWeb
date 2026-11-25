@@ -48,8 +48,25 @@ The audio manager (`Audio_GetInstance`, `DAT_0104B0E4`) is a small state machine
   (`00541AE0`) and applies each with `Audio_SetChannelVolume` (`009B1000`); channel 1 is music and 2 is sound effects (`FRONTEND.md`), 0 is not identified. Then `DJLevel`.
 
 The web port: `AUDIO_STATES` and `AudioStateMachine` (pure, tested), `AudioManager` (Web Audio: a music bus and a sound bus at the settings' volumes, a voice per music
-state with a 1.2 s fade). The screens hold the states above (`main.ts`), except that the menu screens hold state 6 instead of 4. The radio and front-end players are not built, so states 2 and 4 are silent (the menu's soundtrack is a WMA stream a browser cannot play, see "Not known"); a browser
+state with a 1.2 s fade). The screens hold the states above (`main.ts`), except that the menu screens hold state 6 instead of 4. The front-end player is not built, so state 4 is silent (the menu's soundtrack is a WMA stream a browser cannot play, see "Not known"); a browser
 only allows sound after a click or key press, so the splash music starts on the first click, which also leaves the splash.
+
+## The music library and the radio's playlist
+
+`trackinfo.csv` (102 rows, 60 with "Put on Radio") is read into 200-byte track records by `TrackInfo_LoadCsv`. **[read]** The radio's playlist is built for a game year:
+`RadioPlayer_SetYear` (`0049AA30`) purges tracks the year has passed (`RadioPlaylist_PurgeOutOfYear`, `00487220`) and fills in the ones that now fit
+(`RadioPlaylist_Fill`, `00487420`: year inside the record's Start..End, "Put on Radio" set, not queued yet; the "play first in new game" flag restricts the fill on a
+new game). `AudioState_UpdateRadioMusic` notices a year change (`Audio_OnYearChanged`, `004F6310`, stored at manager `+0xAD0`) and calls it. How the next
+entry is drawn from the playlist is **[inferred]** from the sibling code that draws DJ-sting indices at random and removes them (`FUN_0043D980`): a random pick
+that is then removed, so a track does not repeat until the others have played. The per-genre weights, the "random mode" flag, and the DJ and news clips that
+play between tracks are not decoded.
+
+`music/cues/<track>.cue` (102 files, CRLF text): `//` comments and `"NEXT_MUSIC_START" = <n>` and/or `"DJ_STING" = <n>` lines. **[inferred]** The numbers are
+milliseconds: `NEXT_MUSIC_START` is 2.5 to 5 s before the end of each track checked (adagio: 107369 of 109894 ms) and `DJ_STING` is 5 to 7 s in. The first is when the
+next track starts over the old one; the second is when the DJ's sting can play.
+
+The web port's radio (`sim/audio/Radio.ts`, `audio/RadioPlayer.ts`): a shuffle bag over the tracks that fit the game's year, a new game opening with the track
+flagged first, each track at its CSV volume, the next one starting at `NEXT_MUSIC_START` with a crossfade. No DJ, no news, no radio filter, no genre weighting.
 
 ## `.lug` sound banks
 
@@ -162,7 +179,7 @@ match calls `FUN_007a3110` on the event's icon.
 
 ## Not known
 
-- How the radio and front-end players pick tracks, and what the front end plays in state 4 (the `frontend_loop.wmv` soundtrack is the likely source).
+- How the radio picks tracks exactly (genre weights, random mode), the DJ and news clips, and what the front end plays in state 4 (the `frontend_loop.wmv` soundtrack is the likely source).
 - **Menu music does not work in the web app, because of the format:** `frontend_loop.wmv` and `frontend_intro.wmv` hold WMV3 video with WMA (`wmav2`) stereo audio, which
   browsers cannot decode. The only way in is to transcode the soundtrack (for example `ffmpeg` to Ogg Vorbis) into gitignored storage; that is not done, so state 4 is
   silent. As a stand-in the web app keeps the splash's music (state 6, looped) playing through the menu, options, load, gallery and viewer screens until a game loads.

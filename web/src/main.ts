@@ -11,6 +11,7 @@ import { LoadGameScreen } from "./screens/LoadGameScreen.ts";
 import { LoadingScreen, type LoadTask } from "./screens/LoadingScreen.ts";
 import type { WorldData } from "./world/WorldData.ts";
 import { AudioManager } from "./audio/AudioManager.ts";
+import { calendarDate } from "./sim/core/GameClock.ts";
 
 type ScreenId = "splash" | "menu" | "load" | "loading" | "game" | "gallery" | "options" | "viewer";
 
@@ -45,9 +46,9 @@ function loadWorld(task: LoadTask<WorldData>): void {
     gameView.world = world;
     current = gameView;
     document.body.dataset.screen = "game";
-    syncAudio("game");
     gameView.enter();
-    void gameView.ready.then(() => loading.exit());
+    // the loading music runs until the loading screen is gone, then the radio (already holding its place under it) comes back
+    void gameView.ready.then(() => { loading.exit(); syncAudio("game"); });
   }, () => show("load"));
   present("loading", loading);
 }
@@ -56,7 +57,12 @@ const settings = new SettingsStore(typeof localStorage === "undefined" ? null : 
 
 // Audio: each screen holds the audio states the original's matching window sets (docs/AUDIO.md, "Audio states"). Music files are read from the dev server's
 // local files; a build without them stays silent.
-const audio = new AudioManager(settings, (file) => (import.meta.env.DEV ? `/__local/audio/music/${encodeURIComponent(file)}` : null));
+const audio = new AudioManager(settings, (path) => (import.meta.env.DEV ? `/__local/audio/${path.split("/").map(encodeURIComponent).join("/")}` : null));
+// The radio plays the music of the game's year; a studio on its first day is a new game, which opens with the tracks flagged to play first.
+audio.game = {
+  year: () => calendarDate(gameView.gameDate).year,
+  newGame: () => gameView.startDate < 1920 * 365 + 1,
+};
 /** The (state, owner) pairs each screen holds, in the order the original sets them: a game's radio goes in before the loading music that covers it. */
 const AUDIO_FOR: Record<ScreenId, ReadonlyArray<readonly [number, string]>> = {
   // Deviation: the original stops the splash music (state 6) when the splash ends and plays the front end's own soundtrack (state 4, a WMA video track a browser

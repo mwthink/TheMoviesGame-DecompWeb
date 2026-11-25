@@ -1,11 +1,20 @@
+import { RadioPlayer } from "./RadioPlayer.ts";
 import type { SettingsStore } from "../settings/Settings.ts";
 import { AUDIO_STATES, AudioStateMachine, type AudioEffect } from "../sim/audio/AudioStates.ts";
 
 /** Fade time when a state is suspended or resumed: `fadetime` in the game's `Data/Audio/radioeffect.ini` (1200 ms). The original passes its own global (`DAT_00E51CD8`). */
 const FADE_SECONDS = 1.2;
 
-/** Where a music file can be fetched from (a URL the page can load), or null when this build has no way to read the game's audio. */
-export type MusicLocator = (file: string) => string | null;
+/** Where a file under `Data/Audio/` (`music/Tuning_Up.ogg`, `trackinfo.csv`) can be fetched from (a URL the page can load), or null when this build has no way to read the game's audio. */
+export type MusicLocator = (path: string) => string | null;
+
+/** What the manager needs from the running game. */
+export interface GameInfo {
+  /** The game's current year (the radio plays the tracks of that year). */
+  year(): number;
+  /** True for a studio just started: the radio opens with the tracks flagged to play first. */
+  newGame(): boolean;
+}
 
 interface Voice {
   element: HTMLAudioElement;
@@ -19,7 +28,7 @@ interface Voice {
  * voice per state that streams a music file. Which state is current is decided by `AudioStateMachine`; this class carries out its effects.
  *
  * Browsers only allow sound after a click or key press, so the first request waits for one; `unlock` is called from those events.
- * The radio and front-end playlist players (states 2 and 4) are not built yet: those states are silent.
+ * The radio (state 2) is `RadioPlayer`; the front-end player (state 4) is not built, so that state is silent.
  */
 export class AudioManager {
   readonly machine = new AudioStateMachine();
@@ -27,12 +36,21 @@ export class AudioManager {
   private music: GainNode | null = null;
   private sfx: GainNode | null = null;
   private readonly voices = new Map<number, Voice>();
+  private readonly radio: RadioPlayer;
+  /** Set by the game while one is running. */
+  game: GameInfo = { year: () => 1920, newGame: () => false };
   private readonly settings: SettingsStore;
   private readonly locate: MusicLocator;
 
   constructor(settings: SettingsStore, locate: MusicLocator, target: Pick<Window, "addEventListener" | "removeEventListener"> | null = typeof window === "undefined" ? null : window) {
     this.settings = settings;
     this.locate = locate;
+    this.radio = new RadioPlayer({
+      graph: () => (this.context && this.music ? { context: this.context, bus: this.music } : null),
+      locate: (path) => this.locate(path),
+      year: () => this.game.year(),
+      newGame: () => this.game.newGame(),
+    });
     settings.subscribe(() => this.applyVolumes());
     if (target) {
       const unlock = () => {
@@ -74,6 +92,7 @@ export class AudioManager {
     }
     void this.context.resume();
     for (const [state, v] of this.voices) if (v.wanted) this.play(state, v);
+    if (this.radio.isWanted) this.radio.play();
   }
 
   private applyVolumes(): void {
@@ -93,9 +112,10 @@ export class AudioManager {
 
   /** `AudioState_Start`: get the state's music ready. */
   private start(state: number): void {
+    if (AUDIO_STATES[state]?.player === "radio") return; // the radio picks its track when it is resumed
     const file = AUDIO_STATES[state]?.file;
     if (!file || this.voices.has(state)) return;
-    const url = this.locate(file);
+    const url = this.locate(`music/${file}`);
     if (!url || typeof Audio === "undefined") return;
     const element = new Audio(url);
     element.loop = true; // the three music states pass loop -1
@@ -104,6 +124,10 @@ export class AudioManager {
   }
 
   private resume(state: number): void {
+    if (AUDIO_STATES[state]?.player === "radio") {
+      this.radio.play();
+      return;
+    }
     const v = this.voices.get(state);
     if (!v) return;
     v.wanted = true;
@@ -127,6 +151,10 @@ export class AudioManager {
   }
 
   private suspend(state: number): void {
+    if (AUDIO_STATES[state]?.player === "radio") {
+      this.radio.pause();
+      return;
+    }
     const v = this.voices.get(state);
     if (!v) return;
     v.wanted = false;
@@ -142,6 +170,10 @@ export class AudioManager {
   }
 
   private stop(state: number): void {
+    if (AUDIO_STATES[state]?.player === "radio") {
+      this.radio.dispose();
+      return;
+    }
     const v = this.voices.get(state);
     if (!v) return;
     this.suspend(state);

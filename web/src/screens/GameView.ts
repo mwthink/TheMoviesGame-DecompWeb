@@ -134,6 +134,10 @@ export class GameView implements Screen {
 
   /** The world to draw on the next enter(); null shows the blank placeholder scene. */
   world: WorldData | null = null;
+  /** The game's date now (days; see `GameClock`): the radio plays the music of this year. */
+  get gameDate(): number { return this.clock.date; }
+  /** The date the loaded game started from (its saved header date), or 1 January 1920 without a world. */
+  get startDate(): number { return this.world?.header?.date ?? 1920 * 365; }
 
   /** Resolves once the scene from the last enter() is compiled and has drawn a frame (or the view was exited first). */
   ready: Promise<void> = Promise.resolve();
