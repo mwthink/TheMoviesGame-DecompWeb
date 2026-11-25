@@ -198,11 +198,13 @@ export class DevMenu {
     moveSec.innerHTML = `<h4>Movement</h4>`;
     const wanderBox = document.createElement("input");
     wanderBox.type = "checkbox";
+    wanderBox.checked = true; // the scene starts with wandering on
     wanderBox.addEventListener("change", () => tools.onWander?.(wanderBox.checked));
     const wanderLabel = document.createElement("label");
     wanderLabel.append(wanderBox, " Loose people wander about");
     const desireBox = document.createElement("input");
     desireBox.type = "checkbox";
+    desireBox.checked = true; // and with desires on
     desireBox.addEventListener("change", () => tools.onDesires?.(desireBox.checked));
     const desireLabel = document.createElement("label");
     desireLabel.append(desireBox, " Loose people act on desires (toilet, food, benches; docs/DESIRES.md)");

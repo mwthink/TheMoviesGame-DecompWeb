@@ -120,11 +120,13 @@ character starts when several tie (`TMCharacter_TryStartAnyDesireAction`).
 - **Grid** (`NavGrid.ts`): the lot's rectangle is walkable except under each placed model's footprint (`b15_02`, turned and moved as placed). Cells are 2 units, as the game's. Routes are
   A* over the cells with line-of-sight smoothing (a stand-in for the game's finder).
 - **Walker** (`Walker.ts`): turns toward the next waypoint at 4.5 rad/s [guess], walks only when within 50 degrees of it, moves at the gait's speed. No turn clips are played yet.
-- **Animation**: while a person walks, `PersonAnimator.setOverride` plays the gait clip; when they stop it returns to their room scene's idle.
+- **Animation**: while a person walks, `PersonAnimator.setOverride` plays the gait clip; when they stop it returns to their room scene's idle. A change of clip **cross-fades** over 0.25 s (`BLEND_MS`,
+  [guess]: the game's blend time is not read); without it the person snapped between the walk and standing poses at every start and stop. The gait clips themselves are in place (the root only bobs by a few
+  centimetres) and loop cleanly [measured from `walk.anm`, `run_jog.anm`: last frame equals the first to 0.004 rad], so the walk cycle has no seam of its own.
 - **Desires** (`web/src/sim/ai/DesireAgent.ts`, docs/DESIRES.md): people who are outdoors can act on the crap, buyfood and propinteract desires: the most urgent one above a threshold picks the cheapest prop that offers it,
-  the person walks to its goal, turns to its heading and uses it for a while. A person with an activity does not wander. Off by default (dev menu, Movement).
+  the person walks to its goal, turns to its heading and uses it for a while. A person with an activity does not wander. On by default (dev menu, Movement, turns it off).
 - **Wander** (`Wander.ts`): a [guess] stand-in with no counterpart in the original (its `CWanderExplainer` is never created, `DESIRES.md` "Roam and wander"): people who are outdoors (no room scene, standing on open ground) wait 2 to 8 s, then stroll to a point 6 to 30 units
-  away. Off by default; the dev menu's Movement section turns it on.
+  away. On by default; the dev menu's Movement section turns it off.
 - **Orders**: click a person, then right-click the ground; the dev menu picks the gait. A person who is picked up stops, and stands where they are put down.
 
 ## Not done

@@ -40,7 +40,7 @@ counts as a link; walking, turning and the hiring celebration `hired_*` are skip
   character animation was not read.
 - Cost: bodies, heads and hair are skinned on the CPU every frame (`skinVertices`, no allocation in the loop).
 
-Not done: movement (the scenes' walk boxes and path nodes), blending between clips (a `.seq` has a blend time), facial expressions, which stage of a long scene a
+Not done: movement (the scenes' walk boxes and path nodes), the game's blending between clips (a `.seq` has a blend time; the web app cross-fades every change of clip over a fixed 0.25 s, `MOVEMENT.md`), facial expressions, which stage of a long scene a
 person is at (`TheActivity` is not saved).
 
 ## What is drawn
@@ -58,7 +58,7 @@ Body, head and hair. Before the animation starts (and in tests) they are in the 
 
 ## Next
 
-Movement: the scenes' `MoveToBox` walks and path nodes, the pathfinder, the animation id table (`AnimId_LoadClip`), blending, and the game loop's per-tick character update
+Movement: the scenes' `MoveToBox` walks and path nodes, the pathfinder, the animation id table (`AnimId_LoadClip`), the game's own blend, and the game loop's per-tick character update
 (`TMMobile_*`, `TMCharacter_*`).
 
 Movement (walking, gaits, routes) is in `MOVEMENT.md`.

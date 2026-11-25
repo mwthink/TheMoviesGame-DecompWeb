@@ -226,8 +226,8 @@ function buildPeople(scene: Scene, people: PersonInWorld[], nav: NavGrid | null,
   const materials = new Map<string, StandardMaterial>();
   const nodes: TransformNode[] = [];
   const animated: { animator: PersonAnimator; entry: PersonInWorld; meshes: PersonMeshes; walker: PersonWalker; wanderer: Wanderer; agent: DesireAgent; actor: Actor; held?: boolean; sincePose: number }[] = [];
-  let wander = false;
-  let desiresOn = false;
+  let wander = true; // on by default; the dev menu's Movement section turns each off (its checkboxes start checked to match)
+  let desiresOn = true;
   let now = 0; // game seconds since the world was built: props are "taken" for a moment after someone chooses them
   for (const entry of people) {
     const { person } = entry;

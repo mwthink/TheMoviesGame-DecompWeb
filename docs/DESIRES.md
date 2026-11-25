@@ -92,7 +92,7 @@ change a star's mood stats and traits (`FUN_008AC360`).
 `web/src/sim/ai/Desires.ts` (the table, the level, growth and starting levels), `Explainers.ts` (parse an explainer, the goal, the cost, busy and cooldown), `DesireAgent.ts` (the
 selection and the activity states enroute -> turning -> using, with waiting when the prop is occupied), `web/src/world/Props.ts` (collects the explainers of the placed facilities and ornaments and the
 desire table), wired in `web/src/world/WorldScene.ts` and `WorldData.ts`; tests `web/tests/sim/desires.test.ts`. Ported desires: `crap_male`, `crap_female`, `buyfood` (exponential growth, reset by a use) and `propinteract` (linear growth, adjusted by the prop's slider).
-Off by default; the dev menu's Movement section ("Loose people act on desires") turns it on. A person given an order, or picked up, drops their activity and frees the prop.
+On by default; the dev menu's Movement section ("Loose people act on desires") turns it off. A person given an order, or picked up, drops their activity and frees the prop.
 
 Choices that are **[guess]**: the interval between re-sorting the desires (1 s) and between start attempts (2 s), the length of a use (the scenes are not played; a fixed 8 s),
 a use resets the desire to 0 unless the prop has a slider for it, in which case the slider is added once at the end of the use, props with equal cost are picked at random, `niceness` is taken as 1 (no niceness cost), the turn is a plain heading change at the walker's turn rate, an occupied prop makes the next person wait at its goal (no

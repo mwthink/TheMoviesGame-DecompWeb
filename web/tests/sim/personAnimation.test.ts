@@ -5,7 +5,9 @@ import { test } from "node:test";
 import { firstAnimation, parseFlm } from "../../src/formats/Flm.ts";
 import { parseSeq } from "../../src/formats/Seq.ts";
 import { parseSave } from "../../src/formats/Jad.ts";
-import { PersonAnimator } from "../../src/sim/anim/PersonAnimation.ts";
+import type { Anm } from "../../src/formats/Anm.ts";
+import type { MshBone } from "../../src/formats/Msh.ts";
+import { BLEND_MS, PersonAnimator } from "../../src/sim/anim/PersonAnimation.ts";
 import { loadWorldData } from "../../src/world/WorldData.ts";
 import { findSave, haveGame, pakIndex } from "../helpers.ts";
 
@@ -59,4 +61,36 @@ test("the animator loops, picks fidgets from the playlist and returns skinning t
   assert.ok(seen.has("idle_male.anm"));
   assert.ok(seen.size > 1, "a fidget played within two minutes");
   for (const t of last!) for (const x of [...t.rot, ...t.move]) assert.ok(Number.isFinite(x));
+});
+
+// A change of clip cross-fades instead of snapping. Synthetic clips on a two-bone skeleton: no game files needed.
+function syntheticClip(angle: number, lift: number): Anm {
+  // 2 frames (100 ms), 2 channels: the root holds `lift` in z, the child is turned by `angle` about x
+  return { nFrames: 2, nChannels: 2, parents: Int16Array.from([-1, 0]), flags: 0, stride: 0,
+    angles: Float32Array.from([0, 0, 0, angle, 0, 0, 0, 0, 0, angle, 0, 0]),
+    translations: Float32Array.from([0, 0, lift, 0, 0, 1, 0, 0, lift, 0, 0, 1]) };
+}
+const ID = [1, 0, 0, 0, 1, 0, 0, 0, 1] as const;
+const SKELETON: MshBone[] = [
+  { name: "root", parent: -1, rot: [...ID], pos: [0, 0, 0] },
+  { name: "child", parent: 0, rot: [...ID], pos: [0, 0, 1] },
+];
+
+test("a change of clip fades from the old pose to the new one over BLEND_MS", () => {
+  const clips = new Map<string, Anm>([["idle", syntheticClip(0, 0)], ["walk", syntheticClip(1, 0.5)]]);
+  const animator = new PersonAnimator(SKELETON, clips, { source: "test", clip: "idle", seq: null }, () => 0);
+  const lift = (t: ReturnType<PersonAnimator["step"]>) => t![0]!.move[2]!; // the root bone's height, which the clip sets
+  const before = lift(animator.step(16));
+  animator.setOverride("walk");
+  const first = lift(animator.step(1)); // just after the change: still the old pose
+  assert.ok(Math.abs(first - before) < 0.02, `snapped: ${before} -> ${first}`);
+  const mid = lift(animator.step(BLEND_MS / 2));
+  assert.ok(mid > before + 0.1 && mid < 0.5 - 0.05, `halfway, ${mid}`);
+  const done = lift(animator.step(BLEND_MS));
+  assert.ok(Math.abs(done - 0.5) < 1e-6, `finished: ${done}`);
+  // and back
+  animator.setOverride(null);
+  const back = lift(animator.step(1));
+  assert.ok(Math.abs(back - 0.5) < 0.02, `snapped back: ${back}`);
+  assert.ok(Math.abs(lift(animator.step(BLEND_MS * 2)) - 0) < 1e-6);
 });

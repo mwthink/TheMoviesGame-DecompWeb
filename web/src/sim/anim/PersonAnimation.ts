@@ -4,6 +4,12 @@ import type { Seq } from "../../formats/Seq.ts";
 import { poseBones, skinTransforms, type SkinTransform } from "./AutoAnimation.ts";
 
 /**
+ * How long a change of clip takes to cross-fade, in milliseconds. [guess] The game blends (a `.seq` has a blend time, docs/PEOPLE.md) but its time is not read; without any blend a
+ * person snaps from the walk pose to the standing pose and back.
+ */
+export const BLEND_MS = 250;
+
+/**
  * What a standing person plays (docs/PEOPLE.md, "Animation").
  *
  * The save does not store a person's current animation. The game gives a person who is inside a room a *room scene*, `ai_<room>_<index>.flm` (the room is
@@ -41,6 +47,8 @@ export class PersonAnimator {
   private idleLeft = 0;
   /** A clip that overrides the plan while it is set (the gait clip while walking); null returns to the plan. */
   private override: string | null = null;
+  /** The clip being left, still playing, while a change of clip fades out (`BLEND_MS`). */
+  private fade: { clip: Anm; timeMs: number; elapsedMs: number } | null = null;
 
   constructor(skeleton: MshBone[], clips: Map<string, Anm>, plan: AnimationPlan, random: () => number = Math.random) {
     this.skeleton = skeleton;
@@ -59,8 +67,32 @@ export class PersonAnimator {
   /** Play `name` (looping) in place of the plan, or return to the plan with null. A change restarts the clip. */
   setOverride(name: string | null): void {
     if (name === this.override) return;
+    this.beginFade();
     this.override = name && this.clips.has(name) ? name : null;
     if (this.override) this.timeMs = 0;
+  }
+
+  /** The clip playing now and how far into it it is. */
+  private playing(): { clip: Anm; timeMs: number } | null {
+    const clip = this.clips.get(this.override ?? this.current);
+    return clip ? { clip, timeMs: this.timeMs } : null;
+  }
+
+  /** Call just before the clip changes: the clip being left keeps playing, fading out. */
+  private beginFade(): void {
+    const from = this.playing();
+    this.fade = from ? { clip: from.clip, timeMs: from.timeMs, elapsedMs: 0 } : null;
+  }
+
+  /** Advance the fade by `dtMs` and return what to mix into the pose (the old clip's pose, with its share), or undefined when no fade is running. */
+  private advanceFade(dtMs: number): { clip: Anm; frame: number; weight: number } | undefined {
+    const f = this.fade;
+    if (!f) return undefined;
+    f.elapsedMs += dtMs;
+    if (f.elapsedMs >= BLEND_MS) { this.fade = null; return undefined; }
+    f.timeMs = (f.timeMs + dtMs) % anmDurationMs(f.clip);
+    const u = f.elapsedMs / BLEND_MS;
+    return { clip: f.clip, frame: anmFramePosition(f.clip, f.timeMs), weight: 1 - u * u * (3 - 2 * u) }; // smoothstep
   }
 
   /**
@@ -71,8 +103,9 @@ export class PersonAnimator {
     if (this.override) {
       const walk = this.clips.get(this.override)!;
       this.timeMs = (this.timeMs + Math.max(0, dtMs)) % anmDurationMs(walk);
+      const mix = this.advanceFade(Math.max(0, dtMs));
       if (!pose) return null;
-      return skinTransforms(this.skeleton, poseBones(this.skeleton, walk, anmFramePosition(walk, this.timeMs), "absolute"));
+      return skinTransforms(this.skeleton, poseBones(this.skeleton, walk, anmFramePosition(walk, this.timeMs), "absolute", mix));
     }
     let clip = this.clips.get(this.current);
     if (!clip) return null;
@@ -80,12 +113,15 @@ export class PersonAnimator {
     let dur = anmDurationMs(clip);
     while (this.timeMs >= dur) {
       this.timeMs -= dur;
-      this.current = this.plan.seq ? this.pickNext(false) : this.plan.clip;
+      const next = this.plan.seq ? this.pickNext(false) : this.plan.clip;
+      if (next !== this.current) { this.timeMs += dur; this.beginFade(); this.timeMs -= dur; } // the clip being left is at its end
+      this.current = next;
       clip = this.clips.get(this.current) ?? clip;
       dur = anmDurationMs(clip);
     }
+    const mix = this.advanceFade(Math.max(0, dtMs));
     if (!pose) return null;
-    return skinTransforms(this.skeleton, poseBones(this.skeleton, clip, anmFramePosition(clip, this.timeMs), "absolute"));
+    return skinTransforms(this.skeleton, poseBones(this.skeleton, clip, anmFramePosition(clip, this.timeMs), "absolute", mix));
   }
 
   /** The next clip of the playlist. */

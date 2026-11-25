@@ -51,14 +51,26 @@ export type PoseMode = "rebased" | "absolute";
 /** One bone's pose in model space: its axes (rows) and origin. */
 interface BonePose { rot: Mat3; pos: [number, number, number]; }
 
-/** The clip's local rotation of one channel at a fractional frame (angles blended linearly between the two stored frames). */
-function localRotation(a: Anm, channel: number, frame: number): Mat3 {
+/** The clip's Euler angles (x, y, z) of one channel at a fractional frame (blended linearly between the two stored frames). */
+function localAngles(a: Anm, channel: number, frame: number): [number, number, number] {
   const f0 = Math.min(Math.floor(frame), a.nFrames - 1);
   const f1 = f0 + 1 < a.nFrames ? f0 + 1 : 0; // the last frame equals the first: loop
   const u = frame - f0;
   const g = (f: number, k: number) => a.angles[(f * a.nChannels + channel) * 3 + k]!;
   const ang = (k: number) => g(f0, k) + (g(f1, k) - g(f0, k)) * u;
-  return eulerMatrix(ang(0), ang(1), ang(2));
+  return [ang(0), ang(1), ang(2)];
+}
+
+/** The clip's local rotation of one channel at a fractional frame. */
+function localRotation(a: Anm, channel: number, frame: number): Mat3 {
+  const [x, y, z] = localAngles(a, channel, frame);
+  return eulerMatrix(x, y, z);
+}
+
+/** An angle moved toward another by `w` along the shorter way round (the stored angles are wrapped to a turn). */
+function lerpAngle(from: number, to: number, w: number): number {
+  const d = ((to - from + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+  return from + d * w;
 }
 
 function localTranslation(a: Anm, channel: number, frame: number): [number, number, number] {
@@ -70,8 +82,14 @@ function localTranslation(a: Anm, channel: number, frame: number): [number, numb
   return [t(0), t(1), t(2)];
 }
 
-/** The model-space pose of every bone at a fractional frame of a clip. Bones are stored parents-first. */
-export function poseBones(skeleton: MshBone[], clip: Anm, frame: number, mode: PoseMode = "rebased"): BonePose[] {
+/**
+ * A cross-fade out of an earlier clip: `weight` is the share of `clip` (the one being left) in the pose, 1 = still that pose, 0 = only the clip being posed. Only for the `absolute`
+ * mode (people); angles are blended the short way round, translations linearly.
+ */
+export interface PoseMix { clip: Anm; frame: number; weight: number; }
+
+/** The model-space pose of every bone at a fractional frame of a clip, optionally cross-faded with another clip. Bones are stored parents-first. */
+export function poseBones(skeleton: MshBone[], clip: Anm, frame: number, mode: PoseMode = "rebased", mix?: PoseMix): BonePose[] {
   const out: BonePose[] = [];
   for (let b = 0; b < skeleton.length; b++) {
     const bone = skeleton[b]!;
@@ -80,8 +98,16 @@ export function poseBones(skeleton: MshBone[], clip: Anm, frame: number, mode: P
     let local: Mat3;
     let offset: [number, number, number];
     if (mode === "absolute") {
-      local = localRotation(clip, b, frame);
-      offset = localTranslation(clip, b, frame);
+      if (mix && mix.weight > 0) {
+        const to = localAngles(clip, b, frame), from = localAngles(mix.clip, b, mix.frame);
+        const w = mix.weight;
+        local = eulerMatrix(lerpAngle(to[0], from[0], w), lerpAngle(to[1], from[1], w), lerpAngle(to[2], from[2], w));
+        const tt = localTranslation(clip, b, frame), tf = localTranslation(mix.clip, b, mix.frame);
+        offset = [tt[0] + (tf[0] - tt[0]) * w, tt[1] + (tf[1] - tt[1]) * w, tt[2] + (tf[2] - tt[2]) * w];
+      } else {
+        local = localRotation(clip, b, frame);
+        offset = localTranslation(clip, b, frame);
+      }
     } else {
       // bind local pose from the model's world bind poses, the clip's rotation change since its first frame on top
       const pb = bone.parent >= 0 ? skeleton[bone.parent]! : null;
