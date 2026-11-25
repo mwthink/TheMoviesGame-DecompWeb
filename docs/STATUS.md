@@ -90,6 +90,4 @@ the details and its open questions.
 
 ## Before the repository is made public
 
-- Start from a fresh copy without this history: early commits (before this fork) tracked bulk decompiler output, `data/identified_organized/`, which must not be
-  published. It is still tracked here; it is removed in the fresh copy.
 - Choose a licence for the reimplementation.

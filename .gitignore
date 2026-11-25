@@ -1,8 +1,6 @@
-# --- Game-derived material is local-only, except the organized per-class export ---
+# --- Game-derived material is local-only ---
 # Extracted/generated game material lives in data/, gen/ and docs/generated/ (all local-only).
-# The one exception is data/identified_organized/ (decompiled functions, one .c per class), which is tracked.
-data/*
-!data/identified_organized/
+data/
 gen/
 docs/generated/
 # Character viewer: exported game assets (mesh, skeleton, animations, textures) stay local

@@ -2,9 +2,6 @@
 
 Usage: python tools/audit_firewall.py [--all]   (default: git-tracked + staged; --all scans the work tree)
 Checks: forbidden extensions, raw Ghidra FUN_ bodies, large hex byte runs, big files.
-
-Exception: data/identified_organized/ (decompiled functions, one .c per class) is deliberately tracked, so it is
-exempt from the content checks (FUN_ bodies, hex runs, size). Binary extensions are still forbidden there.
 """
 import re, subprocess, sys, pathlib
 
@@ -14,7 +11,6 @@ MAX_BYTES = 2_000_000
 FUN_BODY = re.compile(r"^\s*(?:undefined\d?|int|uint|void|char|float)\b[^;\n]*\bFUN_[0-9a-fA-F]{8}\s*\([^;]*\)\s*\{?\s*$", re.M)
 HEX_RUN = re.compile(r"(?:\b(?:0x)?[0-9a-fA-F]{2}\b[ ,]+){32,}")
 SELF = pathlib.Path(__file__).resolve()
-ALLOWED_DECOMPILED = ROOT / "data" / "identified_organized"
 TEXT_EXT = {".c", ".cpp", ".h", ".hpp", ".py", ".md", ".txt", ".json", ".csv", ".ps1", ".ts", ".js", ".html"}
 
 def files(all_):
@@ -30,8 +26,6 @@ def check(p):
     errs = []
     if p.suffix.lower() in BAD_EXT:
         errs.append("forbidden extension")
-    if ALLOWED_DECOMPILED in p.parents:
-        return errs
     if p.stat().st_size > MAX_BYTES:
         errs.append("file larger than 2 MB")
     if p.suffix.lower() in TEXT_EXT:
