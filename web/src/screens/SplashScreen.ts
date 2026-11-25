@@ -1,3 +1,4 @@
+import { frontEndLogo } from "./frontEndArt.ts";
 import { mountScreen, unmountScreen, type Screen } from "./Screen.ts";
 
 const SPLASH_MS = 3000;
@@ -19,6 +20,13 @@ export class SplashScreen implements Screen {
     this.el.addEventListener("click", this.skip);
     window.addEventListener("keydown", this.skip);
     this.timer = window.setTimeout(this.skip, SPLASH_MS);
+    const el = this.el;
+    void frontEndLogo().then((logo) => {
+      if (logo && el.isConnected) {
+        el.querySelector("h1")!.before(logo);
+        el.querySelector("h1")!.classList.add("visually-hidden");
+      }
+    });
   }
 
   exit(): void {

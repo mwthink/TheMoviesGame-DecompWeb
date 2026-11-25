@@ -1,3 +1,4 @@
+import { frontEndLogo } from "./frontEndArt.ts";
 import { mountScreen, unmountScreen, type Screen } from "./Screen.ts";
 
 interface MenuItem {
@@ -42,6 +43,12 @@ export class MainMenuScreen implements Screen {
       list.appendChild(li);
     }
     this.el.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+    const el = this.el;
+    void frontEndLogo().then((logo) => {
+      if (logo && el.isConnected) {
+        el.querySelector("h2")!.replaceWith(logo);
+      }
+    });
   }
 
   exit(): void {

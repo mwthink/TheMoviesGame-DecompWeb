@@ -5,6 +5,7 @@ import {
   canPickDirectory, ensureReadable, localDevSources, pakSourcesFromDirectory, pakSourcesFromFiles, readStrings, stringSourcesFromDirectory, stringSourcesFromFiles,
 } from "../assets/sources.ts";
 import { parseSave } from "../formats/Jad.ts";
+import { setGameArchives } from "./frontEndArt.ts";
 import { loadWorldData, type WorldData } from "../world/WorldData.ts";
 import { mountScreen, unmountScreen, type Screen } from "./Screen.ts";
 
@@ -93,6 +94,7 @@ export class LoadGameScreen implements Screen {
 
   private setPaks(paks: ByteSource[]): void {
     this.paks = paks;
+    setGameArchives(paks);
     this.render();
     if (!paks.length) this.status("No .pak files found there. Pick the game folder (the one with Data/pak inside).", true);
   }
@@ -117,6 +119,7 @@ export class LoadGameScreen implements Screen {
     const local = await localDevSources();
     if (!local) { this.status("The dev server has no local files configured.", true); return; }
     this.paks = local.paks;
+    setGameArchives(local.paks);
     this.text = local.text;
     if (local.save) {
       const save = local.save;
