@@ -20,16 +20,19 @@ export interface Actor {
   stop(): void;
 }
 
-/** The game ticks its simulation 10 times a second (MAIN_LOOP.md); one desire update per tick. [guess] (the adaptive skipping of `TMBaseDesire_TickShared` is not modelled.) */
+/** The game ticks its simulation 10 times a second (MAIN_LOOP.md); a desire's `TMBaseDesire_TickShared` is called once per tick [inferred], and skips updates by its rank (`Desire.step`). */
 export const DESIRE_UPDATE_SECONDS = 0.1;
+/** Seconds between re-sorting a person's desires by urgency, which sets their ranks (`TMCharacter_SortResidentDesires`, driven by a timer in `UpdateActionSelection`). [guess] (the timer's interval is not read.) */
+export const SORT_SECONDS = 1;
 /** Seconds between attempts to start an action while idle. [guess] (the timer's interval is not read.) */
 export const TRY_START_SECONDS = 2;
 /** How long a use lasts. [guess] (the interaction scenes are not played, so their length is not known here.) */
 export const USE_SECONDS = 8;
 /**
- * The urgency a desire must pass to start while the person has nothing running. The game compares with the urgency of the running action (0 when none), but an idle character there always
- * has one: the `roam` and `wander` desires are always running. Those are not ported, so this stands in for them. [guess] 0.5 (crap starts at 0.2 to 0.5 and takes about four game minutes
- * to pass it).
+ * The urgency a desire must pass to start while the person has nothing running. The game compares with the urgency of the running action, 0 when there is none, so with nothing running any
+ * desire above 0 would start at once, and a desire reset to 0 would start again a tick later. A character in the game usually has other desires running (staff and stars have `readyposition`,
+ * entourage `play`, `gawp`, `follow boss`; the desires `roam` and `wander` are in the table but no code creates them: docs/DESIRES.md), which are not ported, so this stands in for them.
+ * [guess] 0.5.
  */
 export const IDLE_THRESHOLD = 0.5;
 /** Within this of the goal counts as arrived when the route ended short of it (the goal may lie inside a footprint the grid blocks). */
@@ -50,6 +53,7 @@ export class DesireAgent {
   activity: Activity | null = null;
   private sinceTry: number;
   private sinceTick = 0;
+  private sinceSort = 0;
   private readonly random: () => number;
   /** What a desire has to beat to start (`IDLE_THRESHOLD` unless the caller sets another). */
   threshold = IDLE_THRESHOLD;
@@ -63,6 +67,12 @@ export class DesireAgent {
       if (def) this.desires.push(new Desire(def, random));
     }
     this.sinceTry = random() * TRY_START_SECONDS; // do not start every person in the same tick
+    this.rankDesires();
+  }
+
+  /** Sort the desires by level, most urgent first, and give each its rank (`TMCharacter_SortResidentDesires`). */
+  private rankDesires(): void {
+    [...this.desires].sort((p, q) => q.level - p.level).forEach((d, i) => { d.rank = i; });
   }
 
   /** Give up the current activity (picked up, sent elsewhere): the prop is free again. */
@@ -80,9 +90,11 @@ export class DesireAgent {
    */
   update(dt: number, actor: Actor, props: readonly PropExplainer[], now: number): boolean {
     this.sinceTick += dt;
+    this.sinceSort += dt;
+    if (this.sinceSort >= SORT_SECONDS) { this.sinceSort = 0; this.rankDesires(); }
     while (this.sinceTick >= DESIRE_UPDATE_SECONDS) {
       this.sinceTick -= DESIRE_UPDATE_SECONDS;
-      for (const d of this.desires) d.tick();
+      for (const d of this.desires) d.step();
     }
     const a = this.activity;
     if (!a) {

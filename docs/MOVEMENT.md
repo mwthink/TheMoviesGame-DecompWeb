@@ -123,7 +123,7 @@ character starts when several tie (`TMCharacter_TryStartAnyDesireAction`).
 - **Animation**: while a person walks, `PersonAnimator.setOverride` plays the gait clip; when they stop it returns to their room scene's idle.
 - **Desires** (`web/src/sim/ai/DesireAgent.ts`, docs/DESIRES.md): people who are outdoors can act on the crap, buyfood and propinteract desires: the most urgent one above a threshold picks the cheapest prop that offers it,
   the person walks to its goal, turns to its heading and uses it for a while. A person with an activity does not wander. Off by default (dev menu, Movement).
-- **Wander** (`Wander.ts`): a [guess] stand-in for the game's desire-driven AI: people who are outdoors (no room scene, standing on open ground) wait 2 to 8 s, then stroll to a point 6 to 30 units
+- **Wander** (`Wander.ts`): a [guess] stand-in with no counterpart in the original (its `CWanderExplainer` is never created, `DESIRES.md` "Roam and wander"): people who are outdoors (no room scene, standing on open ground) wait 2 to 8 s, then stroll to a point 6 to 30 units
   away. Off by default; the dev menu's Movement section turns it on.
 - **Orders**: click a person, then right-click the ground; the dev menu picks the gait. A person who is picked up stops, and stands where they are put down.
 

@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DESIRE_UPDATE_SECONDS, DesireAgent, IDLE_THRESHOLD, TRY_START_SECONDS, USE_SECONDS, type Activity, type Actor } from "../../src/sim/ai/DesireAgent.ts";
-import { Desire, parseDesires } from "../../src/sim/ai/Desires.ts";
+import { ADAPTIVE_MULTIPLIER, Desire, MAX_DESIRE_INTERVAL, parseDesires } from "../../src/sim/ai/Desires.ts";
 import { PropExplainer, explainerGoal, parseExplainer, parsePlacedExplainers } from "../../src/sim/ai/Explainers.ts";
 import { PersonWalker } from "../../src/sim/anim/Walker.ts";
 import { NavGrid } from "../../src/sim/nav/NavGrid.ts";
@@ -416,4 +416,34 @@ test("props that cost the same are picked in a random order", () => {
     agent.cancel();
   }
   assert.ok(chosen.size > 1, "more than one of four equal props gets chosen across runs");
+});
+
+test("adaptive updates: a desire updates every 3 x its rank ticks, at most every 20", () => {
+  const t = parseDesires(DESIRES);
+  const updates = (rank: number, calls: number) => {
+    const d = new Desire(t.get("propinteract")!, () => 0);
+    d.rank = rank;
+    const before = d.level;
+    for (let i = 0; i < calls; i++) d.step();
+    return Math.round((d.level - before) / 0.01); // each update adds the increment, 0.01
+  };
+  assert.equal(ADAPTIVE_MULTIPLIER, 3);
+  assert.equal(MAX_DESIRE_INTERVAL, 20);
+  assert.equal(updates(0, 60), 60); // the most urgent: every call
+  assert.equal(updates(1, 60), 20); // calls 1, 4, 7, ... 58: every 3rd
+  assert.equal(updates(2, 60), 10); // calls 1, 7, ... 55: every 6th
+  assert.equal(updates(7, 60), 3); // 21 would be over the cap: every 20th (calls 1, 21, 41)
+  assert.equal(updates(30, 60), 3); // a rank far down is capped at the same 20
+});
+
+test("an agent ranks its desires by level, so the wanted one grows fastest", () => {
+  const nav = new NavGrid();
+  const table = parseDesires(DESIRES);
+  const { actor } = body(nav, 0, 0);
+  const agent = new DesireAgent(table, ["crap_male", "buyfood", "propinteract"], () => 0);
+  agent.desires[0]!.level = 0.1;
+  agent.desires[1]!.level = 0.6;
+  agent.desires[2]!.level = 0.3;
+  agent.update(1.01, actor, [], 0); // past the sort interval
+  assert.deepEqual(agent.desires.map((d) => d.rank), [2, 0, 1]);
 });

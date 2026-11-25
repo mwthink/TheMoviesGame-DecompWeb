@@ -19,8 +19,12 @@ parameter row. The current level is the float at `+0xE0` and slot `+0x24` return
 **Growth** [read]. `DesireCrap_Tick` (`00834640`, the same code in `DesireBuyFood_Tick`): `level = level + (1 - level) * increment`, clamped to 0..1, then capped at the row's `maxdesire`.
 `DesirePropInteract` has **no tick of its own**: its tick slot (`+0x0C`) is the base class's `FUN_00837A80`, which is **linear**: `level = level + increment`, clamped, and held at `maxdesire` once it reaches it. A desire
 is therefore exponential or linear by its class, not by its row.
-`TMBaseDesire_TickShared` (`00837B90`) calls the update every time when `AdaptiveDesires` is 0; when it is on, a per-desire countdown (`+0x108`) is reloaded with `interval * AdaptiveMultiplier`
-(at most `MaxDesireInterval`) between updates [read]. How often the character's desires are ticked, and what `interval` is, is **not read**. `DesireCrap_ResetUrgency` sets the level to 0.
+**Cadence** [read]. `TMBaseDesire_TickShared` (`00837B90`) calls the update every time when `AdaptiveDesires` is 0. When it is on (the file has 1), a per-desire countdown (`+0x108`) is decremented
+and the update runs only when it reaches 0, after which it is reloaded with `interval * AdaptiveMultiplier`, at most `MaxDesireInterval` (`desires.ini`: 3 and 20). **The interval is the desire's rank**: 
+`TMCharacter_SortResidentDesires` (`0059B170`) sorts the person's desires by urgency and stores each one's index in its `+0x104`. So the most urgent desire updates on every call, the second every 3rd,
+the third every 6th, and from the eighth on every 20th: a desire the person does not want grows slowly. The increment of an update does not depend on the interval. That the call is made once per tick
+for every desire (10 a second) is **[inferred]**: the caller of the update slot was not found, but desires derive from the engine's object base class, whose per-tick call this would be.
+`DesireCrap_ResetUrgency` sets the level to 0.
 
 **Starting level** [read]. A character with a saved value (`MyDesireMap`, `CLASS_NOTES.md` 3ar) starts from it. Otherwise: crap a random level between 0.2 and 0.5, buyfood between about 0.15 and
 0.4, propinteract between 0.1 and 0.4, gawp 0.4, staybybase the row's fixed desire. The other desires' starting levels are not read.
@@ -29,7 +33,7 @@ is therefore exponential or linear by its class, not by its row.
 
 `TMCharacter_UpdateActionSelection` (`0059CBD0`) runs for every character every tick [read]:
 1. The character's action list is sorted by urgency (`DesireList_SortByPredicate`); the current action's urgency (`TMCharacter_GetActionDesireUrgency`, 0 when none or a temporary one) is the **threshold**.
-2. One timer calls the character's desire update (vtable `+0x17C`); another, when it elapses, tries to start something better: `TMCharacter_TryStartAnyDesireAction` (`0059B240`) walks the resident desires
+2. One timer re-sorts the desires and so sets their ranks (vtable `+0x17C`, `TMCharacter_SortResidentDesires`; the earlier reading that it "calls the desire update" was wrong); another, when it elapses, tries to start something better: `TMCharacter_TryStartAnyDesireAction` (`0059B240`) walks the resident desires
    (sorted, most urgent first) and for the first whose urgency is **above the threshold** asks its explainer finder to start the action; the first success wins, a failure sets the desire's
    "failed" flag and goes on to the next. `TMCharacter_TryStartAnyDesireActionClearingFlags` (`0059AF80`) is the same for a character with nothing running (it clears the failed flags first, then starts
    the first desire above the threshold, here with no cost ceiling).
@@ -90,18 +94,34 @@ selection and the activity states enroute -> turning -> using, with waiting when
 desire table), wired in `web/src/world/WorldScene.ts` and `WorldData.ts`; tests `web/tests/sim/desires.test.ts`. Ported desires: `crap_male`, `crap_female`, `buyfood` (exponential growth, reset by a use) and `propinteract` (linear growth, adjusted by the prop's slider).
 Off by default; the dev menu's Movement section ("Loose people act on desires") turns it on. A person given an order, or picked up, drops their activity and frees the prop.
 
-Choices that are **[guess]**: the desire update rate (10 per second, no adaptive skipping), the interval between start attempts (2 s), the length of a use (the scenes are not played; a fixed 8 s),
+Choices that are **[guess]**: the interval between re-sorting the desires (1 s) and between start attempts (2 s), the length of a use (the scenes are not played; a fixed 8 s),
 a use resets the desire to 0 unless the prop has a slider for it, in which case the slider is added once at the end of the use, props with equal cost are picked at random, `niceness` is taken as 1 (no niceness cost), the turn is a plain heading change at the walker's turn rate, an occupied prop makes the next person wait at its goal (no
-queue points), and the **idle threshold**: the game starts a desire when its urgency beats the running action's, and an idle character there always has one (`roam`, `wander`), which are not
-ported, so a fixed 0.5 stands in (otherwise a reset desire would win again at once, at level 0.0001).
+queue points), and the **idle threshold**: the game starts a desire when its urgency beats the running action's, which is 0 when nothing runs, so a reset desire would win again a tick later at level 0.0001. A
+character in the game usually has other desires running (`readyposition` for staff and stars, `play`, `gawp`, `follow boss` for the entourage); those are not ported, so a fixed 0.5 stands in.
+(The desires `roam` and `wander` are not the reason: see "Roam and wander".)
 
 Measured in the port, on the Quick Start save [measured, ours, not the game's]: 126 explainer props are placed (3 toilets each for men and women, 2 food counters and 16 `propinteract` props: 3 benches, 8 trees,
 3 parasols, a sun lounger and a gym bar), 51 of their goal points fall in grid cells the footprints block (the route ends at the nearest free cell and that counts as arrived), and the 17 people who are loose
-complete about 70 uses in 30 game minutes when the crap and food desires start at 0.8. **The update rate decides how busy people are:** `propinteract` climbs 0.002 per update, so at 10 updates a second it
-reaches the idle threshold in seconds; if the real update is slower the people would sit far less. It is the first thing to tune by eye.
+complete about 56 uses in 30 game minutes with desires that start between 0.3 and 0.6 (44 `propinteract`, 12 toilet and food trips); with the cadence above a bench desire that ranks low
+climbs slowly, which is what keeps them from sitting down continuously.
+
+## Roam and wander
+
+`desires.csv` has rows `roam` (max 0.7, increment 0.002, urgency 0.5) and `wander` (max 0.78, increment 0.0004, urgency 0.1) and the loose people of the original look like they wander, but:
+- **There is no `roam` anywhere in the executable** (no string, no class) and no `data\explainers\roam.ini` [read][data]. The row is not used by any desire's constructor.
+- **`wander` is a class that is never created.** `CWanderExplainer` (constructor `008BE370`, vtable `00D64BF8`) is an explainer with no prop: its cost function (`008BE4B0`) accepts the actions `wander` and
+  `zombiestarwander` at no cost; its start function (`008BE1B0`) picks a random point near the character, makes a temporary invisible prop there with the scene `ai_donothing.flm`, and wraps it in an
+  activity; its goal function (`008BE090`) returns that point with the character's own heading (no turn), and picks a new point at least 2 units away once the character is near it. **Nothing calls the
+  constructor and nothing points at it** (a scan of the executable's code and data for calls, jumps and pointers finds only the references inside the class's own functions), and no desire has the
+  string `wander`. It is dead code in this build [read, by a byte scan].
+- The point generator (`FUN_004EEBE0`) shows what the wandering would have been: a random offset in a square, rejected while closer than a minimum distance, added to the character's position, clamped to the lot's
+  rectangle and snapped to a free cell with the mask `0x31` (`LotGrid_SnapWorldToFreeCell`). The same function is used by `FUN_008B4B40` five times (not read).
+- The zombie scenes (`data\scene\*\*_zombies_wander.ini`, `zombiestarwander`) are **movie scene content** and a star walk animation choice, not the lot AI.
+
+So loose people do not wander because of a desire, and the web app's `Wander.ts` (a random stroll) remains a stand-in with no counterpart in the original. What a loose person without a running action does
+is whichever other desire passes the threshold; the set a wannabe or extra holds is created in several places not read (`FUN_00571080`, `FUN_0056E710`, `CStar_PostSpawnSetup`, `CStaff_OnHired`).
 
 ## Not read
 
-Who ticks a desire and how often (the per-desire update slot is called from somewhere not found; `TMCharacter_ReleaseAllDesires` releases them and `+0x108` removes one), `interval` in the adaptive update,
-the other desires' starting levels and updates (`getdrunk`, `overeat`, `disposeoflitter`, `smalltalk`, `leave`, ...), when a long scene applies its sliders, the `override` cost functions, `niceness`, the queue geometry, how an interaction scene
+Who calls the desire update slot each tick (the once-per-tick call is inferred), when the two timers of `UpdateActionSelection` elapse, the other desires' starting levels and updates (`getdrunk`, `overeat`, `disposeoflitter`, `smalltalk`, `leave`, ...), when a long scene applies its sliders, the `override` cost functions, `niceness`, the queue geometry, how an interaction scene
 ends, and the use of `dropactions.ini`.

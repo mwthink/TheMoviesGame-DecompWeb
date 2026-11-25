@@ -2599,7 +2599,7 @@ address,old_name,new_name,evidence
 0046cb40,FUN_0046cb40,LotGrid_SnapToFreeCell,"moves a cell to the nearest cell that LotGrid_IsCellFree accepts for the mask, searching in growing squares"
 0046d1c0,FUN_0046d1c0,LotGrid_SnapWorldToFreeCell,world point -> its cell -> LotGrid_SnapToFreeCell -> back to the cell's world point (unchanged when the cell was free)
 005094d0,FUN_005094d0,SteeringModule_Constructor,0xDC-byte object stored at character +0x5DC; registers the name AVCSteeringModule_TM in a global list
-00598f00,TMCharacter_SetMovingFlag5E4,TMCharacter_SetLocomotionLock,"sets the byte at +0x5E4; TMCharacter_UpdateLocomotionStateFromSpeed keeps state 3 or 5 while it is set and follows the urgency (+0x52C) when clear; the runner states set it in position and clear it while walking"
+00598f00,TMCharacter_SetMovingFlag5E4,TMCharacter_SetLocomotionLock,sets the byte at +0x5E4; TMCharacter_UpdateLocomotionStateFromSpeed keeps state 3 or 5 while it is set and follows the urgency (+0x52C) when clear; the runner states set it in position and clear it while walking
 00837a80,FUN_00837a80,Desire_TickLinear,"the base desire tick: level = clamp(level + increment), held at the row's maxdesire once reached; DesirePropInteract's tick slot (+0x0C) is this"
 00842f40,FUN_00842f40,Desire_AddToLevel,level = clamp01(level + value) at +0xE0; FUN_008AC360 calls it for a desire_<name> slider
 00407100,FUN_00407100,Float_SubtractClamp01,*this = clamp01(*this - value); DesirePropInteract's slot +0x30 calls it with a value held by the running activity
@@ -2611,3 +2611,8 @@ address,old_name,new_name,evidence
 0059b9c0,FUN_0059b9c0,TMCharacter_ReleaseResidentDesire,unlinks a desire from the resident list (+0x53C) and drops its reference (vtable +0x108)
 0059a1f0,TMCharacter_UpdateAllDesires,TMCharacter_ReleaseAllDesires,"calls the release slot (+0x108) for every resident desire; callers are destructors and constructor chains, not a per-tick update"
 0083b4a0,DesirePropInteract_GetUrgency,DesirePropInteract_SubtractActivityValue,slot +0x30 of DesirePropInteract (where DesireCrap has ResetUrgency): clamp01 subtract of a value of the character's first activity
+008be370,FUN_008be370,CWanderExplainer_Constructor,"explainer for the action ""wander"" with no prop; nothing in the executable calls it or points at it (byte scan), so it is never created"
+008be4b0,FUN_008be4b0,CWanderExplainer_GetActionCost,"cost 0 for the actions wander and zombiestarwander, none for others"
+008be1b0,FUN_008be1b0,CWanderExplainer_StartAction,"picks a random point near the character, makes a temporary prop there with ai_donothing.flm and wraps it in a CActivity"
+008be090,FUN_008be090,CWanderExplainer_GetGoal,the stored point with the character's own heading; a new point at least 2 units away once the character is near it
+004eebe0,FUN_004eebe0,Character_PickRandomPointNear,"(character, minimum radius): a random offset in a square, rejected while closer than the radius, added to the position, clamped to the lot and snapped to a free cell (mask 0x31)"
