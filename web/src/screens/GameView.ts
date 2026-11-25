@@ -23,6 +23,7 @@ import { GameToolbar } from "../ui/GameToolbar.ts";
 import { StaffPanel } from "../ui/StaffPanel.ts";
 import { Tooltip } from "../ui/Tooltip.ts";
 import { PauseMenu } from "../ui/PauseMenu.ts";
+import { PersonDragger } from "../world/PersonDragger.ts";
 import { applySun, createSunLights, type SunLights } from "../world/SunLight.ts";
 import { DEFAULT_SHADOWS, DEFAULT_SUN, type ShadowSettings, type SunSettings } from "../world/Sun.ts";
 import { SunShadows } from "../world/SunShadows.ts";
@@ -92,10 +93,17 @@ export class GameView implements Screen {
   /** What the last click hit, for the dev menu. */
   private lastClick: Record<string, string> = { object: "no click yet" };
   private downAt: { x: number; y: number } | null = null;
-  private readonly onDown = (e: PointerEvent) => { this.downAt = e.button === 0 ? { x: e.clientX, y: e.clientY } : null; };
+  /** Click-and-hold carries a person (world/PersonDragger.ts, docs/DRAGGING.md). */
+  private dragger: PersonDragger | null = null;
+  private readonly onDown = (e: PointerEvent) => {
+    this.downAt = e.button === 0 ? { x: e.clientX, y: e.clientY } : null;
+    this.dragger?.down(e);
+  };
+  private readonly onDragMove = (e: PointerEvent) => this.dragger?.move(e);
   private readonly onUp = (e: PointerEvent) => {
     const d = this.downAt;
     this.downAt = null;
+    if (this.dragger?.up(e) === "dropped") return; // a person was carried: not a click
     if (!d || e.button !== 0 || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) return; // a drag (orbit, rotate) is not a click
     this.pickAt(e.clientX, e.clientY);
   };
@@ -138,6 +146,7 @@ export class GameView implements Screen {
       this.shadows = new SunShadows(this.scene, { min: { x: -192, y: 0, z: -128 }, max: { x: 192, y: 45, z: 256 } }, this.shadowSettings.size);
       for (const c of built.shadowCasters) this.shadows.addCaster(c.mesh, c.material);
       this.stepPeople = built.stepPeople;
+      this.dragger = this.makeDragger(this.scene);
       this.peopleClips = built.peopleClips;
       this.autoAnimated = built.autoAnimated;
     } else {
@@ -156,7 +165,8 @@ export class GameView implements Screen {
     this.revealMs = performance.now();
     window.addEventListener("pointermove", this.onHoverMove);
     this.lastClick = { object: "no click yet" };
-    this.canvas.addEventListener("pointerdown", this.onDown);
+    this.canvas.addEventListener("pointerdown", this.onDown, true); // capture: before the orbit camera sees the press
+    window.addEventListener("pointermove", this.onDragMove);
     this.canvas.addEventListener("pointerup", this.onUp);
     this.sun = { ...DEFAULT_SUN };
     this.shadowSettings = { ...DEFAULT_SHADOWS };
@@ -218,7 +228,9 @@ export class GameView implements Screen {
     this.engine?.stopRenderLoop();
     window.removeEventListener("pointermove", this.onHoverMove);
     this.setHovered(null);
-    this.canvas.removeEventListener("pointerdown", this.onDown);
+    this.canvas.removeEventListener("pointerdown", this.onDown, true);
+    window.removeEventListener("pointermove", this.onDragMove);
+    this.dragger = null;
     this.canvas.removeEventListener("pointerup", this.onUp);
     this.input?.detach();
     this.devMenu?.dispose();
@@ -333,6 +345,7 @@ export class GameView implements Screen {
     const dtMs = engine.getDeltaTime();
     if (this.clock.advance(dtMs / 1000) > 0) this.toolbar?.setStatus(this.clock.date, this.world?.header?.cash ?? null);
     this.stepAutoAnimations?.(dtMs);
+    this.dragger?.tick(dtMs);
     // people animate in game time: the speed buttons scale it and a pause freezes them [guess, docs/PEOPLE.md]
     const factor = SPEED_FACTOR[this.clock.speed];
     if (factor > 0) this.stepPeople?.(Math.min(dtMs, 99) * factor);
@@ -386,7 +399,8 @@ export class GameView implements Screen {
         // a person under the pointer: their name goes to the tooltip
         const who = this.scene.pick(at.x * k, at.y * k, (m) => m.isPickable && m.isEnabled() && !!(m.metadata as { person?: unknown } | null)?.person);
         const person = who?.hit ? (who.pickedMesh?.metadata as { person: { name: string; cls: string } }).person : null;
-        this.tooltip?.show(person ? `${person.name || "Someone"}${person.cls === "CStar" ? " (star)" : person.cls === "CWannabe" ? " (wannabe)" : ""}` : null);
+        this.tooltip?.show(!this.dragger?.active && person ? `${person.name || "Someone"}${person.cls === "CStar" ? " (star)" : person.cls === "CWannabe" ? " (wannabe)" : ""}` : null);
+        if (!this.dragger?.active) this.canvas.style.cursor = person ? "grab" : "";
       }
     }
     if (at) {
@@ -406,6 +420,22 @@ export class GameView implements Screen {
     });
     const shown = this.reveal.update(dt, candidates);
     this.setHovered(shown ? this.buildings.find((b) => b.meta.key === shown)?.meta ?? null : null);
+  }
+
+  /** The dragger for the people of this world: it needs the ground under the cursor, the camera handed over, and a rule for where a drop is allowed. */
+  private makeDragger(scene: Scene): PersonDragger {
+    return new PersonDragger(scene, this.canvas, {
+      groundPoint: (px, py) => this.groundPoint(px, py),
+      scale: () => (this.engine ? this.engine.getRenderWidth() / window.innerWidth : 1),
+      suspendCamera: () => { if (this.mode === "default") this.orbit?.detachControl(); },
+      resumeCamera: () => { if (this.mode === "default") this.orbit?.attachControl(this.canvas, true); },
+      // [guess] CanDropHere (orig 0x0053A560) is about rooms and held objects; with neither, anywhere on the ground the world draws is allowed
+      canDrop: (x, z) => x >= -192 && x <= 192 && z >= -128 && z <= 256,
+      dropped: (id, x, z) => {
+        const entry = this.world?.people.find((p) => p.person.id === id);
+        if (entry) { entry.person.position = [x, z, entry.person.position[2]]; this.lastClick = { object: `${entry.person.name} put down`, position: `${x.toFixed(1)}, ${z.toFixed(1)}` }; }
+      },
+    });
   }
 
   /** Where the ray through a canvas pixel meets the ground (scene y = 0), or null when it points at the sky. */
