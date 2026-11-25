@@ -2,7 +2,9 @@
   --bg: #0b0b10;
   --fg: #f2ead8;
   --accent: #e0a526;
-  --muted: #7d7a70;
+  --muted: #a9a698; /* lifted for contrast on the dark panels */
+  --panel: rgba(11, 11, 16, 0.95);
+  --edge: #55556a;
   font-family: "Georgia", "Times New Roman", serif;
 }
 * { box-sizing: border-box; }
@@ -37,13 +39,13 @@ body[data-screen="game"] #game-canvas, body[data-screen="viewer"] #game-canvas {
 .menu ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.75rem; min-width: 18rem; }
 .menu button {
   width: 100%; padding: 0.9rem 1.5rem; font: inherit; font-size: 1.1rem; letter-spacing: 0.1em;
-  color: var(--fg); background: transparent; border: 1px solid #3a3a48; cursor: pointer;
+  color: var(--fg); background: transparent; border: 1px solid var(--edge); cursor: pointer;
   text-align: left; transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
 .menu button:hover:not(:disabled), .menu button:focus-visible { border-color: var(--accent); color: var(--accent); background: rgba(224, 165, 38, 0.06); outline: none; }
-.menu button:disabled { color: var(--muted); border-color: #25252f; cursor: not-allowed; }
-.menu .footer { position: absolute; bottom: 1.5rem; color: var(--muted); font-size: 0.75rem; letter-spacing: 0.1em; display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }
-.menu ul button small { display: block; max-width: 18rem; margin-top: 0.25rem; font-size: 0.75rem; letter-spacing: 0.04em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.menu button:disabled { color: #8a877b; border-color: #33333f; cursor: not-allowed; }
+.menu .footer { position: absolute; bottom: 1.5rem; color: var(--muted); font-size: 0.85rem; letter-spacing: 0.1em; display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }
+.menu ul button small { display: block; max-width: 18rem; margin-top: 0.25rem; font-size: 0.85rem; letter-spacing: 0.04em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .menu .footer .linkbutton { width: auto; display: inline; padding: 0; border: none; background: none; font-size: inherit; letter-spacing: inherit; color: var(--accent); text-decoration: underline; }
 .menu .footer .linkbutton:hover, .menu .footer .linkbutton:focus-visible { background: none; }
 .menu.dropping { outline: 2px dashed var(--accent); outline-offset: -12px; }
@@ -52,7 +54,7 @@ body[data-screen="game"] #game-canvas, body[data-screen="viewer"] #game-canvas {
 .load .loadbox { width: min(44rem, 92vw); display: flex; flex-direction: column; gap: 0.9rem; }
 .load .note { color: var(--muted); font-size: 0.9rem; margin: 0 0 0.5rem; }
 .load .row { display: flex; align-items: center; gap: 1rem; border: 1px solid #25252f; padding: 0.75rem 1rem; }
-.load .row input { flex: 1; font: inherit; color: var(--fg); background: #14141c; border: 1px solid #3a3a48; padding: 0.4rem 0.6rem; }
+.load .row input { flex: 1; font: inherit; color: var(--fg); background: #14141c; border: 1px solid var(--edge); padding: 0.4rem 0.6rem; }
 .load .row span { width: 8rem; letter-spacing: 0.08em; }
 .load .row em { flex: 1; color: var(--muted); font-style: normal; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .load .row button { width: auto; padding: 0.5rem 1rem; font-size: 0.9rem; }
@@ -64,38 +66,38 @@ body[data-screen="game"] #game-canvas, body[data-screen="viewer"] #game-canvas {
 .load .saves button.save { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 1rem; padding: 0.6rem 1rem; font-size: 0.95rem; letter-spacing: 0.04em; }
 .load .saves button.save b { font-weight: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .load .saves button.save span { color: var(--muted); font-size: 0.85rem; text-align: right; }
-.load .saves button.save small { grid-column: 1 / -1; color: var(--muted); font-size: 0.72rem; }
+.load .saves button.save small { grid-column: 1 / -1; color: var(--muted); font-size: 0.8rem; }
 .load .saves button.save.selected { border-color: var(--accent); background: rgba(224, 165, 38, 0.1); }
 .load .saves button.save.selected b { color: var(--accent); }
-.load .note.empty { border: 1px dashed #3a3a48; padding: 1rem; margin: 0; }
+.load .note.empty { border: 1px dashed var(--edge); padding: 1rem; margin: 0; }
 .load .hints { color: var(--muted); font-size: 0.85rem; }
 .load .hints summary { cursor: pointer; color: var(--fg); }
 .load .hints ul { margin: 0.5rem 0 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
 .load .hints code, .load .hints kbd { font-family: ui-monospace, monospace; font-size: 0.8rem; color: var(--fg); }
 
 /* Game view overlays: the menu bar fixed to the top and the dev menu at the bottom right. Plain DOM above the canvas. */
-.hud { position: fixed; inset: 0; pointer-events: none; display: none; z-index: 5; font-family: system-ui, sans-serif; font-size: 12px; }
+.hud { position: fixed; inset: 0; pointer-events: none; display: none; z-index: 5; font-family: system-ui, sans-serif; font-size: 14px; line-height: 1.4; }
 body[data-screen="game"] .hud { display: block; }
 .menubar {
-  position: absolute; top: 0; left: 0; right: 0; height: 32px; display: flex; align-items: center; gap: 12px; padding: 0 10px;
-  background: rgba(11, 11, 16, 0.88); border-bottom: 1px solid #3a3a48; color: var(--fg); pointer-events: auto;
+  position: absolute; top: 0; left: 0; right: 0; height: 36px; display: flex; align-items: center; gap: 12px; padding: 0 10px;
+  background: var(--panel); border-bottom: 1px solid var(--edge); color: var(--fg); pointer-events: auto;
 }
-.menubar .brand { letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); font-size: 11px; }
+.menubar .brand { letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); font-size: 12px; font-weight: 600; }
 .menubar .toolbar { flex: 1; display: flex; align-items: center; gap: 6px; min-height: 100%; }
 .menubar button, .devmenu button {
-  font: inherit; color: var(--fg); background: transparent; border: 1px solid #3a3a48; padding: 3px 9px; cursor: pointer;
+  font: inherit; color: var(--fg); background: transparent; border: 1px solid var(--edge); padding: 4px 11px; cursor: pointer;
 }
 .menubar button:hover, .devmenu button:hover { border-color: var(--accent); color: var(--accent); }
 .menubar kbd { font: inherit; color: var(--muted); margin-left: 4px; }
 .devmenu {
-  position: absolute; right: 8px; bottom: 8px; width: 270px; max-height: calc(100vh - 56px); overflow: auto; pointer-events: auto;
-  background: rgba(11, 11, 16, 0.88); border: 1px solid #3a3a48; color: var(--fg); font-variant-numeric: tabular-nums;
+  position: absolute; right: 8px; bottom: 8px; width: 300px; max-height: calc(100vh - 56px); overflow: auto; pointer-events: auto;
+  background: var(--panel); border: 1px solid var(--edge); color: var(--fg); font-variant-numeric: tabular-nums;
 }
-.devmenu header { display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-bottom: 1px solid #25252f; color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase; font-size: 11px; }
+.devmenu header { display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-bottom: 1px solid #25252f; color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase; font-size: 12px; }
 .devmenu.collapsed .body { display: none; }
 .devmenu section { padding: 4px 8px 6px; border-bottom: 1px solid #1c1c25; }
-.devmenu h4 { margin: 2px 0 4px; font-weight: normal; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; font-size: 10px; }
-.devmenu label { display: block; padding: 1px 0; cursor: pointer; }
+.devmenu h4 { margin: 2px 0 4px; font-weight: normal; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; font-size: 11px; }
+.devmenu label { display: block; padding: 2px 0; cursor: pointer; }
 .devmenu .row { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; }
 .devmenu .row .k { color: var(--muted); }
 .devmenu .row .v { text-align: right; }
@@ -109,7 +111,7 @@ body[data-screen="game"] .hud { display: block; }
 .loading .label { color: var(--muted); margin: 1rem 0 0; font-size: 0.8rem; letter-spacing: 0.1em; min-height: 1.2em; }
 .loading .error { color: #e07070; margin: 1rem 0 0; max-width: 360px; text-align: center; }
 .loading .actions { margin-top: 1.5rem; }
-.loading .actions button { font: inherit; background: none; color: var(--fg); border: 1px solid #3a3a48; padding: 0.5rem 1.2rem; cursor: pointer; }
+.loading .actions button { font: inherit; background: none; color: var(--fg); border: 1px solid var(--edge); padding: 0.5rem 1.2rem; cursor: pointer; }
 .loading .actions button:hover, .loading .actions button:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
 
 /* Game toolbar (in the menu bar): speed buttons, date and cash. */
@@ -122,7 +124,7 @@ body[data-screen="game"] .hud { display: block; }
 .gametoolbar .money { color: #8fd18f; font-variant-numeric: tabular-nums; }
 .gametoolbar { flex: 1; min-width: 0; }
 /* The timeline strip: events sit at the x of their date (sim/ui/TimelineScale.ts); the line marks "now", 128 px in. */
-.gametoolbar .timeline { position: relative; flex: 1; min-width: 200px; height: 22px; border-left: 1px solid #3a3a48; border-right: 1px solid #3a3a48; }
+.gametoolbar .timeline { position: relative; flex: 1; min-width: 200px; height: 22px; border-left: 1px solid var(--edge); border-right: 1px solid var(--edge); }
 .gametoolbar .timeline .now { position: absolute; left: 128px; top: 2px; bottom: 2px; width: 1px; background: var(--accent); }
 .gametoolbar .timeline .tlevent { position: absolute; top: 5px; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: #6fa8dc; }
 .gametoolbar .timeline .tlevent:hover { background: var(--accent); }
@@ -139,19 +141,19 @@ body[data-screen="game"] .hud { display: block; }
 
 /* Staff viewer: left side, under the menu bar. */
 .staffpanel {
-  position: absolute; top: 40px; left: 8px; width: 190px; max-height: calc(100vh - 56px); display: flex; flex-direction: column;
-  background: rgba(11, 11, 16, 0.88); border: 1px solid #3a3a48; color: var(--fg); pointer-events: auto;
+  position: absolute; top: 44px; left: 8px; width: 220px; max-height: calc(100vh - 56px); display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--edge); color: var(--fg); pointer-events: auto;
 }
-.staffpanel header { display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-bottom: 1px solid #25252f; color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase; font-size: 11px; }
+.staffpanel header { display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-bottom: 1px solid #25252f; color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase; font-size: 12px; }
 .staffpanel header b { color: var(--muted); font-weight: normal; margin-left: 4px; }
-.staffpanel header button { font: inherit; color: var(--fg); background: transparent; border: 1px solid #3a3a48; padding: 0 7px; cursor: pointer; }
+.staffpanel header button { font: inherit; color: var(--fg); background: transparent; border: 1px solid var(--edge); padding: 0 7px; cursor: pointer; }
 .staffpanel header button:hover { border-color: var(--accent); color: var(--accent); }
 .staffpanel .body { overflow-y: auto; padding: 2px 0 6px; }
 .staffpanel.collapsed .body { display: none; }
 .staffpanel section { padding: 2px 8px; }
-.staffpanel h4 { margin: 6px 0 2px; font-weight: normal; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; font-size: 10px; }
+.staffpanel h4 { margin: 6px 0 2px; font-weight: normal; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; font-size: 11px; }
 .staffpanel ul { list-style: none; margin: 0; padding: 0; }
-.staffpanel li { padding: 1px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.staffpanel li { padding: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .staffpanel .empty { margin: 8px; color: var(--muted); }
 
 /* Loading-screen gallery (dev). */
@@ -182,37 +184,37 @@ body[data-screen="game"] .devmenu { bottom: 70px; }
 .options legend { color: var(--accent); letter-spacing: 0.15em; text-transform: uppercase; font-size: 0.8rem; padding: 0 0.4rem; }
 .options label { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
 .options label.check { justify-content: flex-start; }
-.options select { font: inherit; color: var(--fg); background: #14141c; border: 1px solid #3a3a48; padding: 0.3rem 0.5rem; min-width: 11rem; }
-.options .hint { margin: 0; color: var(--muted); font-size: 0.8rem; }
+.options select { font: inherit; color: var(--fg); background: #14141c; border: 1px solid var(--edge); padding: 0.3rem 0.5rem; min-width: 11rem; }
+.options .hint { margin: 0; color: var(--muted); font-size: 0.9rem; }
 .options .actions { margin-top: 1.5rem; display: flex; gap: 0.75rem; }
 .options .actions button { width: auto; padding: 0.5rem 1.4rem; font-size: 0.95rem; }
 .fps { position: absolute; top: 38px; right: 8px; padding: 2px 6px; background: rgba(11, 11, 16, 0.75); color: #8fd18f; font-variant-numeric: tabular-nums; pointer-events: none; }
 .fps[hidden] { display: none; }
 
 /* Character viewer: a side panel over the canvas (the screen is not full-window, so the 3D view stays usable). */
-.screen.viewer { inset: 10px auto 10px 10px; width: 300px; align-items: stretch; justify-content: flex-start; padding: 10px 12px; background: rgba(11, 11, 16, 0.88); border: 1px solid #3a3a48; overflow-y: auto; font-size: 13px; }
-.viewer h3 { margin: 0 0 6px; font-weight: normal; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); font-size: 13px; }
-.viewer .note, .viewer .info { color: var(--muted); font-size: 12px; margin: 0 0 8px; }
+.screen.viewer { inset: 10px auto 10px 10px; width: 300px; align-items: stretch; justify-content: flex-start; padding: 10px 12px; background: var(--panel); border: 1px solid var(--edge); overflow-y: auto; font-size: 14px; }
+.viewer h3 { margin: 0 0 6px; font-weight: normal; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); font-size: 14px; }
+.viewer .note, .viewer .info { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
 .viewer .controls[hidden] { display: none; }
 .viewer label { display: block; margin: 4px 0; }
 .viewer label.check { display: flex; align-items: center; gap: 6px; }
-.viewer select, .viewer input[type=range], .viewer input[type=search], .viewer input[type=file] { width: 100%; font: inherit; color: var(--fg); background: #14141c; border: 1px solid #3a3a48; padding: 2px 4px; }
-.viewer output { color: var(--muted); font-size: 12px; }
+.viewer select, .viewer input[type=range], .viewer input[type=search], .viewer input[type=file] { width: 100%; font: inherit; color: var(--fg); background: #14141c; border: 1px solid var(--edge); padding: 2px 4px; }
+.viewer output { color: var(--muted); font-size: 13px; }
 .viewer .pick { margin: 4px 0; }
 .viewer .pick-head { display: flex; justify-content: space-between; }
 .viewer .stepper { display: flex; gap: 3px; }
 .viewer .stepper select { flex: 1; min-width: 0; }
 .viewer .stepper select:focus { outline: 1px solid var(--accent); }
-.viewer .stepper button { font: inherit; color: var(--fg); background: #14141c; border: 1px solid #3a3a48; padding: 0 7px; cursor: pointer; }
+.viewer .stepper button { font: inherit; color: var(--fg); background: #14141c; border: 1px solid var(--edge); padding: 0 7px; cursor: pointer; }
 .viewer .stepper button:hover { border-color: var(--accent); color: var(--accent); }
-.viewer details { margin-top: 8px; color: var(--muted); font-size: 12px; }
+.viewer details { margin-top: 8px; color: var(--muted); font-size: 13px; }
 .viewer summary { cursor: pointer; }
 .viewer .keys { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 6px 0 0; }
 .viewer .keys dt { color: var(--fg); white-space: nowrap; }
 .viewer .keys dd { margin: 0; }
 .viewer hr { border: none; border-top: 1px solid #25252f; margin: 8px 0; }
 .viewer .actions { margin-top: 10px; }
-.viewer .actions button { font: inherit; color: var(--fg); background: transparent; border: 1px solid #3a3a48; padding: 4px 14px; cursor: pointer; }
+.viewer .actions button { font: inherit; color: var(--fg); background: transparent; border: 1px solid var(--edge); padding: 4px 14px; cursor: pointer; }
 .viewer .actions button:hover { border-color: var(--accent); color: var(--accent); }
 
 /* Loading screen in the original's layout: the picture, a tip in its speech-bubble box, our progress bar under the tip. */
@@ -220,16 +222,16 @@ body[data-screen="game"] .devmenu { bottom: 70px; }
 .loadpic { position: relative; width: min(100vw, 100vh); height: min(100vw, 100vh); container-type: size; }
 .loadpic[hidden] { display: none; }
 .loadpic .picture { position: absolute; inset: 0; width: 100%; height: 100%; }
-.loadbox { position: absolute; display: flex; flex-direction: column; justify-content: space-between; padding: 3.2cqw 4.2cqw 2.4cqw; color: #000; font-family: "Georgia", "Times New Roman", serif; }
-.loadbox .tip h3 { margin: 0 0 1.2cqw; text-align: center; font-size: calc(3cqw * var(--ts, 1)); font-weight: bold; color: var(--heading, #17223a); }
-.loadbox .tip p { margin: 0; font-size: calc(2.35cqw * var(--ts, 1)); line-height: 1.3; white-space: pre-line; color: var(--body, #000); }
-.loadbox .loadprogress { display: flex; flex-direction: column; align-items: center; gap: 0.6cqw; }
-.loadbox .progress { width: 100%; height: 1.6cqw; min-height: 6px; border-color: #5d6f93; background: rgba(255, 255, 255, 0.45); }
-.loadbox .fill { background: #b3262e; }
-.loadbox .label { margin: 0; color: #2b3650; font-size: 1.8cqw; min-height: 1.3em; letter-spacing: 0.04em; }
-.loadbox .error { color: #8a1a1a; margin: 0; max-width: none; font-size: 2.2cqw; }
-.loadbox .actions { margin: 0.8cqw 0 0; text-align: center; }
-.loadbox .actions button { color: #17223a; border-color: #5d6f93; font-size: 2cqw; }
+.loadpic .loadbox { position: absolute; display: flex; flex-direction: column; justify-content: space-between; padding: 3.2cqw 4.2cqw 2.4cqw; color: #000; font-family: "Georgia", "Times New Roman", serif; }
+.loadpic .loadbox .tip h3 { margin: 0 0 1.2cqw; text-align: center; font-size: calc(3cqw * var(--ts, 1)); font-weight: bold; color: var(--heading, #17223a); }
+.loadpic .loadbox .tip p { margin: 0; font-size: calc(2.35cqw * var(--ts, 1)); line-height: 1.3; white-space: pre-line; color: var(--body, #000); }
+.loadpic .loadbox .loadprogress { display: flex; flex-direction: column; align-items: center; gap: 0.6cqw; }
+.loadpic .loadbox .progress { width: 100%; height: 1.6cqw; min-height: 6px; border-color: #5d6f93; background: rgba(255, 255, 255, 0.45); }
+.loadpic .loadbox .fill { background: #b3262e; }
+.loadpic .loadbox .label { margin: 0; color: #2b3650; font-size: 1.8cqw; min-height: 1.3em; letter-spacing: 0.04em; }
+.loadpic .loadbox .error { color: #8a1a1a; margin: 0; max-width: none; font-size: 2.2cqw; }
+.loadpic .loadbox .actions { margin: 0.8cqw 0 0; text-align: center; }
+.loadpic .loadbox .actions button { color: #17223a; border-color: #5d6f93; font-size: 2cqw; }
 
 /* Dev menu: collapsible sections and sliders. */
 .devmenu h4[data-collapsible] { cursor: pointer; user-select: none; }
@@ -250,28 +252,28 @@ body[data-screen="game"] .devmenu { bottom: 70px; }
 .gallery .lab { position: fixed; inset: 0; z-index: 2; background: #050507; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .gallery .lab[hidden] { display: none; }
 .gallery .lab .stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-.gallery .lab .panel { position: absolute; top: 10px; right: 10px; bottom: 10px; width: 300px; overflow-y: auto; padding: 8px 12px; background: rgba(11, 11, 16, 0.92); border: 1px solid #3a3a48; font-size: 13px; }
+.gallery .lab .panel { position: absolute; top: 10px; right: 10px; bottom: 10px; width: 320px; overflow-y: auto; padding: 8px 12px; background: var(--panel); border: 1px solid var(--edge); font-size: 14px; }
 .gallery .lab section { border-bottom: 1px solid #25252f; padding: 4px 0 8px; }
-.gallery .lab h4 { margin: 4px 0 6px; font-weight: normal; letter-spacing: 0.1em; text-transform: uppercase; font-size: 11px; color: var(--accent); cursor: pointer; }
+.gallery .lab h4 { margin: 4px 0 6px; font-weight: normal; letter-spacing: 0.1em; text-transform: uppercase; font-size: 12px; color: var(--accent); cursor: pointer; }
 .gallery .lab section.closed > :not(h4) { display: none; }
 .gallery .lab label { display: block; margin: 4px 0; }
 .gallery .lab label.check { display: flex; align-items: center; gap: 6px; }
 .gallery .lab label.slider { display: grid; grid-template-columns: 1fr auto; column-gap: 8px; }
 .gallery .lab label.slider input { grid-column: 1 / -1; }
-.gallery .lab select, .gallery .lab input[type=text] { width: 100%; font: inherit; color: var(--fg); background: #14141c; border: 1px solid #3a3a48; padding: 2px 4px; }
+.gallery .lab select, .gallery .lab input[type=text] { width: 100%; font: inherit; color: var(--fg); background: #14141c; border: 1px solid var(--edge); padding: 2px 4px; }
 .gallery .lab input[type=range] { width: 100%; }
-.gallery .lab output, .gallery .lab .info { color: var(--muted); font-size: 12px; margin: 0 0 4px; }
+.gallery .lab output, .gallery .lab .info { color: var(--muted); font-size: 13px; margin: 0 0 4px; }
 .gallery .lab .buttons { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
-.gallery .lab button { width: auto; padding: 4px 10px; font-size: 12px; }
+.gallery .lab button { width: auto; padding: 5px 11px; font-size: 13px; }
 
 /* Pause menu, and a screen shown over the running game. */
 .pausemenu { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; background: rgba(5, 5, 8, 0.55); pointer-events: auto; }
 .pausemenu[hidden] { display: none; }
-.pausemenu .box { min-width: 16rem; padding: 1.4rem 1.6rem; background: rgba(11, 11, 16, 0.95); border: 1px solid #3a3a48; display: flex; flex-direction: column; gap: 0.6rem; font-family: var(--font, Georgia, serif); }
+.pausemenu .box { min-width: 16rem; padding: 1.4rem 1.6rem; background: rgba(11, 11, 16, 0.95); border: 1px solid var(--edge); display: flex; flex-direction: column; gap: 0.6rem; font-family: var(--font, Georgia, serif); }
 .pausemenu h2 { margin: 0 0 0.5rem; font-weight: normal; letter-spacing: 0.2em; text-transform: uppercase; font-size: 1.3rem; text-align: center; }
-.pausemenu button { padding: 0.7rem 1rem; font: inherit; font-size: 1rem; letter-spacing: 0.08em; color: var(--fg); background: transparent; border: 1px solid #3a3a48; cursor: pointer; text-align: left; }
+.pausemenu button { padding: 0.7rem 1rem; font: inherit; font-size: 1rem; letter-spacing: 0.08em; color: var(--fg); background: transparent; border: 1px solid var(--edge); cursor: pointer; text-align: left; }
 .pausemenu button:hover, .pausemenu button:focus-visible { border-color: var(--accent); color: var(--accent); background: rgba(224, 165, 38, 0.06); outline: none; }
-.pausemenu .hint { margin: 0.4rem 0 0; color: var(--muted); font-size: 0.75rem; }
+.pausemenu .hint { margin: 0.4rem 0 0; color: var(--muted); font-size: 0.85rem; }
 .screen.overlay { background: rgba(5, 5, 8, 0.88); }
 
 /* The loading view's layers: background modes, the cut-out logo and the 3D character canvas (both under the text box). */
@@ -287,3 +289,6 @@ body[data-screen="game"] .devmenu { bottom: 70px; }
 .devmenu canvas.shadowview { width: 100%; image-rendering: pixelated; background: #000; margin-top: 4px; }
 .devmenu canvas.shadowview[hidden] { display: none; }
 .devmenu button { margin-top: 4px; }
+
+/* Legibility: text over the 3D view gets a faint shadow, and borders on panels are brighter than the old #3a3a48. */
+.menubar, .devmenu, .staffpanel, .fps { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8); }
