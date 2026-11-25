@@ -9,7 +9,7 @@ import { firstAnimation, parseFlm } from "../formats/Flm.ts";
 import { parseFloorplanRevealing, type RevealRules } from "../sim/ui/FloorplanReveal.ts";
 import { parseSeq } from "../formats/Seq.ts";
 import { FALLBACK_CLIP, type AnimationPlan } from "../sim/anim/PersonAnimation.ts";
-import { defaultGaits, gaitClipFile, parseGaitIni } from "../sim/anim/Gaits.ts";
+import { TURN_IDS, defaultGaits, gaitClipFile, parseGaitIni, turnSeconds } from "../sim/anim/Gaits.ts";
 import { NavGrid, type Point } from "../sim/nav/NavGrid.ts";
 import { loadPropData } from "./Props.ts";
 import type { PropExplainer } from "../sim/ai/Explainers.ts";
@@ -105,8 +105,23 @@ async function loadGaits(
     if (j !== undefined) { speeds[i] = speeds[j]!; files[i] = files[j]!; }
     else speeds[i] = [0.9, 1.67, 3.16][i]!;
   }
-  return { files, speeds };
+  // the turn clips, for the turns on the spot (the same six for everyone); one that cannot be loaded is left out and that turn just plays the standing clip
+  const turns = new Map<number, string>();
+  let turnLength = 0.7;
+  for (const id of TURN_IDS) {
+    const file = (ini && gaitClipFile(ini, id)) || TURN_FALLBACK[id - TURN_IDS[0]]!;
+    let c = clips.get(file);
+    if (!c) {
+      const loaded = await clip(file);
+      if (loaded && clipFits(skeleton, loaded)) { clips.set(file, loaded); c = loaded; }
+    }
+    if (c) { turns.set(id, file); turnLength = turnSeconds(c); }
+  }
+  return { files, speeds, turns, turnSeconds: turnLength };
 }
+
+/** The turn clips' file names if `gait.ini` is missing (`A_TURN_POS_10`, `_22`, `_45`, `A_TURN_NEG_10`, `_22`, `_45`). */
+const TURN_FALLBACK = ["stand_rot_p10.anm", "stand_rot_p22.anm", "stand_rot_p45.anm", "stand_rot_n10.anm", "stand_rot_n22.anm", "stand_rot_n45.anm"];
 
 /**
  * The walking grid: the lot's rectangle is walkable except where a placed model's footprint (`b15_02`, the polygon the placement code keeps clear, `SAVE_FORMAT.md`) lies, turned by
@@ -448,7 +463,11 @@ export interface PersonInWorld {
   plan: AnimationPlan | null;
   clips: Map<string, Anm>;
   /** The clip files of the person's stroll, walk and run gaits (loaded into `clips`) and how fast each moves them, in units per second. */
-  gaits: { files: [string, string, string]; speeds: [number, number, number] };
+  gaits: {
+    files: [string, string, string]; speeds: [number, number, number];
+    /** The turn-on-the-spot clips by animation id (35 to 40, `A_TURN_POS_10` to `A_TURN_NEG_45`; loaded into `clips`) and how long a turn takes, seconds. */
+    turns: Map<number, string>; turnSeconds: number;
+  };
   /** Free to wander: not busy in a room (outside, or in a room with no scene). */
   outdoors: boolean;
 }

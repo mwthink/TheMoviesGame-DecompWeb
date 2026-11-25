@@ -237,6 +237,7 @@ function buildPeople(scene: Scene, people: PersonInWorld[], nav: NavGrid | null,
     nodes.push(meshes.node);
     if (entry.plan && meshes.hasSkin) {
       const walker = new PersonWalker(person.position[0], person.position[1], person.angle, entry.gaits.speeds);
+      walker.turnSeconds = entry.gaits.turnSeconds;
       const female = (person.costume?.cos ?? "").toLowerCase().startsWith("f_"); // as the gait lookup tells the sexes apart
       // the body the desire agent drives: walks by the shortest clear route at a stroll, turns on the spot
       const actor: Actor = {
@@ -275,7 +276,9 @@ function buildPeople(scene: Scene, people: PersonInWorld[], nav: NavGrid | null,
         entry.person.position = [walker.x, walker.y, entry.person.position[2]];
       }
       // the gait clip while on the way, the room plan otherwise
-      animator.setOverride(walker.moving ? entry.gaits.files[walker.gait] : null);
+      // a turn on the spot plays its turn clip (chosen once from the whole turn), a walk its gait clip, otherwise the room plan
+      const turnFile = walker.turnClip !== null ? entry.gaits.turns.get(walker.turnClip) : undefined;
+      animator.setOverride(turnFile ?? (walker.moving ? entry.gaits.files[walker.gait] : null));
       // a person outside the camera's view keeps their clock running but is not re-skinned (the mesh is posed again the first frame it is seen)
       // and one far from the camera is re-posed less often (they are a few pixels tall; skinning is the cost of a crowded view)
       const planes = scene.frustumPlanes;

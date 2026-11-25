@@ -55,15 +55,29 @@ export function locomotionForUrgency(urgency: number): Locomotion {
 }
 
 /**
- * The animation id of the turn-on-the-spot clip for a heading change, `TMCharacter_PlayTurnAnimation` (orig 0x00447AE0). `delta` is the current heading minus the target heading,
- * wrapped to (-pi, pi]. Under 5 degrees no clip plays; 5 to 12 degrees the 10-degree clip, 12 to 36 the 22-degree clip, above that the 45-degree clip; a delta that is zero or
- * negative uses the `A_TURN_NEG_*` clips (ids 38 to 40) and a positive one the `A_TURN_POS_*` ones (35 to 37).
+ * The animation id of the turn-on-the-spot clip for a turn, `TMCharacter_PlayTurnAnimation` (orig 0x00447AE0). `diff` is the target heading minus the heading the turn started from,
+ * wrapped to (-pi, pi] (the game keeps the start heading at `+0x47C` and the target at `+0x478`, so the clip is chosen once for the whole turn). Under 5 degrees no clip plays; 5 to
+ * 12 degrees the 10-degree clip, 12 to 36 the 22-degree clip, above that the 45-degree clip. A positive diff (counter-clockwise seen from above) uses the `A_TURN_POS_*` clips (ids 35 to
+ * 37), zero or negative the `A_TURN_NEG_*` ones (38 to 40). [read] (An earlier version of this function took current minus target and had the two sides swapped.)
  */
-export function turnClipId(delta: number): number | null {
-  const deg = Math.abs(delta) * (180 / Math.PI);
+export function turnClipId(diff: number): number | null {
+  const deg = Math.abs(diff) * (180 / Math.PI);
   if (deg < 5) return null;
   const size = deg >= 36 ? 2 : deg >= 12 ? 1 : 0;
-  return (delta <= 0 ? 38 : 35) + size;
+  return (diff <= 0 ? 38 : 35) + size;
+}
+
+/** The ids of the six turn clips (`A_TURN_POS_10` to `A_TURN_NEG_45`). */
+export const TURN_IDS = [35, 36, 37, 38, 39, 40] as const;
+
+/**
+ * How long a turn on the spot lasts, in seconds: `StateTurning_Update` (orig 0x00429640) divides the time since the turn began by `frames * 100 ms`, where `frames` is the clip's stored
+ * frame count, or `(n - 1) / 3 + 1` when the clip's flag bit 1 is set (`FUN_00429570`); the heading moves linearly from start to target over that. All six turn clips have 19 frames
+ * and flag 3, so 7 frames: 0.7 s. [read] The clip itself is 0.6 s (`anmDurationMs`) and ends on its first pose.
+ */
+export function turnSeconds(clip: { nFrames: number; flags: number }): number {
+  const frames = clip.flags & 2 ? Math.trunc((clip.nFrames - 1) / 3) + 1 : clip.nFrames;
+  return (frames * 100) / 1000;
 }
 
 /** The id of `A_IDLE`. */
