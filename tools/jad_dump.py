@@ -585,7 +585,7 @@ def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None,
                 c00, c10 = vertex_colour(ix, iy, samples), vertex_colour(ix + 1, iy, samples)
                 c01, c11 = vertex_colour(ix, iy + 1, samples), vertex_colour(ix + 1, iy + 1, samples)
                 col = tuple(int((c00[j] * (1 - tx) + c10[j] * tx) * (1 - ty) + (c01[j] * (1 - tx) + c11[j] * tx) * ty) for j in range(3))
-                gx = round(fx)
+                gx, gy = math.floor(fx), math.floor(fy)   # a path cell spans vertex g to g + 1 (FUN_009e16b0), unlike the rounded placement-grid cell
                 if paths and sidewalk in gtex and is_path(gx, gy):
                     sw, sh, spx = gtex[sidewalk]
                     col = spx[(int(wy / path_tile * sh) % sh) * sw + int(wx / path_tile * sw) % sw][:3]
@@ -603,7 +603,7 @@ def show_terrain(p, path, occupancy=False, footprints=None, crop=None, ppu=None,
                 i = gx * 256 + gy
                 if occupancy and occ[i >> 3] >> (i & 7) & 1:
                     col = tuple(int(c * 0.4 + t * 0.6) for c, t in zip(col, (230, 40, 40)))
-            if paths and is_path(gx, gy):
+            if paths and is_path(math.floor((x0 + (xx + 0.5) / k + 256) / 2), math.floor((wy + 256) / 2)):
                 col = LAND_COLORS["sidew"]
             o = (yy * W + xx) * 3
             px[o:o + 3] = bytes(col)

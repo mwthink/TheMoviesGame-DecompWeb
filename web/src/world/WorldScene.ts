@@ -18,9 +18,19 @@ import type { MeshAsset, TerrainData, WorldData } from "./WorldData.ts";
  * Mapping game (x, y, z) to Babylon (x, z, y) keeps the same top-down picture; being a mirror, it reverses triangle winding.
  */
 
-/** Ground texture size in world units (assumed 12 from the texture-matrix constant 1/12, docs/SAVE_FORMAT.md) and the sidewalk's (2, one path cell). */
+/**
+ * Ground texture size in world units: the draw routine at 0x9e6360 scales the texture matrix by 1/12 for the ground passes (0x3daaaaab) and by 1/4 for the
+ * sidewalk pass (0x3e800000), so one tile is 12 units of ground and 4 units of sidewalk.
+ */
 const GROUND_TILE = 12;
-const PATH_TILE = 2;
+const PATH_TILE = 4;
+
+/**
+ * The part of the terrain the game draws. The terrain is 8 x 8 chunks of 64 units; `FUN_009e2950` (called for every chunk when the terrain is loaded) clears
+ * the "enabled" flag of chunks with x index 0 or 7 and y index below 2, and the draw routine skips chunks without it. Chunk i covers -256 + 64 i, so the
+ * game draws x -192 to 192 and y -128 to 256 and nothing else. (The city boundary objects of outsidelot_high.rob stand at x = +-192.)
+ */
+const TERRAIN = { minX: -192, maxX: 192, minZ: -128, maxZ: 256 };
 
 /** Textures the game uses for reflections, the sky and lightmaps are not drawn as diffuse surfaces yet. */
 const NOT_DIFFUSE = ["refl", "envmap", "gen_", "lm_"];
@@ -42,10 +52,12 @@ function makeTexture(scene: Scene, img: Rgba, opts: { mips?: boolean; filter?: n
 const white: Rgba = { width: 1, height: 1, data: new Uint8Array([255, 255, 255, 255]) };
 
 function buildTerrain(scene: Scene, t: TerrainData): Mesh {
-  const ground = CreateGround("terrain", { width: 512, height: 512, subdivisions: 1 }, scene);
+  const ground = CreateGround("terrain", { width: TERRAIN.maxX - TERRAIN.minX, height: TERRAIN.maxZ - TERRAIN.minZ, subdivisions: 1 }, scene);
+  ground.position.set((TERRAIN.minX + TERRAIN.maxX) / 2, 0, (TERRAIN.minZ + TERRAIN.maxZ) / 2);
+  ground.bakeCurrentTransformIntoVertices(); // the shader reads world x, z from the vertex positions
   const mat = new ShaderMaterial("terrain", scene, "otmTerrain", {
     attributes: ["position"],
-    uniforms: ["worldViewProjection", "tileSize", "pathTileSize"],
+    uniforms: ["worldViewProjection", "tileSize", "pathTileSize", "pathOn"],
     samplers: ["ground0", "ground1", "ground2", "ground3", "ground4", "ground5", "ground6", "ground7", "weightsA", "weightsB", "pathMask", "sidewalk"],
   });
   for (let i = 0; i < 8; i++) mat.setTexture(`ground${i}`, makeTexture(scene, t.groundTextures[i] ?? white));
@@ -64,6 +76,7 @@ function buildTerrain(scene: Scene, t: TerrainData): Mesh {
   mat.setTexture("sidewalk", makeTexture(scene, t.groundTextures[t.sidewalk] ?? white));
   mat.setFloat("tileSize", GROUND_TILE);
   mat.setFloat("pathTileSize", PATH_TILE);
+  mat.setFloat("pathOn", 1);
   // Models have ground patches lying exactly at height 0 (the gatehouse's, the gate's base): the same depth as the terrain, which flickers
   // as the camera moves. Push the terrain slightly back in depth so anything lying on it always wins.
   mat.zOffset = 2;
@@ -161,17 +174,18 @@ export function buildWorld(scene: Scene, canvas: HTMLCanvasElement, world: World
 
   // Frame the lot and its facilities: the centre of their positions, seen from the road side (south), looking north.
   const framed: [number, number][] = [];
-  for (const { asset, mesh } of world.placements) {
+  for (const { asset, mesh, scale } of world.placements) {
     const [x, y, z] = asset.position;
     for (const [i, source] of sources.get(mesh)!.entries()) {
       const inst = source.createInstance(`${asset.source}#${asset.id}/${i}`);
       // The lot's z is 0 in the fresh-studio save but 1000 in the Quick Start saves (what it means is unknown); its meshes belong on the ground either way.
       inst.position.set(x, asset.cls === "CLot" ? 0 : z, y);
+      if (scale && scale !== 1) inst.scaling.setAll(scale);
       inst.rotation.y = -asset.angle; // counter-clockwise seen from above in the game = this in the mirrored space
       inst.isPickable = false;
       inst.freezeWorldMatrix(); // placed objects do not move
     }
-    if (asset.cls === "CLot" || asset.source.startsWith("facility/")) framed.push([x, y]);
+    if (asset.cls === "CLot" || asset.source === "outside/lot_gate" || asset.source.startsWith("facility/")) framed.push([x, y]);
   }
   let cx = 0, cy = 0;
   for (const [x, y] of framed) { cx += x; cy += y; }

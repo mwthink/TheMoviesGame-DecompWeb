@@ -153,7 +153,18 @@ const QS = (() => {
 test("a Quick Start save loads completely: every model and texture found, models shared between placements", { skip: haveGame && QS ? false : "needs the game archives and a Quick Start save" }, async () => {
   const { loadWorldData } = await import("../src/world/WorldData.ts");
   const world = await loadWorldData(await pakIndex(), parseSave(new Uint8Array(await readFile(QS!))));
-  assert.deepEqual(world.warnings, []);
-  assert.equal(world.placements.length, 284 + 52); // everything but the lot, plus its fence: 50 walls, a corner post and the gate
-  assert.ok(world.meshes.length < 60, `${world.meshes.length} distinct meshes`); // 285 placements share about 50 models
+  // the only gaps: two distant-tree names in the outside-the-lot scenery (osl_*) that have no ini or mesh of that name
+  assert.deepEqual(world.warnings, ["outside the lot: no model for osl_palmtree_02", "outside the lot: no model for osl_generaltree_01"]);
+  assert.equal(world.placements.filter((p) => p.asset.cls === "LotScenery").length, 322); // the lot's fence, gate, road markings and the city, from outsidelot_high.rob
+  assert.equal(world.placements.length, 284 + 322);
+  assert.ok(world.meshes.length < 110, `${world.meshes.length} distinct meshes`); // 606 placements share about 100 models
+});
+
+test("rob: scenery lines are integer thousandths, repeats are dropped", async () => {
+  const { parseRob } = await import("../src/formats/Rob.ts");
+  const text = "[lot_wallcorner]  [-165350 2200 0]  [0]  [1000]  \r\n[p_palm_tree02]  [10500 -20250 0]  [-2869]  [650]  \r\n[lot_wallcorner]  [-165350 2200 0]  [0]  [1000]  \r\n";
+  assert.deepEqual(parseRob(text), [
+    { name: "lot_wallcorner", x: -165.35, y: 2.2, z: 0, angle: 0, scale: 1 },
+    { name: "p_palm_tree02", x: 10.5, y: -20.25, z: 0, angle: -2.869, scale: 0.65 },
+  ]);
 });

@@ -98,7 +98,10 @@ Things worth knowing before extending it:
 - **Terrain** (`WorldData.computeSplat`, `shaders.ts`). A flat 512 x 512 quad. The save gives three paint layers per vertex; they are composited into blend
   weights of up to 8 ground textures, stored as two 256 x 256 RGBA8 images (one texel per terrain vertex). The shader interpolates them bilinearly and
   blends the tiled textures. The 8 KB path bitmap becomes a nearest-filtered mask that shows the sidewalk texture on paved cells.
-  Ground textures tile every **12 world units** and the sidewalk every **2** (both from `docs/SAVE_FORMAT.md`; the 12 is assumed, not confirmed).
+  The game draws terrain only inside x -192 to 192, y -128 to 256 (chunk enable flags, `SAVE_FORMAT.md`), so the quad is clipped to that, and the sidewalk tile is 4 units.
+  A path cell (x, y) spans vertex x to x + 1, i.e. world `[2x - 256, 2x - 254]`, and **replaces** the ground paint (the game draws each ground texture only on cells that are not path cells; `SAVE_FORMAT.md`,
+  "Corrections to the path-mask section").
+  Ground textures tile every **12 world units** and the sidewalk every **4** (read from the draw routine's texture-matrix scales, 1/12 and 1/4).
 - **Models** (`WorldData.loadWorldData`, `WorldScene.buildSources`). A model file is loaded and decoded once however many times the save places it
   (`MeshAsset`; a `Placement` points at one), and textures are decoded once per name. In the scene each model has one hidden source mesh per primitive, and every
   placed object is a frozen **hardware instance** of those (the shader includes Babylon's instancing chunks), so a hedge placed 40 times is one draw call per
@@ -107,21 +110,22 @@ Things worth knowing before extending it:
   (Babylon's `RawTexture` clamps by default, and the models' UVs run far outside 0..1).
 - **The lot's height.** The lot's z is 0 in the fresh-studio save but **1000** in all the Quick Start saves (every other object has z 0); the meaning is unknown, so the
   lot's meshes are placed on the ground whatever it says. (With z taken literally the gate floated 1,000 units up and was invisible.)
-- **The lot's fence** (`src/world/Perimeter.ts`, test `perimeter.test.ts`). `lot.ini` names no mesh; the game loads `lot_gate.msh`, `lot_wall_concrete.msh` and
-  `lot_wallcorner.msh` by name (`CLot_LoadPerimeterAssets`) and builds the fence in `CLot_BuildPerimeterWallAndGate` (0x469290). The decompile loses that function's
-  arguments, so the arithmetic comes from its disassembly (`objdump -d -M intel` on `MoviesSE.exe`, which also gave the constants 20.0, 0.5 and 0.05):
-  the lot is `width x depth`: `lot.ini [size]` (tier 2 = 300,224, the constructor's default and what the saves use) snapped to the wall grid by `CLot_LoadSizeTiers`
-  (0x4675f0; `lotSize()`), which gives **313.35 x 220** (the width is the gate gap plus whole 20-unit segments, the depth a whole number of segments; using the ini's raw
-  300 x 224 left the left side one segment short); the gate is at the lot's origin; two
-  anchors, A = (-44.6, 2.2) and B = (28.75, 2.2) (the constructor's defaults at 0x468f2d; they are the ends of the gate mesh, which spans x -45.7 to 28.4), start
-  the front wall, which runs left of A and right of B in 20-unit segments (`round((313.35 - (B.x - A.x) + 0.5) / 20)` = 12, six each side); a side wall of
-  `round((220 + 0.5) / 20)` = 11 segments rises from each end, turned a quarter turn; a corner post sits at the far right; the back wall grows from both ends and a
-  filler closes it if needed. In all: 50 wall segments, 1 corner, 1 gate, spanning x -164.6 to 148.75 and y 2.2 to 222.2. A segment is 20 units long with its origin at its left end (`lot_wall_concrete.msh` spans x 0 to 20).
-  Check: the footprints of everything the Quick Start save places span x -162.1 to 145.9, inside the fence with about 2.5 to 3 units to spare on each side
-  (`set_bombedstreet` on the left, a palm and the research building on the right), which is what the bounds in `CLot_ComputeWorldBoundsFromTier` are for. **Caveats:** A and B are the fields the save calls `SL_CamFoc` and `SL_CamZoo` (the saved
-  camera), which the game also writes at save time, so a loaded game might rebuild the fence from other values; the constructor's defaults give the geometry that fits
-  the terrain, so they are used. The size tier is assumed to be 2 (a lot field that may hold it, tag `1db455c9`, is 2 in every save but is not decoded).
-  The lot's z is 0 in the fresh-studio save but **1000** in the Quick Start saves; its meshes go on the ground whatever it says.
+- **Outside the lot** (`src/formats/Rob.ts`, `WorldData.loadWorldData`). The visible fence, the gate, the road markings and the whole city around the lot are **data**:
+  `data\landscape\outsidelot_high.rob` (and a thinner `_low` one), a text file with one object per line, `[name] [x y z] [angle] [scale]`, all in integer thousandths.
+  The 415 lines (322 after dropping repeats and what the save already places) hold the concrete front wall, the wood side and back walls, corner posts, `lot_gate`,
+  `lot_road_mark` (crosswalks and street markings), the cinema and shops across the road (the `p_debug*` meshes, which are real buildings under a development name), trees
+  (`p_palm_tree02` at scale 0.65 to 0.73), hedges, planters, parking meters, benches, parked cars and street furniture. A name is a blueprint ini (its `mesh` key names the model) or a
+  model's own name. `outsidelot_high.rob` is drawn for every `CLot`; the save's own gatehouse and billboard are not drawn twice. **Not drawn:** `osl_palmtree_02` and
+  `osl_generaltree_01` (36 distant trees: no ini or model of those names; the game treats `osl_` names specially, `osl_treesprite_*` are likely their meshes).
+  `data\city.ini` gives the cinema (46, -44) and the clinic (-36, -50) as gameplay positions (not used for drawing).
+- **The fence the game's code builds** (`src/world/Perimeter.ts`, test `perimeter.test.ts`) is now only a fallback, and probably not what you see in the game: `CLot_BuildPerimeterWallAndGate`
+  (0x469290) creates its wall objects and then calls `Object_RemoveFromScene` on each, then registers their footprints in the placement grid, so they look like invisible
+  collision walls. Its front wall agrees with the .rob to the decimal (concrete segments at x -164.6 to 128.8, y 2.2), which is how both were checked. Its arithmetic, from
+  the disassembly: the lot is `lotSize()` = 313.35 x 220 (`CLot_LoadSizeTiers`, 0x4675f0, snaps `lot.ini [size]` tier 2 = 300,224 to the 20-unit wall grid); two anchors
+  A = (-44.6, 2.2) and B = (28.75, 2.2) (the constructor's defaults, the ends of the gate mesh) start the front wall, which runs 6 segments left of A and 6 right of B; sides
+  of 11 segments, a corner post at the far right, a back wall closed with a filler piece: 50 wall segments, spanning x -164.6 to 148.75 and y 2.2 to 222.2. The footprints of
+  everything the Quick Start save places span x -162.1 to 145.9, inside it. The lot's z is 0 in the fresh-studio save but **1000** in the Quick Start saves; its meshes go on
+  the ground whatever it says. A and B are saved as the camera fields `SL_CamFoc` / `SL_CamZoo`, so a loaded game might rebuild this from other values.
 - **Textures** are found under `data\textures\` (`WorldData.findTexture`): the main folder plus subfolders such as `lightmap\`, `props\`, `backdrops\` and `ui\logos\`;
   same-named thumbnails under `thumbs\` are never picked. DDS images are decoded on the CPU to RGBA and
   uploaded with generated mipmaps, so S3TC support in the GPU or browser is not needed. (Memory: 4 bytes per pixel instead of 0.5 to 1. Fine at this size.)
@@ -129,7 +133,7 @@ Things worth knowing before extending it:
 
 ## Checked
 
-- `npm test` (11 tests): the case-folding hash; the ini reader; the pak index (the patched `facility_gatehouse.ini` comes from the Addon archive, thumbnails are
+- `npm test` (12 tests): the case-folding hash; the ini reader; the pak index (the patched `facility_gatehouse.ini` comes from the Addon archive, thumbnails are
   not picked for textures); DDS decoding of DXT1, DXT3 against `tools/dds.py` (sums over every pixel); the gatehouse mesh against `tools/msh_dump.py` (31
   textures, 30 materials, 22,773 vertices, 10,997 triangles, the collision chunks and room parts, vertex sums); the save (the three placed assets, the
   landscape's texture names, 8,897 path cells, layer sums); the world loader (every ground texture found, blend weights sum to 255, no warnings).
@@ -146,7 +150,7 @@ Things worth knowing before extending it:
   other flag dwords of a material and the second texture layer are not decoded. All materials are treated as opaque with an alpha cut-off.
 - **No shadows or dynamic light, no sky.** Lighting is only the baked lightmaps (which assume a 2x gain; unconfirmed). The world ends at 256 units where
   the terrain does, against the clear colour.
-- **Ground.** `land_alpha.dds` (probably the edge mask for blends) is not used. The terrain is flat because no height data was found.
+- **Ground.** `land_alpha.dds` (a ragged edge vignette; its use in the draw code is not read) is not used. The terrain is flat because no height data was found.
 - **Not drawn:** facility interiors and room floors, the other lot meshes, anything but the assets in the save (no people, litter, cars).
 - **Saves:** only the placed assets and the landscape are read. Money, staff, films and everything else in `.jad` is ignored.
 - **Performance:** the Quick Start lot is 1,621 instances of about 300 source meshes and 1 M vertices; loading takes about 3 s in Node (decoding is the cost) and the

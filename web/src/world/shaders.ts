@@ -27,6 +27,7 @@ export function registerShaders(): void {
     uniform sampler2D weightsA; uniform sampler2D weightsB; uniform sampler2D pathMask; uniform sampler2D sidewalk;
     uniform float tileSize;
     uniform float pathTileSize;
+    uniform float pathOn;                 // 0 hides the sidewalk layer (debugging: __otm.paths(false))
     void main() {
       vec2 cell = (vXZ + 256.0) * 0.5;      // vertex units: vertex i is at world 2i - 256
       vec2 suv = (cell + 0.5) / 256.0;
@@ -37,7 +38,8 @@ export function registerShaders(): void {
              + texture2D(ground2, uv).rgb * a.z + texture2D(ground3, uv).rgb * a.w
              + texture2D(ground4, uv).rgb * b.x + texture2D(ground5, uv).rgb * b.y
              + texture2D(ground6, uv).rgb * b.z + texture2D(ground7, uv).rgb * b.w;
-      float path = texture2D(pathMask, suv).r;
+      // A path cell (x, y) covers vertex x to x + 1 (FUN_009e16b0 / FUN_00a797d0 draw it between those terrain vertices), not the 2 units centred on vertex x.
+      float path = texture2D(pathMask, (floor(cell) + 0.5) / 256.0).r * pathOn;
       vec3 paved = texture2D(sidewalk, vXZ / pathTileSize).rgb;
       gl_FragColor = vec4(mix(c, paved, path), 1.0);
     }`;

@@ -150,7 +150,7 @@ u32 length (of the rest)  u32 version (2)  u32 texture count (7)
 7 x 32-byte NUL-padded names: Land_sand00, Land_grass00, Land_grass02, Land_grass01, Land_earth00, Land_tarmac00, Land_sidewalk02
 65,793 cells x 3 bytes        = 256 rows x 257: index x*257 + y; the 257th column is a 0x3f edge sentinel
 8,192 bytes                   path (pavement) bitmap, 256 x 256 bits: bit x*256 + y (byte = bit >> 3, mask 1 << (bit & 7))
-~17 KB                        not decoded
+~17 KB                        the first 8,192 bytes are the second ("transient") path bitmap (the player's path-tool state; 53 non-zero bytes in the Quick Start save), see "Corrections" below; the rest is not decoded
 ```
 
 Each cell byte is masked with `0x3f` by the loader and is one **paint layer**: three layers per cell. Low nibble = texture index (0xF = none);
@@ -199,7 +199,7 @@ and placed at `POSITION`; that can be reconstructed from the save plus the paks,
 **Ground textures.** The 7 names in `TMLandscape` are `.dds` files in `TEX_ALL0000.pak`, each added `land_` + the name in lower case:
 `land_sand00`, `land_grass00`, `land_grass02`, `land_grass01`, `land_earth00`, `land_tarmac00` (256x256 DXT1 with 9 mips) and `land_sidewalk02` (128x128).
 Decoded: sand and earth are tan/brown, `grass00`/`grass01` plain green, `grass02` dry grass, tarmac grey, sidewalk paving slabs. Also in the archive are
-`land_alpha.dds` (DXT3, the blend mask, probably what the cell blend weight indexes), `land_sidewalk00/01`, and `lm_land_forest_*` (lightmaps/forest
+`land_alpha.dds` (DXT3, 256 x 256: viewed, it is a ragged white-centred vignette, a grunge edge mask, not a lookup table; not used by us, its use in the draw code is not read), `land_sidewalk00/01`, and `lm_land_forest_*` (lightmaps/forest
 textures). No saved cell has texture index 6 (sidewalk) in these saves.
 
 ## `CFinance` (decoded)
@@ -347,7 +347,7 @@ stunt school (`stuntschool_create`, `_fire`), the 4-star script office, trailers
 
 `jad_dump.py --rooms --strings <stringdatabase.lhts[,addon]>` draws these texts. The string database is game content: it stays local (the repo only has the reader).
 
-### The 8 KB bitmap is the path mask (2026-11-24)
+### The 8 KB bitmap is the path mask (2026-11-24; corrected, see the end of this section)
 
 The beige paved paths between the buildings (and the sidewalks of the city streets) are the set bits of the 256 x 256 bitmap that follows the terrain cells. Evidence: rendering the bits (`jad_dump.py --terrain ... --occupancy`) reproduces
 the in-game path network (the spine up the lot, the cross paths, paths round each building and the plaza, the street sidewalk) against screenshots of the Quick Start lot; the sidewalk texture (index 6) has no terrain cell in any save, so
@@ -366,6 +366,43 @@ paving is not stored as paint. In the code:
 * `LotGrid_BlockPathCell(gx, gy, on)` expands each set cell into the 0.5-unit placement grid, so paths are cells a new building cannot be placed on.
 
 Not checked: what the pavement tags are for (see above), how the sidewalk is drawn at path edges, the meaning of the `DAT_0105f8dc` transient bitmap while the player is painting, the `_sp_grass` / `_sp_sand` stamps (no building in these saves has one).
+
+### Corrections to the path-mask section, from the draw code (2026-11-24)
+
+Reading how the terrain is drawn (`FUN_009e3ff0` chunk refresh, `FUN_009e16b0` mask builder, `FUN_00a79a30` / `FUN_00a797d0` mesh builder, `TMLandscape_SetPathCell`, `ReadTerrainBlob`) corrected some of what is written above.
+
+* **Draw structure.** The terrain is 8 x 8 chunks of 32 x 32 cells (64 x 64 units). Every ground texture is its own pass per chunk, and the sidewalk is the last texture (index `count - 1`, 6 here).
+  Each pass is drawn from a triangle mesh built from a **per-cell mask** (34 x 34 bytes: the chunk plus a one-cell border; `FUN_009e16b0`). For a ground texture, a cell is in the mask if any of its four corner
+  vertices carries that texture in any of its three layers **and the cell is not a path cell**. For the sidewalk, a cell is in the mask exactly when its path bit is set. So **path cells replace the ground
+  paint**; they are not drawn over it. `FUN_00a797d0` turns the mask into merged rectangles of cells (triangles on the 33 x 33 vertex grid of the chunk). Nothing in this code clips to the lot: the game draws path
+  bits anywhere on the 256 x 256 grid.
+* **Cell position (this was wrong).** Path cell (x, y) is the square between terrain vertices x..x + 1 and y..y + 1, which is world `[2x - 256, 2x - 254]` (vertex i is at `2i - 256`). It is **not** the 2 x 2 units
+  centred on vertex x, which is what `WorldToOccupancyGridCoord` (`round((w + 256) / 2)`) suggests; that function is for the placement grid and rounds. `tools/jad_dump.py` and the web view drew the pavers
+  half a cell (1 unit) off until this was fixed. Evidence from the data: in the Quick Start save the front strip's last path cell is y index 128, so its edge is at y = 2.0, which sits under the front wall (`y = 2.2`,
+  thickness 0.94); the centred reading put the edge at y = 1.0, leaving a gap in front of the wall.
+* **Blend weights** (`TMLandscape_GetPaintLayerWeight`): checked. Layers are composited from layer 2 down to layer 0; a layer's weight is `((bits 4-5) + 1) * 0.25` (layer 0 always 1.0), scaled by what is left over.
+* **`TMLandscape_SetPathCell`** also edits paint: for each of the four corner vertices that has no texture in any layer it sets that layer's weight bits (`& 0xf0 | 0x30`) and calls `FUN_009e14c0`, so a path on bare
+  ground leaves the vertex with a defined base. The saved cell bytes therefore still never name the sidewalk texture.
+* **The tail after the bitmap.** `FUN_009e4a30` is the writer of this blob: version 2, the texture count, the 32-byte names, the cells (3 bytes x 65,793), the path bitmap (8,192), then the **transient bitmap**
+  (`DAT_0105f8dc`, 8,192, what the player's path tool is painting; the loader zeroes it for version 2). That accounts for the first 8,192 bytes of the "~17 KB"; the other ~9 KB (and a further 768 bytes in the
+  shipped `.lnd` files) are not decoded.
+* **Start data.** `data\savedefaults\<year>.lnd` (214,763 bytes, the same format) is the terrain of a new game. The 1920 file is **identical** in terrain and path bits to the saved 1920 studio (8,897 bits each), so
+  a fresh game's terrain is the file as shipped. The pristine files already contain path bits well outside the lot (`1960_clean.lnd`: 3,782 bits left of x = -166, 904 right of x = 150), so those are the game's own
+  data, not something our decoding adds. Playing adds more: the Quick Start save has 1,828 bits that `1960_clean.lnd` lacks, including 409 outside the lot (lines at x = 192 and the like, next to the city boundary
+  objects of `outsidelot_high.rob`), probably stamped by those objects' pavement tags.
+* **The draw routine and its conditions** (found 2026-11-24; Ghidra did not decompile it: the code at `0x9e6360` lies after the noreturn call that cuts `OccupancyGrid_InitGlobals` short, so read it with
+  `objdump -d -M intel --start-address=0x9e6360 --stop-address=0x9e6680 MoviesSE.exe`). One call draws the whole terrain:
+  1. Nothing happens unless the byte at `0x105f8cc` is non-zero (a "render requested" flag set from `0x543410`, `0x543445` and `0x9c5c2d`); the routine clears it.
+  2. `FUN_009e2d70` culls the 64 chunks against the camera frustum (chunk flag bit 0 = visible).
+  3. For each ground texture in turn, for each chunk: skipped unless flag bit 0 (visible) **and bit 2 ("enabled")** are set; if bit 1 (dirty) is set the passes are rebuilt (`FUN_009e3ff0`); skipped if that texture's pass
+     mesh pointer for the chunk is null (empty mask); otherwise drawn (`0x9e4e50`).
+  4. The last texture (the sidewalk) first sets render state `0x17` = 4, calls an optional callback at `0x105f8f0` (registered by the path/navigation code, `0x450c70`), draws the chunks' extra objects (`0xa77420`),
+     and sets the texture matrix scale to **0.25** (`0x3e800000`) where the ground passes use 1/12 (`0x3daaaaab`): **one sidewalk tile is 4 units, a ground tile 12**. A second callback (`0x105f8ec`, `0x4528d0`)
+     runs after all passes, then `FUN_009e1c90` draws the per-chunk "landlight" quads (a light texture per chunk, named `landlight x y`).
+* **The terrain is only drawn inside x -192 to 192, y -128 to 256.** Bit 2 of every chunk's flags is cleared by `FUN_009e2950(x index, y index)` when `y index < 2`, `x index < 1` or `x index > 6`, and step 3 skips such
+  chunks, so they are never built or drawn. Chunk i spans `-256 + 64 i`: x chunks 1 to 6 = x -192 to 192; y chunks 2 to 7 = y -128 to 256. (The city boundary objects of `outsidelot_high.rob` stand at x = +-192.4.)
+  Path bits outside that rectangle, such as the ones near x = 192 to 254 or the 3,782 left of x = -166 in the shipped data, are in the file but are not drawn by the game.
+* **Still open:** the callbacks at `0x105f8ec` / `0x105f8f0`, the "extra objects" per chunk (`FUN_009e1de0`, only built when `DAT_0105be08` is set), `FUN_009e3cf0`, and the use of `land_alpha.dds`.
 
 ## Gameplay objects: relationships, performance, costs, legacy, credits (2026-11-24)
 

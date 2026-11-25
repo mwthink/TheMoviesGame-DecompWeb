@@ -91,7 +91,7 @@ Not traced: the exact meaning of each flag bit in the cell grid's word, and the 
 `jad_dump.py ... --ground <dir with land_*.dds>` draws the terrain with the real textures instead of flat colours. The 257 x 257 cells are **vertices** (256 quads + the
 edge column), so each pixel bilinearly blends the four surrounding vertices; a vertex is its layers composited (layer 0 opaque, layers 1 and 2 with alpha `(bits 4-5 + 1) * 0.25`).
 The texture scale is **assumed**: one tile per 12 world units (`--tile`), from the `0.0833` (1/12) texture-matrix constant in `TMLandscape_SetupGroundTextureState`; it looks right but is not confirmed.
-`land_alpha.dds` (a blend mask) is not used.
+`land_alpha.dds` (a ragged vignette mask, see `SAVE_FORMAT.md`) is not used.
 
 ## Rooms and the cutaway view
 

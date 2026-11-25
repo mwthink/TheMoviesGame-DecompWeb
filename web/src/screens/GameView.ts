@@ -3,6 +3,7 @@ import { Scene } from "@babylonjs/core/scene";
 import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera";
 import { Color4 } from "@babylonjs/core/Maths/math.color";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
+import type { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial";
 import type { Screen } from "./Screen.ts";
 import { buildWorld } from "../world/WorldScene.ts";
 import type { WorldData } from "../world/WorldData.ts";
@@ -32,7 +33,21 @@ export class GameView implements Screen {
       new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 3, 20, Vector3.Zero(), this.scene);
     }
 
-    if (import.meta.env.DEV) (window as unknown as { __otm?: unknown }).__otm = { engine: this.engine, scene: this.scene }; // for poking at the scene from the console
+    if (import.meta.env.DEV) {
+      // Console helpers for checking the world by hand: __otm.goto(x, y [, distance]) looks at game ground position (x, y); __otm.paths(false) hides the sidewalk layer.
+      const scene = this.scene;
+      const helpers = {
+        engine: this.engine,
+        scene,
+        goto: (x: number, y: number, radius = 60) => {
+          const cam = scene.activeCamera as ArcRotateCamera;
+          cam.target.set(x, 0, y);
+          cam.radius = radius;
+        },
+        paths: (on: boolean) => (scene.getMaterialByName("terrain") as ShaderMaterial | null)?.setFloat("pathOn", on ? 1 : 0),
+      };
+      (window as unknown as { __otm?: unknown }).__otm = helpers;
+    }
     this.engine.runRenderLoop(() => this.scene?.render());
     window.addEventListener("resize", this.onResize);
     window.addEventListener("keydown", this.onKey);

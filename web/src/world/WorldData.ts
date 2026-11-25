@@ -3,6 +3,7 @@ import { decodeDds, type Rgba } from "../formats/Dds.ts";
 import { Ini } from "../formats/Ini.ts";
 import type { Landscape, PlacedAsset, Save } from "../formats/Jad.ts";
 import { parseMsh, type Msh } from "../formats/Msh.ts";
+import { parseRob } from "../formats/Rob.ts";
 import { lotSize, perimeterPieces } from "./Perimeter.ts";
 
 /** Everything needed to draw the ground, as plain arrays (no engine types, so it can be tested in Node). */
@@ -30,6 +31,8 @@ export interface MeshAsset {
 export interface Placement {
   asset: PlacedAsset;
   mesh: MeshAsset;
+  /** Uniform scale (the outside-the-lot scenery has scaled trees); 1 when absent. */
+  scale?: number;
 }
 
 export interface WorldData {
@@ -156,16 +159,49 @@ export async function loadWorldData(pak: PakIndex, save: Save, progress: (text: 
     return m;
   };
 
+  /** A scenery name is a blueprint ini (whose `mesh` names the model) or a model's own name. */
+  const loadByName = async (name: string): Promise<MeshAsset | null> => {
+    for (const f of pak.findAll(`${name}.ini`)) {
+      const mesh = Ini.parse(new TextDecoder().decode(await pak.read(f))).get("mesh");
+      if (mesh) return loadMesh(mesh);
+    }
+    return pak.find(`${name}.msh`) ? loadMesh(`${name}.msh`) : null;
+  };
+  const missingScenery = new Set<string>();
+  const placedMeshNames = new Map<number, string>(); // saved placements' model names, to avoid drawing the same object from two sources
   const placements: Placement[] = [];
-  for (const asset of save.placed) {
+  // the lot comes last so that the objects the save places are known when its scenery is added
+  const order = [...save.placed.filter((p) => p.cls !== "CLot"), ...save.placed.filter((p) => p.cls === "CLot")];
+  for (const asset of order) {
     const slash = asset.source.indexOf("/");
     const folder = slash > 0 ? asset.source.slice(0, slash) : "";
     const stem = asset.source.slice(slash + 1);
     try {
       let meshName: string | undefined;
       if (asset.cls === "CLot") {
-        // lot.ini names no mesh: CLot_LoadPerimeterAssets loads lot_gate, lot_wall_concrete and lot_wallcorner by name, and the fence is built
-        // from them (Perimeter.ts). Size tier 2 (300 x 224) is the constructor's default and what every save seen uses.
+        // lot.ini names no mesh. What surrounds the lot (fence, gate, road markings, the city) is the scenery list outsidelot_high.rob; if the archives
+        // lack it, fall back to the fence the game's collision code builds (Perimeter.ts) from the gate, wall and corner meshes.
+        const rob = await pak.readByName("outsidelot_high.rob");
+        if (rob) {
+          const taken = save.placed.filter((p) => p.cls !== "CLot");
+          const here: Placement[] = [];
+          for (const e of parseRob(new TextDecoder().decode(rob))) {
+            const mesh = await loadByName(e.name);
+            if (!mesh) {
+              if (!missingScenery.has(e.name)) { missingScenery.add(e.name); warnings.push(`outside the lot: no model for ${e.name}`); }
+              continue;
+            }
+            // the save places the gatehouse and the billboard itself: do not draw them twice
+            if (taken.some((p) => placedMeshNames.get(p.id) === mesh.name && Math.hypot(p.position[0] - e.x, p.position[1] - e.y) < 3)) continue;
+            here.push({
+              asset: { cls: "LotScenery", id: asset.id, source: `outside/${e.name}`, position: [asset.position[0] + e.x, asset.position[1] + e.y, e.z], angle: e.angle },
+              mesh,
+              scale: e.scale,
+            });
+          }
+          placements.push(...here);
+          continue;
+        }
         const lotIni = pak.find("lot.ini", { dir: "data\\" });
         const size = (lotIni && Ini.parse(new TextDecoder().decode(await pak.read(lotIni))).get("size/2")) || "300,224";
         const [w, d] = size.split(",").map((v) => Number(v.trim()));
@@ -192,6 +228,7 @@ export async function loadWorldData(pak: PakIndex, save: Save, progress: (text: 
       const mesh = await loadMesh(meshName);
       if (!mesh) throw new Error(`mesh ${meshName} not found`);
       placements.push({ asset, mesh });
+      placedMeshNames.set(asset.id, mesh.name);
     } catch (e) {
       warnings.push(`${asset.source}: ${e instanceof Error ? e.message : String(e)}`);
     }
