@@ -32,5 +32,10 @@ Several textures exist twice or more under one name in different directories of 
 render frame time (`AUTO_ANIMATION.md`, which also has the clip length rule: 100 ms per frame, every third frame when set-header flag bit 1 is set).
 `web/src/formats/Anm.ts` is the TypeScript port of `anm_dump.py`.
 
+## `.seq` sequences
+`data\animations\sequences\*.seq` (303 files) list clips to choose among: six u32 (version 2 or 3, 1, clip count N, a flag, 0, a blend time in ms), then N clip names
+(plus one more, the base idle, when the flag is 1) as NUL-terminated strings, padded to 4 bytes, then one f32 weight per entry. `web/src/formats/Seq.ts`; used by
+the room scenes (`PEOPLE.md`, "Animation").
+
 ## Open
 `StarMaker.exe` contains the same `.anm` header, track-set, channel, RLE and Euler functions as 1:1 matches (`docs/STARMAKER.md` section 3) and its own, not matched, animation loader (`0x439a10`, messages `Can't load anim %s` / `WRONG ANIM FILE FORMAT %s`), which could show which `.anm` versions an earlier build accepted. How the `.cos` costume file (body mesh, textures, hat, glasses ...) picks its parts is not decoded; the head and hair in the viewer were picked by hand (`generic_head.msh`, `hair_50s_m1.msh`). Skin and hair tinting at runtime (the `skin_*`, `hair_*_bk/_rd/...` variants) is not looked at. The viewer does not apply root motion.

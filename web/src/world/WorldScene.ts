@@ -16,7 +16,8 @@ import { VertexBuffer } from "@babylonjs/core/Buffers/buffer";
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData";
 import type { Scene } from "@babylonjs/core/scene";
 import type { Rgba } from "../formats/Dds.ts";
-import { AutoAnimator } from "../sim/anim/AutoAnimation.ts";
+import { AutoAnimator, skinVertices } from "../sim/anim/AutoAnimation.ts";
+import { PersonAnimator } from "../sim/anim/PersonAnimation.ts";
 import { registerShaders } from "./shaders.ts";
 import type { MeshAsset, PersonInWorld, TerrainData, WorldData } from "./WorldData.ts";
 
@@ -199,10 +200,12 @@ function buildSources(scene: Scene, m: MeshAsset, caches: Caches, cut = false): 
  * game's (x, y, z up) -> Babylon (x, z, y) mapping. Parts are lit by their texture alone for now (the game's people take the lightmap of where they stand).
  * The node and its meshes carry `metadata.person` for picking.
  */
-function buildPeople(scene: Scene, people: PersonInWorld[]): TransformNode[] {
+function buildPeople(scene: Scene, people: PersonInWorld[]): { nodes: TransformNode[]; step(dtMs: number): void; clips: () => { name: string; clip: string; source: string }[] } {
   const materials = new Map<string, StandardMaterial>();
   const nodes: TransformNode[] = [];
+  const animated: { animator: PersonAnimator; entry: PersonInWorld; meshes: { mesh: Mesh; part: PersonInWorld["bind"][number]; positions: Float32Array; normals: Float32Array; swz: Float32Array; swn: Float32Array }[] }[] = [];
   for (const entry of people) {
+    const meshes: (typeof animated)[number]["meshes"] = [];
     const { person } = entry;
     const node = new TransformNode(`person/${person.id}`, scene);
     node.position.set(person.position[0], person.position[2], person.position[1]);
@@ -223,7 +226,8 @@ function buildPeople(scene: Scene, people: PersonInWorld[]): TransformNode[] {
       data.normals = normals;
       data.uvs = part.uv;
       data.indices = Uint32Array.from(part.indices);
-      data.applyToMesh(mesh);
+      data.applyToMesh(mesh, part.skin !== null); // skinned parts get new vertices every frame
+      if (part.skin) meshes.push({ mesh, part: entry.bind[i]!, positions: new Float32Array(part.positions.length), normals: new Float32Array(part.normals.length), swz: new Float32Array(positions.length), swn: new Float32Array(normals.length) });
       const key = `${part.texture.toLowerCase()}|${part.cutout ? 1 : 0}`;
       let mat = materials.get(key);
       if (!mat) {
@@ -249,8 +253,24 @@ function buildPeople(scene: Scene, people: PersonInWorld[]): TransformNode[] {
       mesh.isPickable = true;
     });
     nodes.push(node);
+    if (entry.plan && meshes.length) animated.push({ animator: new PersonAnimator(entry.skeleton, entry.clips, entry.plan), entry, meshes });
   }
-  return nodes;
+  const step = (dtMs: number) => {
+    for (const { animator, meshes } of animated) {
+      const transforms = animator.step(dtMs);
+      if (!transforms) continue;
+      for (const m of meshes) {
+        skinVertices(transforms, { positions: m.part.positions, normals: m.part.normals, skin: m.part.skin! }, m.positions, m.normals);
+        for (let v = 0; v < m.positions.length; v += 3) { // game (x, y, z) -> Babylon (x, z, y)
+          m.swz[v] = m.positions[v]!; m.swz[v + 1] = m.positions[v + 2]!; m.swz[v + 2] = m.positions[v + 1]!;
+          m.swn[v] = m.normals[v]!; m.swn[v + 1] = m.normals[v + 2]!; m.swn[v + 2] = m.normals[v + 1]!;
+        }
+        m.mesh.updateVerticesData(VertexBuffer.PositionKind, m.swz);
+        m.mesh.updateVerticesData(VertexBuffer.NormalKind, m.swn);
+      }
+    }
+  };
+  return { nodes, step, clips: () => animated.map((a) => ({ name: a.entry.person.name, clip: a.animator.clipName, source: a.entry.plan!.source })) };
 }
 
 export interface BuiltWorld {
@@ -264,6 +284,10 @@ export interface BuiltWorld {
   stepAutoAnimations(dtMs: number): void;
   /** One node per person drawn. */
   people: TransformNode[];
+  /** Move every person's animation on by `dtMs` of game time (0 = paused: nothing moves). */
+  stepPeople(dtMs: number): void;
+  /** What each animated person is playing now, for the dev menu. */
+  peopleClips(): { name: string; clip: string; source: string }[];
   /** How many models are auto-animated here (for the dev menu). */
   autoAnimated: { model: string; clip: () => number }[];
 }
@@ -349,6 +373,6 @@ export function buildWorld(scene: Scene, canvas: HTMLCanvasElement, world: World
   camera.wheelPrecision = 5;
   camera.panningSensibility = 60;
   camera.attachControl(canvas, true);
-  const peopleNodes = buildPeople(scene, world.people);
-  return { camera, instances, stepAutoAnimations, autoAnimated, people: peopleNodes };
+  const built = buildPeople(scene, world.people);
+  return { camera, instances, stepAutoAnimations, autoAnimated, people: built.nodes, stepPeople: built.step, peopleClips: built.clips };
 }

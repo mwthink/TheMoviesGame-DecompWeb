@@ -77,6 +77,9 @@ export interface SavedPerson {
   weight: number;
   /** Birth day (game day count); 0 when absent. */
   birth: number;
+  /** The room they are in (`InRoomName`, e.g. `room_preprod_crew`; "" or `room_` when none) and which scene variant they stand in (`InRoomIdx`). */
+  room: string;
+  roomIndex: number;
 }
 
 export interface Save {
@@ -202,7 +205,7 @@ export function parseSave(d: Uint8Array): Save {
   const staff: SavedStaff[] = staffRaw
     .filter((r) => r.employer === playerStudio && playerStudio >= 0)
     .map((r) => ({ id: r.id, cls: r.cls, name: r.name, career: careers.get(r.subFacility) ?? "", hired: r.hired }));
-  const tPos2 = tPos, tAng2 = tAng, tCostume = tagOf("PCurrentCostume"), tH0 = tagOf("Head[0]"), tH1 = tagOf("Head[1]"), tMix = tagOf("HeadMix"), tW = tagOf("WEIGHT"), tBirth = tagOf("Birth");
+  const tPos2 = tPos, tAng2 = tAng, tCostume = tagOf("PCurrentCostume"), tH0 = tagOf("Head[0]"), tH1 = tagOf("Head[1]"), tMix = tagOf("HeadMix"), tW = tagOf("WEIGHT"), tBirth = tagOf("Birth"), tRoom = tagOf("InRoomName"), tRoomIdx = tagOf("InRoomIdx");
   const people: SavedPerson[] = peopleRaw.map(({ id, cls, first }) => {
     const pos = first.get(tPos2);
     const pv = pos && pos.length >= 12 ? view(pos) : null;
@@ -215,6 +218,7 @@ export function parseSave(d: Uint8Array): Save {
       costume: costumes.get(readU32(first.get(tCostume))) ?? null,
       head: readNarrow(first.get(tH0)), head2: readNarrow(first.get(tH1)), headMix: readF32(first.get(tMix)),
       weight: readF32(first.get(tW)), birth: readF32(first.get(tBirth)),
+      room: readNarrow(first.get(tRoom)), roomIndex: readU32(first.get(tRoomIdx)),
     };
   });
   return { people, header: readHeader(d, v), staff, placed, landscape: landscapeBlob ? parseLandscape(landscapeBlob) : null, lotCamera };

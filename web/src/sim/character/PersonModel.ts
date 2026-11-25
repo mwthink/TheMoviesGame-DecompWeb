@@ -3,7 +3,7 @@
 // docs/CHARACTERS.md.
 import type { Anm } from "../../formats/Anm.ts";
 import type { Msh, MshBone } from "../../formats/Msh.ts";
-import { poseBones, skinVertices } from "../anim/AutoAnimation.ts";
+import { poseBones, skinTransforms, skinVertices } from "../anim/AutoAnimation.ts";
 import { applyHdMorph, HEAD_VERTEX_COUNT, type HeadFile } from "./HeadFile.ts";
 
 /**
@@ -50,12 +50,12 @@ export const STANDING_POSE_CLIP = "idle_male_half1.anm";
 
 /** Move skinned parts from the bind pose into frame 0 of a clip, with the body's skeleton. Parts without skin stay as they are. */
 export function poseParts(parts: ModelPart[], skeleton: MshBone[], clip: Anm): ModelPart[] {
-  const pose = poseBones(skeleton, clip, 0, "absolute");
+  const transforms = skinTransforms(skeleton, poseBones(skeleton, clip, 0, "absolute"));
   return parts.map((p) => {
     if (!p.skin) return p;
     const positions = new Float32Array(p.positions.length);
     const normals = new Float32Array(p.normals.length);
-    skinVertices(skeleton, pose, { positions: p.positions, normals: p.normals, skin: p.skin }, positions, normals);
+    skinVertices(transforms, { positions: p.positions, normals: p.normals, skin: p.skin }, positions, normals);
     return { ...p, positions, normals };
   });
 }

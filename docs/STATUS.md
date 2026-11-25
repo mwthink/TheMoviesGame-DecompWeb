@@ -54,7 +54,7 @@ the details and its open questions.
 | Main menu, new game | `FRONTEND.md`, `NEW_GAME.md` | the menu state machine, the start options, the starting layout | yes (logic, not the screens) | no |
 | Game clock, toolbar, auto-animated props (flags) | `AUTO_ANIMATION.md`, `MAIN_LOOP.md` | the fixed timestep and the date step; the flag driver and clip timing | yes (clock, pause / play / fast; flags wave; the day pace and the flag pose are guesses) | no |
 | Tooltips | `TOOLTIPS.md` | the single tooltip window, its delay and sizing | yes (bubble at the bottom right, hover stillness exact) | no |
-| People in the world | `PEOPLE.md`, `CHARACTERS.md` | placement (world POSITION and MyAngle, z = floor height), the idle call | yes (saved people stand at their saved places in a stand-in pose; no animation yet) | by eye only |
+| People in the world | `PEOPLE.md`, `CHARACTERS.md` | placement (world POSITION and MyAngle, z = floor height), the idle call | yes (saved people stand at their saved places and play their room scene's idle or a fallback idle; no movement yet) | by eye only |
 | Loading screens | `LOADING_SCREENS.md` | one random picture of 17 per load; the pictures | gallery only (dev) | no |
 | Camera | `CAMERA.md` | the normal (in-lot) state | yes, in the web app | eye placement against eight saves |
 | Saved games | `SAVE_FORMAT.md`, `CHARACTERS.md` | container, terrain, placement, many classes | the web app reads placement, landscape and camera | against the Python tools |

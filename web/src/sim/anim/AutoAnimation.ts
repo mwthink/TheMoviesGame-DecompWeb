@@ -100,31 +100,51 @@ export function poseBones(skeleton: MshBone[], clip: Anm, frame: number, mode: P
 }
 
 /**
+ * One bone's skinning transform, flattened: a bind-pose point `p` goes to `p * rot + move`, i.e. into the bone's bind frame and out again by the posed bone
+ * (`rot` = bindRot^T * posedRot, `move` = (-bindPos * bindRot^T) * posedRot + posedPos; row-vector convention).
+ */
+export interface SkinTransform { rot: Float64Array; move: Float64Array; }
+
+/** The skinning transforms of every bone for a pose. Build once per pose, then skin any number of vertex sets with `skinVertices`. */
+export function skinTransforms(skeleton: MshBone[], pose: BonePose[]): SkinTransform[] {
+  return skeleton.map((bone, b) => {
+    const inv = transpose3(bone.rot as Mat3);
+    const posed = pose[b]!;
+    const rot = mul3(inv, posed.rot);
+    const o = vecMul(-bone.pos[0], -bone.pos[1], -bone.pos[2], inv);
+    const m = vecMul(o[0], o[1], o[2], posed.rot);
+    return { rot: Float64Array.from(rot), move: Float64Array.from([m[0] + posed.pos[0], m[1] + posed.pos[1], m[2] + posed.pos[2]]) };
+  });
+}
+
+/**
  * Skin one primitive's bind-pose vertices with a pose: each vertex goes into the local frame of each bone that holds it (bind pose), out again by the
  * posed bone, and the results are blended by the weights. Writes positions and normals (model space, z up) into `outPositions` / `outNormals`.
+ * No allocation inside the loop: people are skinned every frame.
  */
 export function skinVertices(
-  skeleton: MshBone[], pose: BonePose[],
+  transforms: SkinTransform[],
   bind: { positions: Float32Array; normals: Float32Array; skin: { weights: Float32Array; bones: Uint8Array } },
   outPositions: Float32Array, outNormals: Float32Array,
 ): void {
   const n = bind.positions.length / 3;
-  const inv = skeleton.map((b) => transpose3(b.rot as Mat3));
+  const P = bind.positions, N = bind.normals, W = bind.skin.weights, B = bind.skin.bones;
   for (let i = 0; i < n; i++) {
+    const x = P[i * 3]!, y = P[i * 3 + 1]!, z = P[i * 3 + 2]!;
+    const nx0 = N[i * 3]!, ny0 = N[i * 3 + 1]!, nz0 = N[i * 3 + 2]!;
     let px = 0, py = 0, pz = 0, nx = 0, ny = 0, nz = 0;
     for (let k = 0; k < 4; k++) {
-      const w = bind.skin.weights[i * 4 + k]!;
+      const w = W[i * 4 + k]!;
       if (w === 0) continue;
-      const b = bind.skin.bones[i * 4 + k]!;
-      const bone = skeleton[b];
-      const posed = pose[b];
-      if (!bone || !posed) continue;
-      const local = vecMul(bind.positions[i * 3]! - bone.pos[0], bind.positions[i * 3 + 1]! - bone.pos[1], bind.positions[i * 3 + 2]! - bone.pos[2], inv[b]!);
-      const q = vecMul(local[0], local[1], local[2], posed.rot);
-      px += w * (q[0] + posed.pos[0]); py += w * (q[1] + posed.pos[1]); pz += w * (q[2] + posed.pos[2]);
-      const ln = vecMul(bind.normals[i * 3]!, bind.normals[i * 3 + 1]!, bind.normals[i * 3 + 2]!, inv[b]!);
-      const qn = vecMul(ln[0], ln[1], ln[2], posed.rot);
-      nx += w * qn[0]; ny += w * qn[1]; nz += w * qn[2];
+      const t = transforms[B[i * 4 + k]!];
+      if (!t) continue;
+      const r = t.rot, m = t.move;
+      px += w * (x * r[0]! + y * r[3]! + z * r[6]! + m[0]!);
+      py += w * (x * r[1]! + y * r[4]! + z * r[7]! + m[1]!);
+      pz += w * (x * r[2]! + y * r[5]! + z * r[8]! + m[2]!);
+      nx += w * (nx0 * r[0]! + ny0 * r[3]! + nz0 * r[6]!);
+      ny += w * (nx0 * r[1]! + ny0 * r[4]! + nz0 * r[7]!);
+      nz += w * (nx0 * r[2]! + ny0 * r[5]! + nz0 * r[8]!);
     }
     outPositions[i * 3] = px; outPositions[i * 3 + 1] = py; outPositions[i * 3 + 2] = pz;
     const len = Math.hypot(nx, ny, nz) || 1;
@@ -195,9 +215,10 @@ export class AutoAnimator {
   private pose(): void {
     const clip = this.clips[this.clipIndex]!;
     const pose = poseBones(this.msh.skeleton, clip, anmFramePosition(clip, this.timeMs), this.mode);
+    const transforms = skinTransforms(this.msh.skeleton, pose);
     for (const s of this.skinned) {
       const p = this.msh.primitives[s.primitive]!;
-      skinVertices(this.msh.skeleton, pose, { positions: p.positions, normals: p.normals, skin: p.skin! }, s.positions, s.normals);
+      skinVertices(transforms, { positions: p.positions, normals: p.normals, skin: p.skin! }, s.positions, s.normals);
     }
   }
 }

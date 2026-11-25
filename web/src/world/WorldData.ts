@@ -3,6 +3,10 @@ import { decodeDds, type Rgba } from "../formats/Dds.ts";
 import { Ini } from "../formats/Ini.ts";
 import type { Landscape, PlacedAsset, Save, SaveHeader, SavedPerson, SavedStaff } from "../formats/Jad.ts";
 import { parseCos } from "../formats/Cos.ts";
+import { firstAnimation, parseFlm } from "../formats/Flm.ts";
+import { parseSeq } from "../formats/Seq.ts";
+import { FALLBACK_CLIP, type AnimationPlan } from "../sim/anim/PersonAnimation.ts";
+import type { MshBone } from "../formats/Msh.ts";
 import { parseHead, type HeadFile } from "../sim/character/HeadFile.ts";
 import { ageYears, defaultHeadFor, meshParts, morphedHead, poseParts, STANDING_POSE_CLIP, type ModelPart } from "../sim/character/PersonModel.ts";
 import { parseAnm, type Anm } from "../formats/Anm.ts";
@@ -82,6 +86,18 @@ async function loadPeople(
     if (!h) hdCache.set(name.toLowerCase(), (h = pak.readByName(name).then((b) => (b ? parseHead(b) : null))));
     return h;
   };
+  const clipCache = new Map<string, Promise<Anm | null>>();
+  const clip = (name: string) => {
+    let c = clipCache.get(name.toLowerCase());
+    if (!c) clipCache.set(name.toLowerCase(), (c = pak.readByName(name, { dir: "data\\animations\\high\\" }).then((b) => (b ? parseAnm(b) : null))));
+    return c;
+  };
+  const flmCache = new Map<string, Promise<ReturnType<typeof parseFlm> | null>>();
+  const scene = (name: string) => {
+    let f = flmCache.get(name);
+    if (!f) flmCache.set(name, (f = pak.readByName(name, { dir: "data\\scene\\interactions\\" }).then((b) => (b ? parseFlm(b) : null))));
+    return f;
+  };
   const generic = await msh("generic_head.msh");
   const today = save.header?.date;
   const poseBytes = await pak.readByName(STANDING_POSE_CLIP);
@@ -115,12 +131,72 @@ async function loadPeople(
         const img = await texture(key);
         if (img) textures.set(key, img);
       }
-      out.push({ person, parts: pose && clipFits(body.skeleton, pose) ? (poseParts(parts, body.skeleton, pose) as PersonInWorld["parts"]) : parts, textures });
+      const clips = new Map<string, Anm>();
+      const plan = await resolvePlan(pak, person, scene, clip, clips, body.skeleton);
+      out.push({
+        person, bind: parts, skeleton: body.skeleton, plan, clips, textures,
+        parts: pose && clipFits(body.skeleton, pose) ? (poseParts(parts, body.skeleton, pose) as PersonInWorld["parts"]) : parts,
+      });
     } catch (e) {
       warnings.push(`${person.name || person.id}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
   return out;
+}
+
+/**
+ * The room scene file a person stands in and the animation it names (docs/PEOPLE.md "Animation"): `ai_<room>_<index>.flm`, else `ai_<room>.flm`; its first
+ * character's first animation box is a clip or a `.seq` playlist. Loads the clips the plan can play into `clips`. With no scene (outside, or a room without
+ * one) the plan is the fallback idle, and says why in `source`. orig: the game picks the scene in `TMCharacter_PlayInteractionScene` (0x599480).
+ */
+export async function resolvePlan(
+  pak: PakIndex, person: SavedPerson,
+  scene: (name: string) => Promise<ReturnType<typeof parseFlm> | null>, clip: (name: string) => Promise<Anm | null>,
+  clips: Map<string, Anm>, skeleton: MshBone[],
+): Promise<AnimationPlan | null> {
+  const load = async (name: string) => {
+    if (clips.has(name)) return true;
+    const c = await clip(name);
+    if (!c || !clipFits(skeleton, c)) return false;
+    clips.set(name, c);
+    return true;
+  };
+  const room = person.room;
+  if (room && room !== "room_") {
+    // the room, then the room with its last word dropped (`room_staff_hire_janitor` uses the `room_staff_hire` scenes)
+    const rooms = [room];
+    const words = room.split("_");
+    if (words.length > 3) rooms.push(words.slice(0, -1).join("_"));
+    for (const r of rooms) {
+      // scenes come in numbered variants `ai_<room>_00`, `_01`, ... (a few rooms have just `ai_<room>`); the person's saved index picks one, wrapped to what exists;
+      // an unset index (-1, saved as 0xFFFFFFFF) takes the person's id so a room's people spread over the variants
+      const variants: string[] = [];
+      for (let i = 0; i < 40; i++) {
+        const name = `ai_${r}_${String(i).padStart(2, "0")}.flm`;
+        if (!(await scene(name))) break;
+        variants.push(name);
+      }
+      if (!variants.length && (await scene(`ai_${r}.flm`))) variants.push(`ai_${r}.flm`);
+      if (!variants.length) continue;
+      const index = person.roomIndex === 0xffffffff ? person.id : person.roomIndex;
+      const sceneName = variants[index % variants.length]!;
+      const flm = await scene(sceneName);
+      const first = flm ? firstAnimation(flm) : null;
+      if (!first) continue;
+      if (/\.seq$/i.test(first.name)) {
+        const bytes = await pak.readByName(first.name, { dir: "data\\animations\\sequences\\" });
+        if (!bytes) continue;
+        const seq = parseSeq(bytes);
+        for (const n of [...seq.clips, ...(seq.baseIdle ? [seq.baseIdle] : [])]) await load(n);
+        if (seq.baseIdle && clips.has(seq.baseIdle)) return { source: `${sceneName}: ${first.name}`, clip: seq.baseIdle, seq };
+        if (seq.clips.some((n) => clips.has(n))) return { source: `${sceneName}: ${first.name}`, clip: seq.clips.find((n) => clips.has(n))!, seq };
+        continue;
+      }
+      if (await load(first.name)) return { source: `${sceneName}: ${first.name}`, clip: first.name, seq: null };
+    }
+  }
+  const why = room && room !== "room_" ? `no usable scene for ${room}` : "not in a room";
+  return (await load(FALLBACK_CLIP)) ? { source: `fallback (${why}): ${FALLBACK_CLIP}`, clip: FALLBACK_CLIP, seq: null } : null;
 }
 
 export function chunkCentre(c: MshChunk): { x: number; y: number } {
@@ -153,6 +229,12 @@ export interface PersonInWorld {
   person: SavedPerson;
   parts: (ModelPart & { /** hair is drawn with an alpha cut-off */ cutout: boolean })[];
   textures: Map<string, Rgba>;
+  /** The parts in the skeleton's bind pose (the input of skinning) and the skeleton, for animation. */
+  bind: (ModelPart & { cutout: boolean })[];
+  skeleton: MshBone[];
+  /** What the person plays (docs/PEOPLE.md "Animation") and the clips that plan needs, by file name; null plan = no animation. */
+  plan: AnimationPlan | null;
+  clips: Map<string, Anm>;
 }
 
 export interface WorldData {

@@ -20,10 +20,32 @@ Evidence labels as in `CLAUDE.md`.
   (`AnimId_GetName`, `00447AA0`, table at `DAT_00F87FC0`) is built at run time and not read yet. `TMCharacter_LoadIdleAnimation` (`00599DD0`) loads a named idle clip
   (name at `+0x61C`) and records its length in frames (every third frame when the clip's flag bit 1 is set, as for `Anm`).
 
+## Animation
+
+The save does not store what a person is doing. [data] Each person inside a room has `InRoomName` and `InRoomIdx`, and the game's **room scenes**
+`data\scene\interactions\ai_<room>_<NN>.flm` (a few rooms: `ai_<room>.flm`) script them (`FLM_FORMAT.md`; the game plays a scene through `TMCharacter_PlayInteractionScene`,
+`0x599480`). The web app takes the scene a person stands in and plays **the first pose-holding animation box reachable from the scene's first character**
+(`Flm.ts` `firstAnimation`, [guess] for the graph walk: the link words of choice and settings boxes are not decoded, so every word equal to another object's id
+counts as a link; walking, turning and the hiring celebration `hired_*` are skipped):
+
+- A box that names a `.seq` plays a **playlist** (`Seq.ts`, `staff_idle.seq`: 7 fidget clips with weights 1, 1, 1, 1, 0.57, 0.09, 0.07, plus the base idle `idle_male.anm`).
+  [guess] The player keeps the base idle for one to three loops between fidgets and picks the fidget by weight (the repeat is not read from anything).
+- A box that names a `.anm` loops that clip.
+- Variant: the person's `InRoomIdx` picks `_NN`, wrapped to the variants that exist; an unset index (saved as `0xFFFFFFFF`) uses the person's id. A room with no scene file
+  uses the room name with its last word dropped (`room_staff_hire_janitor` -> `room_staff_hire`).
+- **Fallback:** a person outside a room (the lot's wanderers and the unplaced), or in a room with no scene (`room_set`, `room_so_office`, `room_trailer_assign` in the
+  Quick Start save), plays `idle_male.anm`. The dev menu's "People" section counts room-scene and fallback people; each person's `plan.source` says which file.
+- Each person starts at a random point of their first clip so a room does not move in step.
+- Time: people advance by game time (the speed buttons scale it, pause freezes them). [guess] The flags use real time (`AUTO_ANIMATION.md`); where the original steps
+  character animation was not read.
+- Cost: bodies, heads and hair are skinned on the CPU every frame (`skinVertices`, no allocation in the loop).
+
+Not done: movement (the scenes' walk boxes and path nodes), blending between clips (a `.seq` has a blend time), facial expressions, which stage of a long scene a
+person is at (`TheActivity` is not saved).
+
 ## What is drawn
 
-Body, head and hair, in the skeleton's pose at the first frame of a stand-in clip (`idle_male_half1.anm`: arms hang by the sides). [guess] The stand-in is not what
-the game shows: the real idle clip is id 0x29 and each person's current activity (the animation phase will replace this).
+Body, head and hair. Before the animation starts (and in tests) they are in the first frame of `idle_male_half1.anm` (arms hang by the sides); in the app they play their plan (above).
 
 - **Costume:** `PCurrentCostume` -> a `CCostume` object with no tagged fields; the strings in its blob give the `.cos` file and the hair mesh (`readCostume`). The `.cos`
   (`Cos.ts`) names the body mesh; the body's own texture atlas is used, the costume's extra texture layers and attached meshes (hats, glasses) are not drawn yet.
@@ -36,5 +58,5 @@ the game shows: the real idle clip is id 0x29 and each person's current activity
 
 ## Next
 
-The game loop, pathfinding and animation: find which activity each saved person is in (`InRoomName`, `TheActivity`), the animation id table, and how a character moves
-(`TMMobile_*`, `TMCharacter_*`); then replace the stand-in pose.
+Movement: the scenes' `MoveToBox` walks and path nodes, the pathfinder, the animation id table (`AnimId_GetName`), blending, and the game loop's per-tick character update
+(`TMMobile_*`, `TMCharacter_*`).

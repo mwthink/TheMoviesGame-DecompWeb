@@ -20,7 +20,7 @@ import { MenuBar } from "../ui/MenuBar.ts";
 import { GameToolbar } from "../ui/GameToolbar.ts";
 import { StaffPanel } from "../ui/StaffPanel.ts";
 import { Tooltip } from "../ui/Tooltip.ts";
-import { GameClock, type GameSpeed } from "../sim/core/GameClock.ts";
+import { GameClock, SPEED_FACTOR, type GameSpeed } from "../sim/core/GameClock.ts";
 
 interface RoomInfo { name: string; lines: string[]; x: number; y: number; chunk: MshChunk }
 interface Meta { key: string; source: string; position: number[]; angle: number; rooms: RoomInfo[] }
@@ -43,6 +43,9 @@ export class GameView implements Screen {
   private clock = new GameClock(1920 * 365);
   /** Moves the flags on, by real frame time (world/WorldScene.ts `stepAutoAnimations`); independent of the clock and the pause. */
   private stepAutoAnimations: ((dtMs: number) => void) | null = null;
+  /** Moves the people's animations on by game time (scaled by the speed buttons; frozen while paused). */
+  private stepPeople: ((dtMs: number) => void) | null = null;
+  private peopleClips: (() => { name: string; clip: string; source: string }[]) | null = null;
   private autoAnimated: { model: string; clip: () => number }[] = [];
   private orbit: ArcRotateCamera | null = null;
   private gameCamera: GameCamera | null = null;
@@ -93,9 +96,13 @@ export class GameView implements Screen {
       this.orbit = built.camera;
       this.instances = built.instances;
       this.stepAutoAnimations = built.stepAutoAnimations;
+      this.stepPeople = built.stepPeople;
+      this.peopleClips = built.peopleClips;
       this.autoAnimated = built.autoAnimated;
     } else {
       this.stepAutoAnimations = null;
+      this.stepPeople = null;
+      this.peopleClips = null;
       this.autoAnimated = [];
       // A scene needs a camera to render. This one is a placeholder until the real game camera exists.
       this.orbit = new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 3, 20, Vector3.Zero(), this.scene);
@@ -165,6 +172,8 @@ export class GameView implements Screen {
     this.tooltip?.dispose();
     this.hud?.remove();
     this.stepAutoAnimations = null;
+    this.stepPeople = null;
+    this.peopleClips = null;
     this.hud = this.devMenu = this.menuBar = this.toolbar = this.staffPanel = this.tooltip = this.input = this.gameCamera = this.gameBabylon = this.orbit = null;
     this.scene?.dispose();
     this.scene = null;
@@ -219,6 +228,9 @@ export class GameView implements Screen {
     const dtMs = engine.getDeltaTime();
     if (this.clock.advance(dtMs / 1000) > 0) this.toolbar?.setStatus(this.clock.date, this.world?.header?.cash ?? null);
     this.stepAutoAnimations?.(dtMs);
+    // people animate in game time: the speed buttons scale it and a pause freezes them [guess, docs/PEOPLE.md]
+    const factor = SPEED_FACTOR[this.clock.speed];
+    if (factor > 0) this.stepPeople?.(Math.min(dtMs, 99) * factor);
   }
 
   /** Pick the placed object under a canvas pixel (terrain is not pickable) and record it for the dev menu. */
@@ -348,6 +360,10 @@ export class GameView implements Screen {
       "ticks per day": String(this.clock.ticksPerDay),
       "waving models": this.autoAnimated.length ? this.autoAnimated.map((a) => `${a.model} (clip ${a.clip()})`).join(", ") : "none",
     };
+    const clips = this.peopleClips?.() ?? [];
+    if (clips.length) {
+      state["People"] = { animating: String(clips.length), "from room scenes": String(clips.filter((c) => !c.source.startsWith("fallback")).length), "fallback idle": String(clips.filter((c) => c.source.startsWith("fallback")).length) };
+    }
     state["Last click"] = this.lastClick;
     state["Hover"] = this.hovered ? { building: this.hovered.source, rooms: this.hovered.rooms.map((r) => r.name.replace(/^room_/, "")).join(", ") } : { building: "none" };
     const gc = this.gameCamera;
