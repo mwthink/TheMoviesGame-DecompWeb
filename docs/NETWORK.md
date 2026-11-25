@@ -129,7 +129,7 @@ strings". Anchors: `P4PORT`/`P4HOST`/`P4USER`/`P4CONFIG`..., `Rpc_dispatch`, `Ne
 The second zlib copy is `"1.0.4"` (the first, used by the game, is 1.1.4) and is called from `NetBuffer`'s compress/decompress
 code, so it belongs to P4API as well. 48 functions of the client had been attributed to `zlib` by adjacency in `class_attribution.csv`.
 `tools/attribute_classes.py` re-labels every map member except the zlib ones `P4API` (tier `lib`) when `p4api_map.csv` is present.
-This was run against the real exe on 2026-11-24 (it is gitignored output): 272 functions are now `P4API`, and the only functions in
+This was run against the real exe (the output is gitignored): 272 functions are now `P4API`, and the only functions in
 `0xa90000`-`0xad2000` still labelled `zlib` outside the map are `0x00ac1480` and `0x00ac14e0` (unresolved: not call-linked to
 either P4 or zlib). A first version of the map missed `0x00ac65b0` (the `gethostbyname` wrapper, no P4 string) and `0x00ac8050`
 (zlib); the Winsock-caller anchor and the zlib neighbour rule fixed that.

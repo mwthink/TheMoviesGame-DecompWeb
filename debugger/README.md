@@ -10,7 +10,7 @@ It started as a trimmed **Phase 1-3** milestone (one confirmed hook, caller-RVA
 capture, call timing, JSONL export) and has since grown a first-call
 **coverage tracer** (`src/hooks/CoverageTracer.*`, with a `this`-class mode) and the
 **DecadeTracker** (`src/hooks/DecadeTracker.*`, long-session `decade_log.csv`);
-both are described at the end of this file and in `docs/DECOMP_PIPELINE.md`. No ImGui
+both are described at the end of this file and in `docs/ANALYSIS_TOOLS.md`. No ImGui
 overlay, no memory diffing and no DirectX tracing yet - see "Where this goes next".
 
 ## What it proves
@@ -222,11 +222,10 @@ contender is the player studio) and `AWARD_BONUSES` (the 12 active-bonus flags a
 `REL_PLAYER` now also logs `projDate2c8` (the date the pioneer check uses).
 
 
-## Decompilation bring-up tools (coverage tracer, RTTI skeleton, source generator)
+## Coverage tracer and analysis tools
 
 Hotkeys while the coverage tracer runs: **F9** marker (a new phase listing only newly reached functions), **F8** re-arm everything plus a marker (the next phase
 lists its complete set), **F10** summary. Windows-test-box scripts that drive all this are in `tools/winbox/`.
 
-See `docs/DECOMP_PIPELINE.md`: first-call coverage tracing (`tools/run_coverage.ps1`, `TheMoviesInjector.exe --launch`),
-class / vtable / global skeletons from RTTI (`tools/rtti_dump.py`, `tools/globals_table.py`) and the Ghidra-export to
-compilable-C generator with a compile-check report (`tools/generate_sources.py`, `tools/compile_check.py`).
+See `docs/ANALYSIS_TOOLS.md`: first-call coverage tracing (`tools/run_coverage.ps1`, `TheMoviesInjector.exe --launch`), the class / vtable / global
+skeletons from RTTI (`tools/rtti_dump.py`, `tools/globals_table.py`) and class attribution.

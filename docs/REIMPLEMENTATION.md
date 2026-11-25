@@ -1,123 +1,55 @@
-# Reimplementation layout and workflow
+# The reimplementation: rules and modules
 
-State, commands and next steps for a new contributor: `docs/HANDOVER.md`.
-
-Goal: a readable C++ reimplementation, organised by subsystem and class, not by original address or per function.
-
-## Layout (under `src/` (new, in this repo), headers beside sources)
-
-```
-src/
-  core/        MV:: / LH:: / PKStrings: strings, arrays, lists, memory, file IO, logging 
-  engine/      renderer, SWF/LSWF, audio (vorbis), input, scene objects (MV::Object, FS::CObject)
-  ui/          TM::W* windows, bubbles, HUD (WWindow, WInterface, WAdvMovieMaker...)
-  game/
-    studio/    CLot, TMRoom, TMFloorPlan, TMFixedAsset, builders
-    ai/        AI studio decisions (when a studio releases a movie)
-    studio/    the studio rating and decayed reputation
-    staff/     CStaff, jobs, traits, experience   
-    movie/     scripts, scenes, quality, success, stunts (see FINDINGS.md)
-    economy/   finances, awards, decades
-```
-
-One `Class.hpp/.cpp` pair per class or tightly related group. Struct and enum definitions go in headers first;
-bodies come after types are recovered. Classes come from `docs/generated/rtti_classes.json` (RTTI names = module names).
+The game is being rebuilt as the web app in `web/` (`WEB.md` covers the app, its rendering and how to run it). This page holds the rules that keep
+the rebuild faithful to the original, and the state of each simulation module. The goal and next steps are in `STATUS.md`.
 
 ## Rules
 
-1. Every reimplemented function carries `// orig: 0xVVVVVVVV` (the Ghidra VA); append `verified` once checked against the
-   running game (e.g. through the DLL hooks): `// orig: 0x004A1230 verified`.
-2. Behaviour-equivalent, not instruction-equivalent: real names, struct fields instead of pointer arithmetic, loops instead of gotos.
-3. Rename in Ghidra as you go, then refresh `tools/ghidra_names.csv` (see DECOMP_PIPELINE.md).
-4. Findings go in FINDINGS.md; formulas first, code second.
-5. **Open question:** this repo currently commits `ExportDecompiled/` (full decompiler output). Decide whether reimplemented code
-   is written by hand from the notes (recommended) and whether the export stays in the public repo.
+1. **Behaviour, not structure.** The original binary is the source of truth for what the game *does*. The code is organised by system, with real names,
+   typed fields and plain control flow; it does not mirror the original's classes, addresses or calling conventions.
+2. **Parity first, bugs included.** Where the original has a bug or an oddity that affects play, reproduce it and mark it with a `quirk:` comment that says
+   what the original does and what a fix would be. Fixes come later and on purpose, behind a setting where they change play.
+3. **Every ported function carries `orig: 0xVVVVVVVV`**, the address in `MoviesSE.exe`, so code, docs and Ghidra stay joined. Add `verified` (`orig:
+   0x004A1230 verified`) only when a measurement from the running game reproduces its result, and say in a comment what was measured. Logged values from the
+   game are kept as test fixtures.
+4. **Formulas come from the decompiled code and the docs.** Where they disagree, the comment says so (examples: the genre-fit factor is not a relationship
+   factor; the public-interest imbalance term is one-sided in the code but symmetric in the older notes).
+5. **32-bit floats.** The original computes in `float` (with x87 intermediates). Use `Math.fround` where a value is stored as a `float`, so long runs do not
+   drift from the original.
+6. **Modules take plain numbers, not game objects.** A formula is a function of already-gathered inputs (cast performance, script quality, ...), so it can be
+   tested on its own; reading those inputs out of the game state comes with the system that owns the data.
+7. **Libraries are not ported.** zlib, Ogg Vorbis, the Perforce client and the Lionhead middleware are replaced by the platform or a small dependency
+   (`LIBRARIES.md`). The online services are left out (`NETWORK.md`).
+8. **No game files in the repository**, and none served by the app: it reads the player's own install. Test fixtures are numbers and small records, not
+   extracted files. `tools/audit_firewall.py` checks before every commit.
 
-## Progress tracking
+## Modules
 
-```
-python tools/progress.py
-```
-Writes `docs/generated/progress.csv` (address, name, class, status) and `progress.md` (per-class counts).
-Status: `unnamed` -> `named` -> `reimplemented` -> `verified`, derived from names in `ghidra_names.csv` and the `orig:` tags in `src/`.
+| Module | What it does | Checked |
+|---|---|---|
+| Movie quality | `CQualityRating_Compute`, `CProject_ComputeFinalQuality`, the crew, set, star-relationship and genre-experience mappings | final quality **verified** on two measured movies |
+| Movie success | `CProjectSuccess_Recompute`, public interest and marketing, cast star ratings, genre popularity, boredom, the movie star rating, `CProjectIncome` creation and payout, genre trend and saturation | success, rating, income, AI and player public interest, marketing D, genre popularity and trend, boredom **verified** against logged values |
+| Actor performance | the actor record (`QualityCalc_ActorPerformance`), mood and genre-fit factors, star chemistry, likeness, the stunt performance factors | follows the code; no measurement isolates it |
+| Movie estimate | chains quality, success and revenue from plain inputs and compares marketing levels | reproduces the marketing table of `MOVIE_SUCCESS.md` 3w |
+| Tuning loader | fills the quality, success, actor and award-bonus tuning and the genre events from `releasing_movies.ini`, `global.ini`, `stunts.ini`, `awardsbonuses.ini`, `timeline.csv`; missing keys keep the default and are reported | every default equals the shipped value |
+| AI studio | the release decision (desire from mean/RMS success difference, the 0.5 to 2 year ramp, the 0.5 threshold) | **verified** against 211 logged decisions |
+| Studio rating | five weighted components with a clamp after each, and the decayed reputation | **verified** against 27 logged rows (money and star-power components not yet) |
+| Staff | traits (diminishing-returns gain), the experience table, genre experience per take; the stunt roll (the game's random generator), injuries, stunt XP and training; how a star's nine rating components combine; their tuning from `experience.ini`, `stunts.ini`, `global.ini`, `awardsbonuses.ini` | follows the code (`STUNT_SYSTEM.md`, `STARS.md` 3aa-3ac) |
+| Boot | the command line (`-safemode`, `-reenter`, `-editor`, `-download`) and the intro splash sequence | the intro order, against one Wine run |
+| Front end | the main menu's state machine, event handler and tables; the nine start options; the starting-layout file parser | follows the code (`FRONTEND.md`, `NEW_GAME.md`) |
+| Camera | the in-lot gameplay camera: `camera.ini`, input, pan, zoom, rotation, eye placement, near plane, the lot clamp | the eye it derives from a save's camera equals the saved eye, in eight saves |
+| Character | the StarMaker appearance code: `.anm`, skinned `.msh`, `.hd` morphs, the face rig (43 sliders, expressions), `info.sm` read and write, makeup / hair / iris rules. Plans and geometry, no pixels yet | against stars saved in the real editor: a nine-slider star vertex for vertex (RMS 0.05 mm), `info.sm` byte for byte |
 
-## Building and testing `src/`
+Where each module lives and how to test it: see "Code" below.
 
-Portable C++17, no external dependencies (the injected debugger in `debugger/` is the only Windows/32-bit part).
+Still to do for the quality and success chain: reading the inputs out of the game state (traits, cast, boredom objects), the genre-fit inputs (an actor's
+distance from the genre's ideal), the stunt take score and the take records, and the `[pr]` hype adders (`CProject_AddStarPressHype`, `AddMoviePRHype`).
 
-```
-cmake -S src -B build/src && cmake --build build/src && ctest --test-dir build/src --output-on-failure
-```
+## Code
 
-A module takes already-gathered numbers (cast performance, script quality, ...), not game objects, so its formulas can be tested
-on their own; reading those numbers out of the game's classes comes with the class that owns the data. Tests check the worked
-examples and measured values in `docs/` (see `src/tests/MovieQualityTest.cpp`). Add a source file to `src/CMakeLists.txt` with each module.
-`tuning_loader` also checks against the real game files when `data/game_data` holds the extracted files (`tools/pak_extract.py`, below); without
-them it runs only its inline checks and ctest reports it as skipped. Set `OTM_GAME_DATA` to another directory to use files from elsewhere.
-Put `verified` on a function only when a measurement from the running game reproduces its result, and say in a comment what was measured.
+The modules are in `src/` (portable C++17, `cmake -S src -B build/src && cmake --build build/src && ctest --test-dir build/src --output-on-failure`), being
+ported to TypeScript under `web/src/sim/` (`STATUS.md`, next steps).
 
-Status (all under `game/movie/`, each with a test in `src/tests/`):
-- `MovieQuality`: `CQualityRating_Compute`, `CProject_ComputeFinalQuality`, the crew / set / star-relationship / genre-experience mappings.
-  `ComputeFinalQuality` is verified against two measured movies.
-- `MovieSuccess`: `CProjectSuccess_Recompute`, public interest and marketing, cast star ratings, genre popularity, boredom, the movie star
-  rating, `CProjectIncome` creation and payout, genre trend and the saturation decay value. The functions reproduced by logged game values
-  (success, rating, income, AI and player public interest, marketing D, genre popularity and trend, boredom factor) are `verified`.
-- `ActorPerformance`: the actor record (`QualityCalc_ActorPerformance`), mood and genre-fit factors, star chemistry, likeness and the stunt
-  performance factors. Nothing there is verified (no measurement isolates it); it follows the decompiled code.
+## Progress
 
-- `TuningLoader`: fills `QualityTuning`, `SuccessTuning`, `ActorTuning`, `AwardBonusTuning` and the audience-taste genre events from
-  `releasing_movies.ini`, `global.ini`, `stunts.ini`, `awardsbonuses.ini` and `timeline.csv`. Missing keys keep the default and are listed
-  in a `LoadReport`. Checked against the installed game's files: every default in the headers equals the shipped value
-  (`max_from_ideal` is 0.5).
-
-- `game/ai/AiStudio`: the AI studio's release decision (desire from the group's mean/RMS success difference, the 0.5-2 year ramp, the 0.5
-  threshold). **Verified** against 211 logged decisions (`tools/check_ai_decide.py`, `tests/AiStudioTest.cpp`).
-- `game/studio/StudioRating`: the studio rating (five weighted components with a clamp after each) and the decayed reputation.
-  **Verified** against 27 logged studio rows (`tests/StudioRatingTest.cpp`); the money and star-power components are not yet.
-- `game/staff/Traits`: the trait map with the diminishing-returns gain, the experience table, and the genre experience a take gives.
-  `game/staff/Stunts`: the stunt roll (success chance, the game's random generator), injuries, stunt XP and stunt-school training.
-  `game/staff/StarRating`: how a star's nine components combine, and how films feed the movies and performance components.
-  `game/staff/StaffTuningLoader` fills their tuning from `experience.ini`, `stunts.ini`, `global.ini` and `awardsbonuses.ini`. These follow
-  the decompiled code and the documented numbers (`docs/STUNT_SYSTEM.md`, `docs/MOVIE_SUCCESS.md` 3aa-3ac) but nothing is verified against
-  the running game; the stunt roll, for example, has only been observed as "a failure sets `ai_stunt_fail`".
-- `game/character/` (new): the character appearance code, from the StarMaker analysis (`docs/STARMAKER.md`): `core/Inflate` (zcmp / zlib),
-  `AnmFile` (v12 animations), `MshFile` (render primitives with the 4-weight skin records, the skeleton), `HeadFile` (`.hd` morph files and
-  `ApplyHdMorph`), `FaceRig` (the face skeleton posed from an animation and skinned onto the head: the 43 StarMaker face sliders, `a + 1.99 * v`,
-  and the facial expressions, `fe_<head>.anm` frame x intensity), `StarFile` (`info.sm` read and write, byte for byte), `Appearance` (makeup layer
-  file names, the layer draw order, hair colour suffixes, the age grey overlay, the iris atlas cell, the `.fan` reader). It produces plans and
-  geometry, no pixels (decoding and compositing the DDS layers is not ported; `tools/render_star.py` does it in Python). Tested in
-  `tests/CharacterTest.cpp`: the inline parts always run; the file parts need the extracted `sm_assets` and saved stars in `OTM_STAR_DIR`
-  (`~/Documents/The Movies/StarMaker`). **Checked against saved stars made in the real editor:** the nine-slider "CrazySliders" star is reproduced
-  vertex for vertex (457 of 457 vertices move, RMS error 0.05 mm on 4.2 mm of signal, maximum 0.23 mm), the all-default star from
-  `head_m_white_joe.hd` to 1.2 mm, and `info.sm` is rebuilt byte for byte. Not `verified` in the game sense (no run of the game's own functions);
-  the expression blend (linear towards the bind pose) is the port's choice, not read from the game.
-- `game/camera/GameCamera` (new): the in-lot gameplay camera (the manager's *normal* state), from `Camera_Tick` and the functions it calls (`docs/CAMERA.md`): `camera.ini` settings, keyboard / edge / drag /
-  wheel input, pan, zoom, rotation, eye placement, the near plane and the lot clamp. Pure state and arithmetic: the caller passes in the observed input and the lot rectangle. Tested in
-  `tests/CameraTest.cpp`; **checked against the game's own numbers** in that the eye it derives from a save's `SL_CamFoc` / `SL_CamRot` / `SL_CamZoo` equals the saved `SL_CamPos` (eight saves),
-  not `verified` as a whole (the input handling and the clamp have not been compared with a run of the game). The web app uses the TypeScript twin (`web/src/camera/`).
-- `game/movie/MovieEstimate` and the command line tool `otm_movie_calc` chain quality, success and revenue from plain inputs and compare
-  marketing levels. It reproduces the marketing table of `docs/MOVIE_SUCCESS.md` 3w exactly (with the symmetric imbalance reading, see there):
-
-```
-build/src/otm_movie_calc --quality 0.62 --hype 0.31 --tech --stars 0.7 --compare-marketing
-build/src/otm_movie_calc --script 0.6 --stars 0.7,0.5 --hype 0.3 --marketing 3     # one movie, every intermediate value
-```
-
-`core/` holds new helpers for the reimplementation, not ports of the game's own `MV::` / `LH::` / `PKStrings` classes: `Strings`, `File`,
-`Ini` (the game's .ini dialect: sections, `key = value`, `#` comments, keys before the first section, trailing `;`) and `Csv`.
-
-Still to do for the quality/success chain: reading the inputs out of the game's classes (traits, cast list, boredom objects), the
-genre-fit score inputs (an actor's difference from the genre's ideal), the stunt take score and the take-by-take records, and the
-`[pr]` hype adders (`CProject_AddStarPressHype` / `AddMoviePRHype`).
-
-## Extracting game data (macOS/Linux, no Windows tools)
-
-`tools/pak_extract.py` lists and extracts files from the `.pak` archives (format notes in its docstring; versions 5 and 6, not the
-older version-4 `premium_costumes` archive). Extracted files are game assets, so put them under `data/` (gitignored):
-
-```
-python3 tools/pak_extract.py extract "<game>/Data/pak" data/game_data releasing_movies.ini stunts.ini global.ini
-```
-
-The `Addon_2704_*` archives (the 2006 patch) override `MISC0000`, so the extractor takes the newest archive for each name.
-
+`tools/progress.py` counts functions per class as unnamed, named, reimplemented (an `orig:` tag exists) or verified, and writes `docs/generated/progress.md`.

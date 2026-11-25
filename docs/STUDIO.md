@@ -53,7 +53,7 @@ Constants verified from the exe (0xE52190..0xE521A8, 0xE50418..0xE50434). The co
 ## 3aw. Studio appearance and the studio star rating (CStudio_ComputeStarRating)
 **Readers of the appearance (studio +0x12C).** CStudio/CStudioAI/CStudioPlayer all share virtual slot 0x80 = getter for +0x12C (0x50AB30, not a Ghidra function). It is read by (a) `CStudio_ComputeStarRating` (0x50AB70) and (b) the advice-tip classes `PIP_PLACING_APPEARANCE_UP/DOWN` (getter 0x958A30 and compare 0x958A50, which also compare the lot's virtual 0x188). A second writer is the smoothing code at 0x513BF0 (adds/subtracts a clamped amount using studio +0x26C/+0x270/+0x274 and a 0.1 factor), so the appearance is moved gradually, not only set by `CStudioPlayer_UpdateAppearance`.
 
-**The studio rating** (stored at studio +0x130, getter = virtual slot 0x84, 0x50AB60), recomputed every studio tick by `CStudio_ComputeStarRating` (0x50AB70, called from 0x50CC00). **[verified against the log, run6 2026-11-21: 27 studio rows (player and AI), within 1e-4 in 26 and 1e-3 in the other]** Each step is clamped to 0..1:
+**The studio rating** (stored at studio +0x130, getter = virtual slot 0x84, 0x50AB60), recomputed every studio tick by `CStudio_ComputeStarRating` (0x50AB70, called from 0x50CC00). **[verified against the log: 27 studio rows (player and AI), within 1e-4 in 26 and 1e-3 in the other]** Each step is clamped to 0..1:
 ```
 s = clamp01( 0.144 * appearance )                          // studio +0x12C, virtual slot 0x80
 s = clamp01( s + 0.239 * DecayedReputation )               // CStudio_GetDecayedReputation 0x50A860

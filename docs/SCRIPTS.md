@@ -1,7 +1,7 @@
 # Scripts in the saved game
 
 How a script (the thing written in a script office, then filmed and released) is stored in a `.jad` save. Worked out on
-`quick film studios7 April 19600143Tuesday24November2026.jad` (Quick Start, state label `quickstart-script-writin`), which has one **script
+the 7 April 1960 Quick Start save (`SAVE_FORMAT.md`), which has one **script
 still being written**, "Turtles Don't Have Pretty Faces", next to the finished premade "McGun In The Ninetieth Century". Decoder:
 [tools/script_dump.py](../tools/script_dump.py) (`python3 tools/script_dump.py save.jad [--project ID]`). Container format and field-tag
 hashing: [SAVE_FORMAT.md](SAVE_FORMAT.md). Everything below is *observed in two saves*; guesses are marked *unverified*.
@@ -215,7 +215,7 @@ Findings:
 
 ## What changed between the two Quick Start saves
 
-`quick film studios22 January 1960…jad` (state `QUICKSTART`) has only McGun. Object counts, 22 January -> 7 April: `CProject` 1 -> 2,
+The 22 January 1960 Quick Start save has only McGun. Object counts, 22 January -> 7 April: `CProject` 1 -> 2,
 `CScript` 193 -> 195, `CShot` 6 -> 10, `CPart` 23 -> 47, `CRole` 63 -> 66 (two named roles + the "Unfilled Role"), `CCast` 40 -> 41, `CCostume` 102 -> 119,
 `CProjectCrewEffects` 6 -> 8 (one per writer), `CProjectObject` 0 -> 1, `ShotDesc` 756 -> 763, `PartDesc` 974 -> 983. The Turtles script accounts for 4 ShotDesc and
 2 PartDesc; the remaining +3/+7 are *unexplained* (the library holds hundreds of these, so one more library script and shifted ids are likely). Also the two

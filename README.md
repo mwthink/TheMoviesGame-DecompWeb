@@ -1,51 +1,47 @@
-# The Movies (2005) — Reverse Engineering Notes
+# Open The Movies
 
-Fan reverse-engineering notes for **The Movies** and **The Movies: Stunts & Effects** (Lionhead Studios, published by Activision, 2005–2006).
+A fan reimplementation of **The Movies** and **The Movies: Stunts & Effects** (Lionhead Studios, published by Activision, 2005–2006): a version of the
+game that runs in a modern browser and loads saves from the original.
 
-This is an ongoing effort to understand how the game's simulation actually works under the hood — mechanics like genre popularity, the radio/news system, save-file structure, and various asset formats (`.msh`, `.lug`, `.pak`) — done by statically analyzing the shipped `MoviesSE.exe` in Ghidra and cross-checking the results against the real game data files.
+The original is a 32-bit Windows XP-era program on Direct3D 9, tied to old proprietary components and to online services that no longer exist; it is
+hard to run on a current machine. This project reads how the original works (static analysis of `MoviesSE.exe` in Ghidra, checked against the game's
+data files and against the running game) and rebuilds it. The original is the source of truth for **behaviour**, not for structure: match what it does
+first, bugs included, then improve on it.
 
-The write-ups live in `docs/` (start with `docs/HANDOVER.md`); `FINDINGS.md` holds older notes, mostly the radio/news system, the audio engine and the `.lug` archive loader.
+**Start with [`docs/STATUS.md`](docs/STATUS.md)** (the goal, the state of each system, next steps), then [`docs/SETUP.md`](docs/SETUP.md).
 
-## What this is
+## Documents
 
-- Original analysis: function/class identification, algorithm and data-structure documentation, decompiled-code excerpts (a handful of lines at a time, for illustration), and short quoted strings used as evidence (debug asserts, embedded source paths, error messages).
-- A description of how various game systems and file formats work: the movie quality, success and revenue formulas (`docs/MOVIE_*.md`), the saved-game format (`docs/SAVE_FORMAT.md`, `docs/SCRIPTS.md`, `docs/CHARACTERS.md`), the `.msh` model format (`docs/MSH_FORMAT.md`), `.anm` animations and skinning (`docs/ANM_FORMAT.md`) and the `.flm` scene format (`docs/FLM_FORMAT.md`).
-
-## What this is *not*
-
-- No copies of the game binary, Ghidra project/database, or any extracted game assets (audio, textures, meshes, full data files) are included in this repo.
-- Not affiliated with, endorsed by, or sponsored by Lionhead Studios, Activision, or their successors. All trademarks and copyrighted game content belong to their respective owners; this repo only contains original analysis and commentary about that content.
-
-## Tools used
-
-- [Ghidra](https://ghidra-sre.org/) for static analysis/decompilation of the executable.
-- `tools/pak_extract.py`, an archive reader for pulling real data files (`.ini`/`.csv`/`.lhts`, meshes, textures) out of the game's `.pak` archives to verify inferences made from the disassembly (the earlier `reshoot.exe` is no longer needed).
-- Claude to help me write these notes and talk through complicated parts of this disassembly.
+| | |
+|---|---|
+| Project | [`STATUS.md`](docs/STATUS.md), [`SETUP.md`](docs/SETUP.md), [`REIMPLEMENTATION.md`](docs/REIMPLEMENTATION.md) (rules and modules), [`WEB.md`](docs/WEB.md) (the app) |
+| Running the original | [`WINE_CROSSOVER.md`](docs/WINE_CROSSOVER.md) (CrossOver on a Mac), [`WINDOWS_TEST_BOX.md`](docs/WINDOWS_TEST_BOX.md), [`ANALYSIS_TOOLS.md`](docs/ANALYSIS_TOOLS.md) (debugger, tracing, class attribution, naming) |
+| Program flow | [`BOOT.md`](docs/BOOT.md), [`MAIN_LOOP.md`](docs/MAIN_LOOP.md), [`FRONTEND.md`](docs/FRONTEND.md), [`NEW_GAME.md`](docs/NEW_GAME.md), [`CAMERA.md`](docs/CAMERA.md) |
+| Simulation | [`MOVIE_QUALITY.md`](docs/MOVIE_QUALITY.md), [`MOVIE_SUCCESS.md`](docs/MOVIE_SUCCESS.md), [`STARS.md`](docs/STARS.md), [`AWARDS.md`](docs/AWARDS.md), [`STUDIO.md`](docs/STUDIO.md), [`STUNT_SYSTEM.md`](docs/STUNT_SYSTEM.md), [`TRAITS_AND_EXPERIENCE.md`](docs/TRAITS_AND_EXPERIENCE.md), [`SCRIPTS.md`](docs/SCRIPTS.md) |
+| Files and formats | [`SAVE_FORMAT.md`](docs/SAVE_FORMAT.md), [`CHARACTERS.md`](docs/CHARACTERS.md), [`PAK_FORMAT.md`](docs/PAK_FORMAT.md), [`MSH_FORMAT.md`](docs/MSH_FORMAT.md), [`ANM_FORMAT.md`](docs/ANM_FORMAT.md), [`FLM_FORMAT.md`](docs/FLM_FORMAT.md), [`AUDIO.md`](docs/AUDIO.md) |
+| StarMaker | [`STARMAKER.md`](docs/STARMAKER.md) (the character editor, to become part of the game) |
+| Inside the binary | [`LIBRARIES.md`](docs/LIBRARIES.md), [`NETWORK.md`](docs/NETWORK.md), [`CLASS_NOTES.md`](docs/CLASS_NOTES.md) |
 
 ## Repository layout
 
 ```
-docs/          findings and format write-ups: MOVIE_QUALITY / MOVIE_SUCCESS / STUNT_SYSTEM / TRAITS_AND_EXPERIENCE (formulas),
-               SAVE_FORMAT / SCRIPTS / CHARACTERS (saved games), MSH_FORMAT / ANM_FORMAT / FLM_FORMAT (assets), STARMAKER (the character editor binary),
-               REIMPLEMENTATION, DECOMP_PIPELINE, WINDOWS_TEST_BOX, WINE_CROSSOVER, HANDOVER (state and next steps)
-FINDINGS.md    older findings notes, kept as a reference (radio/news, genre trend, audio engine, .lug loader)
-renames.csv    proposed function names with evidence; library_map.csv, fable_matches.csv; net_map.csv, p4api_map.csv (networking code, docs/NETWORK.md)
-tools/         analysis and generator scripts (Python/PowerShell); tools/ghidra_names.csv = live Ghidra names;
-               jad_dump.py, script_dump.py, script_quality.py, save_cast.py (saved games, scripts, terrain and placement renders),
-               msh_dump.py, dds.py, anm_dump.py, cos_dump.py (models, textures, animations, costumes),
-               export_person.py / export_character.py (characters for the viewer), lhts.py, list_rooms.py (text and rooms),
-               pak_extract.py, fetch_assets.py (archives); attribute_classes.py, progress.py (decompilation status); match_binaries.py (match functions between MoviesSE and StarMaker);
-               tools/winbox/ = scripts for the Windows test box (build, launch, trace, drive the game);
-               tools/wine/ = patch_laa.py, for running the game under CrossOver/Wine on the Mac (docs/WINE_CROSSOVER.md)
-web/           the web version (Babylon.js + TypeScript + Vite): loads a saved game and draws its terrain, front gate and gatehouse; see docs/WEB.md
-viewer/        three.js character viewer (index.html, vendor/; viewer/data is generated, see docs/ANM_FORMAT.md)
-ghidra/        Ghidra scripts (export, function fingerprints to compare two binaries, targeted decompile; the Ghidra projects are local: *.gpr / *.rep, gitignored)
-debugger/      TheMoviesDebugger: injected DLL + injector (CMake), used to verify findings at runtime
-src/           the readable reimplementation (portable C++17): core/, game/movie, game/staff, game/studio, game/ai, apps/ (otm_movie_calc), tests/
-data/          LOCAL ONLY, gitignored: ExportDecompiled/, game_data/ (extracted ini/csv), runtime/ (traces from the test box);
-               data/identified_organized/ (per-class decompiler excerpts) is the one tracked exception; whether it stays tracked is an open decision in docs/HANDOVER.md
-gen/, docs/generated/   LOCAL ONLY, gitignored: generated sources and reports
+web/        the game: TypeScript, Babylon.js, Vite (docs/WEB.md)
+src/        the simulation modules in C++17, being ported into web/ (docs/REIMPLEMENTATION.md)
+docs/       the documents above; docs/generated/ is local only
+tools/      Python analysis and extraction tools (docs/SETUP.md lists them by task); tools/winbox/ drives the Windows test box; tools/wine/ patches the exe for CrossOver
+ghidra/     Ghidra scripts: apply names, export, fingerprints, targeted decompiles (the Ghidra projects themselves are local)
+debugger/   TheMoviesDebugger: an injected DLL and injector (MSVC x86) that hooks, logs and traces the running original
+viewer/     a three.js character viewer (viewer/data is generated, local only)
+renames.csv, tools/ghidra_names.csv     function names and their evidence: the record of the naming work
+library_map.csv, fable_matches.csv, net_map.csv, p4api_map.csv     library and networking maps (docs/LIBRARIES.md, docs/NETWORK.md)
+data/       local only: the decompiler export, extracted game files, runtime logs (docs/SETUP.md)
+local.env   local only: this machine's paths (copy local.env.example)
 ```
 
-The game install (`The Movies/`) is kept outside the repo, next to it. **Start with `docs/HANDOVER.md`** (state, commands, next steps);
-see `docs/REIMPLEMENTATION.md` for the module layout and workflow.
+## What this is not
+
+- No copies of the game, its binaries, the Ghidra databases or any extracted game assets (audio, textures, meshes, data files). To play or develop you need
+  your own copy of the game; the app reads it in your browser, on your machine.
+- Not affiliated with, endorsed by or sponsored by Lionhead Studios, Activision or their successors. All trademarks and game content belong to their owners.
+
+Built with [Ghidra](https://ghidra-sre.org/), [Babylon.js](https://www.babylonjs.com/), and Claude as a collaborator on the analysis, the notes and the code.

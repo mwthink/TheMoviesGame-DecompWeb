@@ -38,12 +38,12 @@ npm run build      # typecheck, then the production bundle in web/dist/
 Requires Node 20.19 or 22.12 or newer (Vite's requirement; the tests run `.ts` files directly, which needs Node 22.18 or newer; developed on 24).
 
 **Try it quickly:** `npm run dev`, open `http://localhost:5173/?autoload`. In dev the server also serves the game archives and one save from this machine
-(`vite.config.ts`, `/__local/...`, read-only, byte ranges; paths from `OTM_PAK_DIR` and `OTM_SAVE`, defaulting to the CrossOver install and the
-1920 "wine studios" save the tools use). `?autoload` uses them and skips the menus; `?autoload=quick` (any part of a file name, case-insensitive) picks another `.jad` from the same folder (the server lists them all); the Load Game screen has a "Use local files" button for the same.
+(`vite.config.ts`, `/__local/...`, read-only, byte ranges; paths from `local.env` or the environment, `web/localPaths.ts`: the archives of `OTM_GAME_DIR`,
+and `OTM_SAVE` or else the first save in the game's Saved Games folder). `?autoload` uses them and skips the menus; `?autoload=quick` (any part of a file name, case-insensitive) picks another `.jad` from the same folder (the server lists them all); the Load Game screen has a "Use local files" button for the same.
 This endpoint exists only under `npm run dev`; the production build has none.
 
-**Run the dev server from a terminal.** The desktop app's `preview_start` server (`.claude/launch.json`, entry `web`) cannot read files under
-`~/Documents` or the CrossOver bottle: its reads hang. A server started from a terminal can, so use `npm run dev` there for anything that loads game files.
+**Run the dev server from a terminal** when it has to read game files. Some sandboxed launchers (an editor's or an agent's preview server) cannot read
+`~/Documents` or a CrossOver bottle and their reads hang; a server started from a terminal can.
 
 In a normal browser, **Load Game** asks for the game folder (the one with `Data/pak` inside; Chromium's folder picker, which remembers the choice, or the
 older `webkitdirectory` fallback elsewhere) and a `.jad` saved game. The archives are read in slices from disk, never uploaded.
@@ -149,9 +149,9 @@ Things worth knowing before extending it:
   not picked for textures); DDS decoding of DXT1, DXT3 against `tools/dds.py` (sums over every pixel); the gatehouse mesh against `tools/msh_dump.py` (31
   textures, 30 materials, 22,773 vertices, 10,997 triangles, the collision chunks and room parts, vertex sums); the save (the three placed assets, the
   landscape's texture names, 8,897 path cells, layer sums); the world loader (every ground texture found, blend weights sum to 255, no warnings).
-- A Quick Start save (`quick film studios22 January 1960…`, 285 placements): every ini, mesh and texture is found with no warnings, and the 285 placements share fewer than 60 models
+- A Quick Start save (22 January 1960, 285 placements): every ini, mesh and texture is found with no warnings, and the 285 placements share fewer than 60 models
   (test 8; skipped when the save is absent).
-- In the browser (Chromium in the desktop app, with the dev-server files): the world loads in a few seconds; the top-down view has the same layout as
+- In the browser (Chromium, with the dev-server files): the world loads in a few seconds; the top-down view has the same layout as
   `jad_dump.py --terrain` for the same save; the gatehouse, gate, flag, walls and billboard are solid and textured; orbit works.
   Not compared pixel by pixel with the original game, and not tried: Safari, Firefox, the folder pickers (they open native dialogs), other saves,
   the production build, touch input.
@@ -166,7 +166,7 @@ Things worth knowing before extending it:
 - **Not drawn:** facility interiors and room floors, the other lot meshes, anything but the assets in the save (no people, litter, cars).
 - **Saves:** only the placed assets and the landscape are read. Money, staff, films and everything else in `.jad` is ignored.
 - **Performance:** the Quick Start lot is 1,621 instances of about 300 source meshes and 1 M vertices; loading takes about 3 s in Node (decoding is the cost) and the
-  scene ran at about 30 fps in the desktop app's software-rendered browser pane (not a measure of a real GPU). Not profiled. Possible next steps: merge static geometry per
+  scene ran at about 30 fps in a software-rendered Chromium (not a measure of a real GPU). Not profiled. Possible next steps: merge static geometry per
   material, thin instances, and caching decoded textures.
 
 ## Next steps
@@ -175,7 +175,7 @@ Things worth knowing before extending it:
 2. Draw the rest of the lot: `lot_road_mark.msh` (how the game uses it is not read), then check the other facilities and ornaments against the original.
 3. The rest of the game camera (`docs/CAMERA.md`, "Not ported"): the plan, follow and move-asset states, pivot compensation, ground-grab dragging, and the cutaway; confirm the mouse button
    mapping, the wheel unit and the rotation sign against the running game (the dev menu shows angle and zoom to compare).
-4. Decide where the simulation lives (`HANDOVER.md` item 9): the C++ in `src/` compiled to WASM, or a TypeScript port (which needs `Math.fround` to stay
-   comparable with the original's 32-bit floats). Either way it should run headless at the original's 10 Hz tick (`MAIN_LOOP.md`).
+4. The simulation, ported to TypeScript (`STATUS.md`, `REIMPLEMENTATION.md`; `Math.fround` keeps it comparable with the original's 32-bit floats), run headless at the
+   original's 10 Hz tick (`MAIN_LOOP.md`), then driven from the world view.
 5. UI: rebuild the Flash menus as DOM using the decoded movies as the spec (`FRONTEND.md`), or try Ruffle on the `.mfl` files first.
 6. Caching decoded assets (OPFS/IndexedDB) so a reload does not re-read and re-decode, if load time starts to matter.

@@ -1,7 +1,7 @@
 # Boot: entry point to the main menu
 
 Status: the path down to the intro splashes is read from the decompile and reimplemented in `src/game/boot/IntroSequence.*`
-(tests: `src/tests/IntroSequenceTest.cpp`). One boot run under Wine was recorded (2026-11-24, `data/runtime/boot1/`, section
+(tests: `src/tests/IntroSequenceTest.cpp`). One boot run under Wine was recorded (`data/runtime/boot1/`, section
 "Measured: boot1"). It confirms the order of the path but is a first-call log, so it cannot confirm each splash's timing. The
 tests still check the model against the decompile, not against that run.
 
