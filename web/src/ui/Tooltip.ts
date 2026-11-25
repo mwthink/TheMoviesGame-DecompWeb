@@ -57,11 +57,14 @@ export class Tooltip {
   /** Text the player dismissed; it stays hidden until something else is hovered. */
   private dismissed: string | null = null;
   private programmatic: string | null = null;
+  /** The text of the element under the pointer. It wins over `programmatic`: the 3D view clears its own text on every pointer move, also over the HUD. */
+  private elementText: string | null = null;
   private enabled = true;
   private readonly onMove = (e: PointerEvent) => {
     this.pointer = { x: e.clientX, y: e.clientY };
     const el = (e.target as Element | null)?.closest?.("[data-tooltip]");
-    this.setWanted(el ? el.getAttribute("data-tooltip") : this.programmatic);
+    this.elementText = el ? el.getAttribute("data-tooltip") : null;
+    this.setWanted(this.elementText ?? this.programmatic);
   };
 
   constructor() {
@@ -90,7 +93,7 @@ export class Tooltip {
   /** Show text that belongs to something that is not an element (an object in the 3D view); `null` clears it. */
   show(text: string | null): void {
     this.programmatic = text;
-    this.setWanted(text);
+    this.setWanted(this.elementText ?? text);
   }
 
   hide(): void { this.show(null); }
