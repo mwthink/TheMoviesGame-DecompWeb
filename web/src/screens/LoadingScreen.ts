@@ -1,4 +1,5 @@
 import { gamePak, gameStrings, randomLoadingPicture } from "./frontEndArt.ts";
+import { LoadingBackdrop } from "./LoadingBackdrop.ts";
 import { LoadingCharacter } from "./LoadingCharacter.ts";
 import { pickScene } from "./loadingScenes.ts";
 import { DEFAULT_LOADING_LAYOUT, LoadingView } from "./LoadingView.ts";
@@ -30,6 +31,7 @@ export class LoadingScreen<T> implements Screen {
   private readonly view = new LoadingView();
   private dressed = false;
   private character: LoadingCharacter | null = null;
+  private backdrop: LoadingBackdrop | null = null;
   /** The error the task failed with, handed to `onError` when the player presses Back. */
   private failure = "";
   /** The last progress report, kept so the dressed view can start where the plain one is. */
@@ -66,6 +68,8 @@ export class LoadingScreen<T> implements Screen {
     this.cancelled = true;
     this.character?.dispose();
     this.character = null;
+    this.backdrop?.dispose();
+    this.backdrop = null;
     if (this.el) { void unmountScreen(this.el); this.el = null; }
   }
 
@@ -90,6 +94,7 @@ export class LoadingScreen<T> implements Screen {
     if (!pak || this.cancelled) return false;
     const scene = pickScene(Math.random, new URLSearchParams(window.location.search).get("loadingScene")); // ?loadingScene=right shows only the scenes named so
     const el = this.el!;
+    el.classList.add("scene"); // first: its canvases take their size from the CSS this class gives them
     // the character and the colour fill the whole window (the box keeps the square layout of the original, centred), so the canvas goes in the screen, behind the view
     const character = new LoadingCharacter(pak, el, this.view.element);
     try {
@@ -98,12 +103,24 @@ export class LoadingScreen<T> implements Screen {
     } catch (e) {
       console.warn("new loading scene unavailable, using a picture:", e);
       character.dispose();
+      el.classList.remove("scene");
       return false;
     }
     this.character = character;
+    if (scene.backdrop) {
+      // the set goes behind the character; if it cannot be drawn the flat colour stays
+      const backdrop = new LoadingBackdrop(pak, el, character.canvas);
+      try {
+        await backdrop.set(scene.backdrop);
+        this.backdrop = backdrop;
+      } catch (e) {
+        console.warn("loading backdrop unavailable, using the colour:", e);
+        backdrop.dispose();
+      }
+    }
+    if (this.cancelled) return false;
     this.view.setLayout({ ...DEFAULT_LOADING_LAYOUT, background: "dark" });
     this.view.setBackdrop("transparent");
-    el.classList.add("scene");
     el.style.background = scene.background;
     return true;
   }

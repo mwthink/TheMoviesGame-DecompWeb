@@ -15,6 +15,16 @@ test("every scene has an enabled character, a held frame or a clip, and a colour
   }
 });
 
+test("a scene's backdrop camera looks somewhere other than where it stands, with a sane field of view", () => {
+  for (const s of LOADING_SCENES) {
+    const b = s.backdrop;
+    if (!b) continue;
+    assert.ok(b.mesh.endsWith(".msh"), s.name);
+    assert.ok(b.eye.some((v, i) => v !== b.look[i]), s.name);
+    assert.ok(b.fovDeg > 10 && b.fovDeg < 120 && b.blurPx >= 0 && b.brightness > 0 && b.brightness <= 1.5, s.name);
+  }
+});
+
 test("pickScene covers the list and never runs off its end", () => {
   assert.equal(pickScene(() => 0), LOADING_SCENES[0]);
   assert.equal(pickScene(() => 0.999999), LOADING_SCENES[LOADING_SCENES.length - 1]);
