@@ -64,6 +64,10 @@ export class GameView implements Screen {
   /** The world to draw on the next enter(); null shows the blank placeholder scene. */
   world: WorldData | null = null;
 
+  /** Resolves once the scene from the last enter() is compiled and has drawn a frame (or the view was exited first). */
+  ready: Promise<void> = Promise.resolve();
+  private resolveReady: (() => void) | null = null;
+
   constructor(private readonly canvas: HTMLCanvasElement, private readonly onExit: () => void) {}
 
   enter(): void {
@@ -103,18 +107,31 @@ export class GameView implements Screen {
       };
       (window as unknown as { __otm?: unknown }).__otm = helpers;
     }
+    let frames = 0;
+    const scene = this.scene;
+    this.ready = new Promise<void>((resolve) => { this.resolveReady = resolve; });
     this.engine.runRenderLoop(() => {
       this.tickCamera();
       this.updateHover();
       this.scene?.render();
+      // Shaders compile in the background: count a frame as ready only once the scene reports ready and has drawn one.
+      if (++frames >= 2 && scene.isReady()) this.finishReady();
     });
+    void scene.whenReadyAsync().then(() => { if (this.scene === scene) this.finishReady(); });
     window.addEventListener("resize", this.onResize);
     window.addEventListener("keydown", this.onKey);
     this.engine.resize();
     this.canvas.focus();
   }
 
+  private finishReady(): void {
+    const resolve = this.resolveReady;
+    this.resolveReady = null;
+    resolve?.();
+  }
+
   exit(): void {
+    this.finishReady();
     window.removeEventListener("resize", this.onResize);
     window.removeEventListener("keydown", this.onKey);
     this.engine?.stopRenderLoop();
