@@ -99,6 +99,23 @@ interface Caches {
   materials: Map<string, ShaderMaterial | null>;
 }
 
+/** The cutaway shows the rooms, so it drops the walls: every triangle steeper than this (|normal z| below it, z up in the game's space) is left out. [guess] 0.5, about 60 degrees from the horizontal. */
+const WALL_NORMAL_Z = 0.5;
+
+/** The triangles of a model that are not walls (floors, steps, slopes): what the cutaway keeps. */
+function withoutWalls(positions: ArrayLike<number>, indices: ArrayLike<number>): number[] {
+  const kept: number[] = [];
+  for (let t = 0; t + 2 < indices.length; t += 3) {
+    const a = indices[t]! * 3, b = indices[t + 1]! * 3, c = indices[t + 2]! * 3;
+    const ux = positions[b]! - positions[a]!, uy = positions[b + 1]! - positions[a + 1]!, uz = positions[b + 2]! - positions[a + 2]!;
+    const vx = positions[c]! - positions[a]!, vy = positions[c + 1]! - positions[a + 1]!, vz = positions[c + 2]! - positions[a + 2]!;
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const len = Math.hypot(nx, ny, nz);
+    if (len === 0 || Math.abs(nz) / len >= WALL_NORMAL_Z) kept.push(indices[t]!, indices[t + 1]!, indices[t + 2]!);
+  }
+  return kept;
+}
+
 /**
  * Build the geometry of one model file: one hidden source mesh per primitive. Placed objects are drawn as instances of these, so a model the save
  * places 40 times (a hedge, a lamp) costs one draw call per material rather than 40.
@@ -177,7 +194,7 @@ function buildSources(scene: Scene, m: MeshAsset, caches: Caches, cut = false): 
     data.normals = normals;
     data.uvs = p.uv;
     if (p.uv2) data.uvs2 = p.uv2;
-    data.indices = Uint32Array.from(p.indices);
+    data.indices = Uint32Array.from(cut ? withoutWalls(p.positions, p.indices) : p.indices);
     data.applyToMesh(mesh, p.skin !== null); // skinned primitives (flags) get new vertices every frame
     mesh.metadata = { primitive: i };
     mesh.material = material;
