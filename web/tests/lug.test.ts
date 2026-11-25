@@ -6,7 +6,7 @@ import { test } from "node:test";
 import type { ByteSource } from "../src/assets/ByteSource.ts";
 import { indexCriteria, openLug, parseCriteria, readLugClip, readLugSegments } from "../src/formats/Lug.ts";
 import { GAME_DIR } from "../localPaths.ts";
-import { NodeSource } from "./helpers.ts";
+import { NodeSource, pakIndex } from "./helpers.ts";
 
 const AUDIO_DIR = GAME_DIR ? join(GAME_DIR, "Data", "Audio") : "";
 const game = { skip: AUDIO_DIR && existsSync(join(AUDIO_DIR, "starmaker.lug")) ? false : "game audio banks not found (set OTM_GAME_DIR)" };
@@ -136,4 +136,23 @@ test("every shipped bank opens, and each clip's RIFF size matches its record", g
       assert.equal(new DataView(head.buffer, head.byteOffset).getUint32(4, true) + 8, bank.byId.get(s.waveId)?.size ?? s.size, `${file} #${i}`);
     }
   }
+});
+
+test("the speech banks carry what the radio asks for: every DJ and news tag, with clips that are RIFF/WAVE", game, async () => {
+  const { djForYear, parseDjSchedule, parseTimelineEvents } = await import("../src/sim/audio/RadioSpeech.ts");
+  const { readFileSync } = await import("node:fs");
+  const dj = await openLug(await NodeSource.open(join(AUDIO_DIR, "EN-UK", "speech_dj.lug")));
+  const news = await openLug(await NodeSource.open(join(AUDIO_DIR, "EN-UK", "speech_news.lug")));
+  const djTags = indexCriteria(dj);
+  const schedule = parseDjSchedule(readFileSync(join(AUDIO_DIR, "radiostinginfo.csv"), "latin1"));
+  for (const e of schedule) assert.ok(djTags.get(e.tag)?.length, e.tag);
+  assert.ok((djTags.get(djForYear(schedule, 1960).talk!) ?? []).length > 100);
+  const clip = await readLugClip(dj, dj.byId.get(djTags.get("RADIO_DJ_MADDOG")![0])!);
+  assert.equal(new TextDecoder().decode(clip.subarray(0, 4)), "RIFF");
+  const newsTags = indexCriteria(news);
+  const events = parseTimelineEvents(new TextDecoder("latin1").decode((await (await pakIndex()).readByName("timeline.csv"))!));
+  assert.equal(events.length, 30);
+  // report how many of the timeline's events have a clip: the rest are simply never announced
+  const have = events.filter((e) => newsTags.has(e.tag)).length;
+  assert.ok(have >= 25, `only ${have} of ${events.length} events have news`);
 });

@@ -53,9 +53,9 @@ function localGameFiles(): Plugin {
           if (!name.includes("/") && !name.includes("..") && name.toLowerCase().endsWith(".lhts")) file = join(textDir, name);
         }
         else if (url.pathname.startsWith("/audio/")) {
-          // music (.ogg), the small tables beside it (.csv, .ini) and the track cues (.cue) under Data/Audio
+          // music (.ogg), the small tables beside it (.csv, .ini) the track cues (.cue) and the sound banks (.lug) under Data/Audio
           const rel = decodeURIComponent(url.pathname.slice(7));
-          if (/\.(ogg|csv|ini|cue)$/i.test(rel)) file = audioFile(rel);
+          if (/\.(ogg|csv|ini|cue|lug)$/i.test(rel)) file = audioFile(rel);
         }
         else if (url.pathname.startsWith("/pak/")) {
           const name = decodeURIComponent(url.pathname.slice(5));

@@ -66,7 +66,7 @@ milliseconds: `NEXT_MUSIC_START` is 2.5 to 5 s before the end of each track chec
 next track starts over the old one; the second is when the DJ's sting can play.
 
 The web port's radio (`sim/audio/Radio.ts`, `audio/RadioPlayer.ts`): a shuffle bag over the tracks that fit the game's year, a new game opening with the track
-flagged first, each track at its CSV volume, the next one starting at `NEXT_MUSIC_START` with a crossfade. No DJ, no news, no radio filter, no genre weighting.
+flagged first, each track at its CSV volume, the next one starting at `NEXT_MUSIC_START` with a crossfade. The DJ and news are in the section below; there is no genre weighting.
 
 ## `.lug` sound banks
 
@@ -154,19 +154,42 @@ does during playback is inferred from how it is used, not confirmed; the values 
 `CodecFormat_DetectFromHeader` (`00bba8c0`) looks at the first 4 bytes of a clip: `"OggS"` selects Ogg Vorbis, `"RIFF"` selects MPEG-2 Layer II (format tag
 `0x50`) or Xbox ADPCM (`0x69`), and `0x75b22630` selects WMA.
 
-## The radio
+## The DJ, the news and the speech queue
 
-`RadioChannel_PlayClip` (`004f4860`) and `RadioChannel_SelectNextClip` (`004f6ed0`):
+A state record (0x164 bytes) has three voices for talk: `+0x22C` the current clip, `+0x230` a "forced" clip, `+0x234` a third; and five queues (priorities 0 to 4,
+from state `+0x1D4`, 0x14 apart). **[read]** What goes in:
 
-- The radio object holds several channels; the current channel index is at `+0xaa8`, and each channel is a 0x164-byte record.
-- A clip's category is at clip `+0x44`: 0 DJ, 1 News, 2 Tannoy, other Speech (the debug log prefixes played clips with `"DJ,"`, `"News,"`, `"Tannoy,"`,
-  `"Speech,"`). Category 0 clips also fetch a value from a global object through `FUN_0049ab70`.
-- Each channel keeps four priority queues (5-dword records from channel `+0x1c8`, priorities 1 to 4). `SelectNextClip` takes the next clip from the
-  lowest-numbered non-empty queue into the current-clip slot (`+0x22c`), skipping clips whose per-category "played" flag is set, and only if a per-category
-  counter (`DAT_0104b09c[category]`) is at least the queue's priority.
-- A non-empty "forced" queue (`+0x1d8`) plays into slot `+0x230` instead, and the current clip drops to volume `min(0.1, DAT_0104b0b4)`: ducking under speech.
-- A clip starts only once the gap since the last one (`DAT_00e51cd4`) has passed.
-- `"DJ_STING"` and `"RADIO_DJ_MCDUFF_INTRO"` are clip names used from code.
+- `Audio_QueueSpeech` (`004F87C0`; `(state, tag, category, priority, categoryIndex, volume, delay)`): the one entry point. It refuses a clip when the state's speech is
+  off, the category is blocked, the category's **speech level** (`DAT_0104B09C[categoryIndex]`) is -1 or below the priority, news or tannoy (index 1, 2) while the
+  game's first field is under 300 (the tick counter: 30 s of game time at 10 Hz), or the tag already waits in a queue. `Audio_QueueTannoy` (`004F8A00`) is the
+  tannoy form (category `"tannoy"`, index 2, volume 0.5); many game systems call it (casting announcements, disrepair, income, shoot consequences).
+- The speech levels are four ints (`Audio_SetSpeechLevel` / `Audio_GetSpeechLevel`, `004F3200` / `004F3220`), the registry values `DJLevel`, `NewsLevel` and two more,
+  default 3 (the "MaxSpeechLevel" array, `VolumeControl`'s sibling). This is what the Options screen's PA assistance (the tannoy) and radio (all speech, DJ and news,
+  DJ only, news only, information only, none) settings change: a clip plays when its priority is at most its category's level. *(An earlier version of this page
+  called `DAT_0104B09C` a per-category counter; it is the level.)*
+- Categories (clip `+0x44`, the debug log's `"DJ,"`, `"News,"`, `"Tannoy,"`, `"Speech,"`): 0 DJ, 1 News, 2 Tannoy, 3 Speech.
+
+What comes out (`RadioChannel_SelectNextClip` `004F6ED0`, `RadioChannel_PlayClip` `004F4860`): once the gap since the last clip ended has passed
+(`DAT_00E51CD4` = **5000 ms** **[data]**, read from the exe) and no clip is playing, the first clip of the lowest-numbered queue whose category level allows it goes to
+the current voice (`+0x22C`). A clip in the forced voice (`+0x230`) has the current clip dropped to `min(0.1, DAT_0104B0B4)`. The global `DAT_00E51CD8` = 1000 ms is the
+fade time of the state changes.
+
+**The DJ.** `AudioState_UpdateRadioMusic` (`004F8AE0`): when a track's playback position is past its `DJ_STING` cue (as a fraction of the track [inferred]) and before one half,
+once per track, it rolls `Random_IntInRange(0, 6)`: below 5 (five in six) and with the forced voice free, it queues the current DJ's tag (`FUN_0049AC30` builds it;
+category `"radio"`, priority 1, category 0, volume 1.0). The DJ for a year comes from `radiostinginfo.csv` (`RadioSting_LoadDefault` `0043E980`): `RADIO_DJ_MCDUFF` to 1940, `KRUNKLEBURGER`
+1941-55, `MADDOG` 1956-69, `SHAW` 1970-77, `WRIGHT` 1978-90, `KRISTEN` 1991-2004, `HUGH` 2005-24, each with an `_INTRO` tag (one clip) and, for the last three, an `_OUTRO` valid
+one year past their term. A flag (`+0x24C`) makes the first clip after a start the DJ's `_INTRO`. **[data]** `Data/Audio/EN-UK/speech_dj.lug` holds the tags: 90 to 150 chatter
+clips per DJ (`TEXT_RADIO_DJ_<NAME>_<n>.wav`), single intro and outro clips.
+
+**The news.** `WTimelineEventIcon_Update` (`007A3D60`), for each timeline event: once, when the date is within half a year after the event, it queues the event's name
+(`TIMELINE_<NAME>`, from `timeline.csv`'s `timeline_<NAME>` rows) as category 1, priority 1; once, when the date is between two years and one and a half before the
+event, it queues the name plus `_FUTURE`. The announcement is skipped while the timeline window is showing it (`FUN_007942d0`). **[data]** `speech_news.lug` has 95 clips under
+96 tags, 48 events with a clip and its `_FUTURE` twin; 30 of the events are in `timeline.csv`. `Timeline_OnRadioClipFinished` (`007994F0`) lights the event's icon when its clip ends.
+
+The web port (`sim/audio/RadioSpeech.ts`, `audio/SpeechPlayer.ts`): the same schedule, the same windows, the five-in-six roll, one clip at a time with the 5 s gap, picks a
+random clip of the tag, plays it through the radio filter from `radioeffect.ini` (band-pass 1548 Hz, Q 5, gain 1.6) and lowers the music while it plays [guess: to 0.3].
+The DJ's sign-off and introduction play when the year passes into a new DJ's term. The speech levels are fixed at 3 (no options yet), the tannoy is not done, and the news
+needs the dev server like the rest.
 
 ## Timeline announcements
 
@@ -179,12 +202,12 @@ match calls `FUN_007a3110` on the event's icon.
 
 ## Not known
 
-- How the radio picks tracks exactly (genre weights, random mode), the DJ and news clips, and what the front end plays in state 4 (the `frontend_loop.wmv` soundtrack is the likely source).
+- How the radio picks tracks exactly (genre weights, random mode), what makes the `_INTRO` flag (`+0x24C`) set, and what the front end plays in state 4 (the `frontend_loop.wmv` soundtrack is the likely source).
 - **Menu music does not work in the web app, because of the format:** `frontend_loop.wmv` and `frontend_intro.wmv` hold WMV3 video with WMA (`wmav2`) stereo audio, which
   browsers cannot decode. The only way in is to transcode the soundtrack (for example `ffmpeg` to Ogg Vorbis) into gitignored storage; that is not done, so state 4 is
   silent. As a stand-in the web app keeps the splash's music (state 6, looped) playing through the menu, options, load, gallery and viewer screens until a game loads.
   (The tutorial `.wmv` clips in `Data/Tutorials/` have the same format problem.)
-- How the DJ for an era is chosen, and where the clip-name to event-name mapping is loaded from.
+- The tannoy's trigger rules (`tannoy.csv` and the callers of `Audio_QueueTannoy`) and the other speech categories.
 - The META Data `.lug` route, the RLM parameters, the rest of the sample record.
 - Which banks the game loads when, and the game-side engine classes (`LHAudioSystem_*`, `CEngine`, event triggers, atmosphere groups, the driver classes
   in `0x00bf3000`-`0x00c02000` and `0x00bc0000`-`0x00bc9000`): mostly unnamed (`LIBRARIES.md`).

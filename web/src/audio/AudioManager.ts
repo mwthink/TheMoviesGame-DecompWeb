@@ -1,9 +1,13 @@
 import { RadioPlayer } from "./RadioPlayer.ts";
+import { SpeechPlayer } from "./SpeechPlayer.ts";
+import type { TimelineEvent } from "../sim/audio/RadioSpeech.ts";
 import type { SettingsStore } from "../settings/Settings.ts";
 import { AUDIO_STATES, AudioStateMachine, type AudioEffect } from "../sim/audio/AudioStates.ts";
 
-/** Fade time when a state is suspended or resumed: `fadetime` in the game's `Data/Audio/radioeffect.ini` (1200 ms). The original passes its own global (`DAT_00E51CD8`). */
-const FADE_SECONDS = 1.2;
+/** Fade time when a state is suspended or resumed: the original passes a global (`DAT_00E51CD8`, 1000 ms). */
+const FADE_SECONDS = 1;
+/** How far the music drops while the DJ or the news speaks. [guess] The original lowers the other voice when a speech clip starts (`RadioChannel_SelectNextClip`); the level here is chosen by ear. */
+const DUCK_LEVEL = 0.3;
 
 /** Where a file under `Data/Audio/` (`music/Tuning_Up.ogg`, `trackinfo.csv`) can be fetched from (a URL the page can load), or null when this build has no way to read the game's audio. */
 export type MusicLocator = (path: string) => string | null;
@@ -12,6 +16,10 @@ export type MusicLocator = (path: string) => string | null;
 export interface GameInfo {
   /** The game's current year (the radio plays the tracks of that year). */
   year(): number;
+  /** The game's date in days (365 to the year). */
+  date(): number;
+  /** The timeline's events: the radio reads news about them. */
+  events(): readonly TimelineEvent[];
   /** True for a studio just started: the radio opens with the tracks flagged to play first. */
   newGame(): boolean;
 }
@@ -34,11 +42,14 @@ export class AudioManager {
   readonly machine = new AudioStateMachine();
   private context: AudioContext | null = null;
   private music: GainNode | null = null;
+  /** Between the music voices and the music bus: lowered while the radio talks. */
+  private duck: GainNode | null = null;
+  private readonly speech: SpeechPlayer;
   private sfx: GainNode | null = null;
   private readonly voices = new Map<number, Voice>();
   private readonly radio: RadioPlayer;
   /** Set by the game while one is running. */
-  game: GameInfo = { year: () => 1920, newGame: () => false };
+  game: GameInfo = { year: () => 1920, date: () => 1920 * 365, events: () => [], newGame: () => false };
   private readonly settings: SettingsStore;
   private readonly locate: MusicLocator;
 
@@ -46,10 +57,18 @@ export class AudioManager {
     this.settings = settings;
     this.locate = locate;
     this.radio = new RadioPlayer({
-      graph: () => (this.context && this.music ? { context: this.context, bus: this.music } : null),
+      graph: () => (this.context && this.duck ? { context: this.context, bus: this.duck } : null),
+      djChatter: () => this.speech.djChatter(),
       locate: (path) => this.locate(path),
       year: () => this.game.year(),
       newGame: () => this.game.newGame(),
+    });
+    this.speech = new SpeechPlayer({
+      graph: () => (this.context && this.sfx ? { context: this.context, speechBus: this.sfx } : null),
+      locate: (path) => this.locate(path),
+      date: () => this.game.date(),
+      duck: (on) => this.setDuck(on),
+      events: () => this.game.events(),
     });
     settings.subscribe(() => this.applyVolumes());
     if (target) {
@@ -86,6 +105,8 @@ export class AudioManager {
       this.context = new Ctx();
       this.music = this.context.createGain();
       this.sfx = this.context.createGain();
+      this.duck = this.context.createGain();
+      this.duck.connect(this.music);
       this.music.connect(this.context.destination);
       this.sfx.connect(this.context.destination);
       this.applyVolumes();
@@ -93,6 +114,19 @@ export class AudioManager {
     void this.context.resume();
     for (const [state, v] of this.voices) if (v.wanted) this.play(state, v);
     if (this.radio.isWanted) this.radio.play();
+  }
+
+  /** A game was loaded: the radio starts its talk afresh (the DJ's introduction, the news for the new date). */
+  newGameLoaded(): void {
+    this.speech.reset();
+  }
+
+  private setDuck(on: boolean): void {
+    if (!this.context || !this.duck) return;
+    const t = this.context.currentTime;
+    this.duck.gain.cancelScheduledValues(t);
+    this.duck.gain.setValueAtTime(this.duck.gain.value, t);
+    this.duck.gain.linearRampToValueAtTime(on ? DUCK_LEVEL : 1, t + 0.4);
   }
 
   private applyVolumes(): void {
@@ -126,6 +160,7 @@ export class AudioManager {
   private resume(state: number): void {
     if (AUDIO_STATES[state]?.player === "radio") {
       this.radio.play();
+      this.speech.start();
       return;
     }
     const v = this.voices.get(state);
@@ -153,6 +188,7 @@ export class AudioManager {
   private suspend(state: number): void {
     if (AUDIO_STATES[state]?.player === "radio") {
       this.radio.pause();
+      this.speech.stop();
       return;
     }
     const v = this.voices.get(state);
@@ -172,6 +208,7 @@ export class AudioManager {
   private stop(state: number): void {
     if (AUDIO_STATES[state]?.player === "radio") {
       this.radio.dispose();
+      this.speech.stop();
       return;
     }
     const v = this.voices.get(state);

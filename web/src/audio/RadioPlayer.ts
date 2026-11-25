@@ -1,4 +1,5 @@
 import { parseCues, parseTrackInfo, RadioPlaylist, type TrackCues, type TrackInfo } from "../sim/audio/Radio.ts";
+import { djMaySpeak } from "../sim/audio/RadioSpeech.ts";
 
 /** What the radio needs from the audio manager. */
 export interface RadioHost {
@@ -10,6 +11,8 @@ export interface RadioHost {
   year(): number;
   /** A new game starts with the tracks flagged to play first. */
   newGame(): boolean;
+  /** The DJ may talk over the current track. */
+  djChatter(): void;
 }
 
 const FADE_SECONDS = 1.2;
@@ -23,11 +26,13 @@ interface Playing {
   cues: TrackCues;
   /** The next track has been started (at the cue or at the end), so this one only plays out. */
   advanced: boolean;
+  /** The DJ roll for this track has been made. */
+  djRolled: boolean;
 }
 
 /**
  * The in-game radio (audio state 2, docs/AUDIO.md): plays the music library's tracks for the game's year one after another. The next track starts at the
- * track's `NEXT_MUSIC_START` cue, with the old one fading out under it, or when the old one ends if it has no cue. The DJ, news and the radio filter are not done.
+ * track's `NEXT_MUSIC_START` cue, with the old one fading out under it, or when the old one ends if it has no cue. It tells the speech player when the DJ may talk over a track (the DJ and news themselves are `SpeechPlayer`).
  * It is what `AudioState_UpdateRadioMusic` (orig: 0x004F8AE0) does per frame in the original.
  */
 export class RadioPlayer {
@@ -106,7 +111,7 @@ export class RadioPlayer {
     gain.gain.value = 0;
     g.context.createMediaElementSource(element).connect(gain);
     gain.connect(g.bus);
-    const now: Playing = { track, element, gain, cues, advanced: false };
+    const now: Playing = { track, element, gain, cues, advanced: false, djRolled: false };
     const previous = this.current;
     this.current = now;
     const advance = () => {
@@ -115,6 +120,16 @@ export class RadioPlayer {
       if (this.current === now && this.wanted) void this.playNext();
     };
     element.addEventListener("timeupdate", () => {
+      // the DJ's chance to talk: once per track, past its DJ_STING cue and before half way (`djMaySpeak`)
+      const length = element.duration;
+      if (!now.djRolled && Number.isFinite(length) && length > 0) {
+        const fraction = element.currentTime / length;
+        const cueFraction = (cues.djSting ?? 0) / 1000 / length;
+        if (fraction > cueFraction && fraction < 0.5) {
+          now.djRolled = true;
+          if (djMaySpeak(fraction, cueFraction, Math.floor(Math.random() * 6))) this.host.djChatter();
+        }
+      }
       if (cues.nextMusicStart !== undefined && element.currentTime * 1000 >= cues.nextMusicStart) advance();
     });
     element.addEventListener("ended", () => { advance(); this.release(now); });

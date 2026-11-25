@@ -47,6 +47,7 @@ function loadWorld(task: LoadTask<WorldData>): void {
     current = gameView;
     document.body.dataset.screen = "game";
     gameView.enter();
+    audio.newGameLoaded();
     // the loading music runs until the loading screen is gone, then the radio (already holding its place under it) comes back
     void gameView.ready.then(() => { loading.exit(); syncAudio("game"); });
   }, () => show("load"));
@@ -61,6 +62,8 @@ const audio = new AudioManager(settings, (path) => (import.meta.env.DEV ? `/__lo
 // The radio plays the music of the game's year; a studio on its first day is a new game, which opens with the tracks flagged to play first.
 audio.game = {
   year: () => calendarDate(gameView.gameDate).year,
+  date: () => gameView.gameDate,
+  events: () => gameView.world?.timelineEvents ?? [],
   newGame: () => gameView.startDate < 1920 * 365 + 1,
 };
 /** The (state, owner) pairs each screen holds, in the order the original sets them: a game's radio goes in before the loading music that covers it. */

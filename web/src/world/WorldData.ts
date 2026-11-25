@@ -1,3 +1,4 @@
+import { parseTimelineEvents, type TimelineEvent } from "../sim/audio/RadioSpeech.ts";
 import type { PakIndex } from "../assets/Pak.ts";
 import { decodeDds, type Rgba } from "../formats/Dds.ts";
 import { Ini } from "../formats/Ini.ts";
@@ -475,6 +476,8 @@ export interface WorldData {
   /** The saved game's date and cash, and the people the player's studio employs. */
   header: SaveHeader | null;
   staff: SavedStaff[];
+  /** The timeline's historical events (`data\\rule\\timeline.csv`): the radio reads news about them. Empty if the archives lack the file. */
+  timelineEvents: TimelineEvent[];
   warnings: string[];
 }
 
@@ -702,5 +705,10 @@ export async function loadWorldData(
   const nav = buildNav(lot, placements);
   // outdoors: no room scene and standing on open ground (the others stay where their scene put them until sent somewhere)
   for (const p of people) p.outdoors = p.outdoors && !nav.isBlocked(p.person.position[0], p.person.position[1]);
-  return { nav, sky, floorplanRules, people, camera, lot, terrain, meshes, placements, header: save.header, staff: save.staff, warnings };
+  let timelineEvents: TimelineEvent[] = [];
+  try {
+    const csv = await pak.readByName("timeline.csv");
+    if (csv) timelineEvents = parseTimelineEvents(new TextDecoder("latin1").decode(csv));
+  } catch { /* the radio just has no news */ }
+  return { nav, sky, floorplanRules, people, camera, lot, terrain, meshes, placements, header: save.header, staff: save.staff, timelineEvents, warnings };
 }
