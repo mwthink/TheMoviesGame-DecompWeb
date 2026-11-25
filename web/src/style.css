@@ -300,3 +300,7 @@ body[data-screen="game"] .devmenu { bottom: 70px; }
 .devmenu .body { columns: 3 260px; column-gap: 0; }
 .devmenu .body section { break-inside: avoid; border-right: 1px solid #1c1c25; }
 .loading.scene > .backdrop3d { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; transform: scale(1.08); /* hides the blur's soft edge */ }
+/* the original's text box, redrawn for scenes without a picture: panel fill (166, 183, 213), frame and header band (120, 143, 158), "i" badge */
+.loadpic.legacy-panel .loadbox { background: #a6b7d5; border-radius: 1.8cqw; box-shadow: 0 0 0 0.6cqw #788f9e, 0 -3.8cqw 0 0.6cqw #788f9e, 0 1.4cqw 2.8cqw 0.6cqw rgba(0, 0, 0, 0.5); }
+/* the frame and the header band are two shadows of the panel (one grown, one raised) behind it, so they join the panel's rounded top corners without a seam */
+.loadpic.legacy-panel .loadbox::after { content: "i"; position: absolute; left: 50%; top: -4cqw; width: 3.6cqw; height: 3.6cqw; margin-left: -1.8cqw; box-sizing: border-box; border: 0.35cqw solid #5b7080; border-radius: 50%; background: #dbe5f3; color: #26324a; font: italic bold 2.4cqw/2.9cqw "Georgia", "Times New Roman", serif; text-align: center; }

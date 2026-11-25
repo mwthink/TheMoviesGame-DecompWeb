@@ -116,6 +116,14 @@ export class LoadingView {
     button.focus();
   }
 
+  /**
+   * Draw the original's box in CSS (a light blue-grey panel in a teal-grey frame, with a header band and an "i" badge on top; colours and proportions read off the pictures) for scenes
+   * that have no picture with the box baked in.
+   */
+  setLegacyPanel(on: boolean): void {
+    this.element.classList.toggle("legacy-panel", on);
+  }
+
   /** A flat backdrop colour (CSS) in place of the picture, for the new loading scenes; null returns to the layout's background. */
   setBackdrop(colour: string | null): void {
     this.element.style.background = colour ?? "";

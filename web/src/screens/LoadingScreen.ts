@@ -121,6 +121,7 @@ export class LoadingScreen<T> implements Screen {
     if (this.cancelled) return false;
     this.view.setLayout({ ...DEFAULT_LOADING_LAYOUT, background: "dark" });
     this.view.setBackdrop("transparent");
+    this.view.setLegacyPanel(true);
     el.style.background = scene.background;
     return true;
   }
