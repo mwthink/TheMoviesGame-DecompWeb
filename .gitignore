@@ -34,3 +34,7 @@ scratch_*
 *.out.txt
 events.jsonl
 tools/run_coverage.*.txt
+
+# Web app
+web/node_modules/
+web/dist/

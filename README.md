@@ -37,6 +37,7 @@ tools/         analysis and generator scripts (Python/PowerShell); tools/ghidra_
                pak_extract.py, fetch_assets.py (archives); attribute_classes.py, progress.py (decompilation status); match_binaries.py (match functions between MoviesSE and StarMaker);
                tools/winbox/ = scripts for the Windows test box (build, launch, trace, drive the game);
                tools/wine/ = patch_laa.py, for running the game under CrossOver/Wine on the Mac (docs/WINE_CROSSOVER.md)
+web/           the web version (Babylon.js + TypeScript + Vite): splash, menu, empty game view; see docs/WEB.md
 viewer/        three.js character viewer (index.html, vendor/; viewer/data is generated, see docs/ANM_FORMAT.md)
 ghidra/        Ghidra scripts (export, function fingerprints to compare two binaries, targeted decompile; the Ghidra projects are local: *.gpr / *.rep, gitignored)
 debugger/      TheMoviesDebugger: injected DLL + injector (CMake), used to verify findings at runtime

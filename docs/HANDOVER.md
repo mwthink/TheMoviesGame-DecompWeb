@@ -47,6 +47,7 @@ portable C++ reimplementation, written from the decompiled code and the document
 | `docs/FLM_FORMAT.md` | the `.flm` scene format |
 | `docs/SAVE_FORMAT.md` *(2026-11-24)* | the `.jad` saved-game container, value encodings, what is in a save by class, terrain and the 2-unit grid, save names to ini/mesh/texture files, what is still unknown |
 | `docs/MSH_FORMAT.md` *(2026-11-24)* | `.msh` models checked against real files: header, textures, materials, polygon chunks, render geometry, lightmaps, and the code path from a mesh polygon to the placement footprint |
+| `docs/WEB.md` | the web version in `web/` (Babylon.js, TypeScript, Vite): what exists (splash, menu, empty game view), how to run it, layout, next steps |
 | `FINDINGS.md` | older notes (radio/news, genre trend, audio engine, `.lug` loader), partly superseded |
 
 ## Build, test, tools (Mac, Apple silicon; Python 3 standard library only)
