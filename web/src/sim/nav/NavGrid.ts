@@ -3,8 +3,9 @@
  *
  * [read] The game's world-to-grid conversion is `WorldToOccupancyGridCoord` (orig 0x0046BFD0): `g = round((world + 256) * 0.5)` on each axis, i.e. cells 2 units wide on a 256 x 256
  * grid whose cell (128, 128) is at the world origin (the same grid as the landscape's path bitmap, `TMLandscape_SetPathCell`, and the placement grid `LotGrid_BlockPathCell`).
- * The game's own pathfinder was not found (the route-following states, `StateEnRoute_Update` orig 0x00429DF0, ask the room's occupant manager for a destination and steer toward it);
- * this one is ours: A* over the cells that are not blocked by a footprint, then straight-line smoothing of the route.
+ * [read] The game's route finder runs on a worker thread (docs/MOVEMENT.md, "Getting from A to B"): `Grid_AStarSearch` orig 0x0046E500, an 8-neighbour A* with a Manhattan estimate inside a
+ * window of the two cells plus 128 cells. This one is ours: A* over the cells that are not blocked by a footprint, then straight-line smoothing of the route (the game's own post-process
+ * of the route, orig 0x0046EE40, is not read), and no worker thread.
  */
 
 export const NAV_CELL = 2;

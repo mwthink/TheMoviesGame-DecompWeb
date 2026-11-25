@@ -19,6 +19,9 @@ import { PersonAnimator } from "../sim/anim/PersonAnimation.ts";
 import type { Locomotion } from "../sim/anim/Gaits.ts";
 import { PersonWalker } from "../sim/anim/Walker.ts";
 import { Wanderer } from "../sim/ai/Wander.ts";
+import { DesireAgent, type Actor } from "../sim/ai/DesireAgent.ts";
+import type { DesireDef } from "../sim/ai/Desires.ts";
+import type { PropExplainer } from "../sim/ai/Explainers.ts";
 import type { NavGrid } from "../sim/nav/NavGrid.ts";
 import { registerShaders } from "./shaders.ts";
 import { makeTexture, setTextureAnisotropy } from "./textures.ts";
@@ -212,11 +215,13 @@ function buildSources(scene: Scene, m: MeshAsset, caches: Caches, cut = false): 
  * game's (x, y, z up) -> Babylon (x, z, y) mapping. Parts are lit by their texture alone for now (the game's people take the lightmap of where they stand).
  * The node and its meshes carry `metadata.person` for picking.
  */
-function buildPeople(scene: Scene, people: PersonInWorld[], nav: NavGrid | null): { nodes: TransformNode[]; step(dtMs: number): void; clips: () => { name: string; clip: string; source: string }[]; control: PeopleControl } {
+function buildPeople(scene: Scene, people: PersonInWorld[], nav: NavGrid | null, props: readonly PropExplainer[], desireTable: Map<string, DesireDef>): { nodes: TransformNode[]; step(dtMs: number): void; clips: () => { name: string; clip: string; source: string }[]; control: PeopleControl } {
   const materials = new Map<string, StandardMaterial>();
   const nodes: TransformNode[] = [];
-  const animated: { animator: PersonAnimator; entry: PersonInWorld; meshes: PersonMeshes; walker: PersonWalker; wanderer: Wanderer; held?: boolean }[] = [];
+  const animated: { animator: PersonAnimator; entry: PersonInWorld; meshes: PersonMeshes; walker: PersonWalker; wanderer: Wanderer; agent: DesireAgent; actor: Actor; held?: boolean }[] = [];
   let wander = false;
+  let desiresOn = false;
+  let now = 0; // game seconds since the world was built: props are "taken" for a moment after someone chooses them
   for (const entry of people) {
     const { person } = entry;
     const meshes = new PersonMeshes(scene, entry, `person/${person.id}`, materials, { person: { id: person.id, cls: person.cls, name: person.name } });
@@ -224,22 +229,36 @@ function buildPeople(scene: Scene, people: PersonInWorld[], nav: NavGrid | null)
     meshes.node.rotation.y = -person.angle;
     nodes.push(meshes.node);
     if (entry.plan && meshes.hasSkin) {
+      const walker = new PersonWalker(person.position[0], person.position[1], person.angle, entry.gaits.speeds);
+      const female = (person.costume?.cos ?? "").toLowerCase().startsWith("f_"); // as the gait lookup tells the sexes apart
+      // the body the desire agent drives: walks by the shortest clear route at a stroll, turns on the spot
+      const actor: Actor = {
+        get x() { return walker.x; }, get y() { return walker.y; },
+        get walking() { return walker.moving; },
+        walkTo(x, y) { const path = nav?.findPath(walker, { x, y }); if (!path) return false; walker.go(path, 0); return true; },
+        turnTo: (heading, dt) => walker.turnTo(heading, dt),
+        stop: () => walker.stop(),
+      };
       animated.push({
-        animator: new PersonAnimator(entry.skeleton, entry.clips, entry.plan), entry, meshes,
-        walker: new PersonWalker(person.position[0], person.position[1], person.angle, entry.gaits.speeds), wanderer: new Wanderer(),
+        animator: new PersonAnimator(entry.skeleton, entry.clips, entry.plan), entry, meshes, walker, wanderer: new Wanderer(),
+        agent: new DesireAgent(desireTable, [female ? "crap_female" : "crap_male", "buyfood"]), actor,
       });
     }
   }
   const byId = (id: number) => animated.find((a) => a.entry.person.id === id);
   const step = (dtMs: number) => {
     const dt = dtMs / 1000;
+    now += dt;
     for (const a of animated) {
       const { animator, meshes, walker, entry } = a;
-      if (nav && wander && entry.outdoors && !walker.moving && !a.held) {
+      // desires first: a person with an activity does not wander; they go where it takes them
+      const busy = nav && desiresOn && entry.outdoors && !a.held ? a.agent.update(dt, a.actor, props, now) : false;
+      if (nav && wander && !busy && entry.outdoors && !walker.moving && !a.held) {
         const plan = a.wanderer.update(dt, walker, nav);
         if (plan) walker.go(plan.to, plan.gait);
       }
-      if (walker.moving) {
+      // turning on the spot (the agent's Turning state) changes the heading without a route
+      if (walker.moving || busy) {
         walker.step(dt);
         meshes.node.position.x = walker.x;
         meshes.node.position.z = walker.y;
@@ -258,13 +277,18 @@ function buildPeople(scene: Scene, people: PersonInWorld[], nav: NavGrid | null)
       if (!a || !nav) return false;
       const path = nav.findPath(a.walker, { x, y });
       if (!path) return false;
+      a.agent.cancel(); // an order from the player replaces what the person was doing
       a.walker.go(path, gait);
       return true;
     },
-    stop(id) { byId(id)?.walker.stop(); },
-    hold(id, held) { const a = byId(id); if (a) { a.held = held; if (held) a.walker.stop(); } },
+    stop(id) { const a = byId(id); if (a) { a.agent.cancel(); a.walker.stop(); } },
+    hold(id, held) { const a = byId(id); if (a) { a.held = held; if (held) { a.agent.cancel(); a.walker.stop(); } } },
     place(id, x, y) { byId(id)?.walker.place(x, y); },
     setWander(on) { wander = on; },
+    setDesires(on) { desiresOn = on; if (!on) for (const a of animated) { a.agent.cancel(); a.walker.stop(); } },
+    activities() {
+      return animated.filter((a) => a.agent.activity).map((a) => ({ name: a.entry.person.name, action: a.agent.activity!.desire.action, state: a.agent.activity!.state }));
+    },
     route(id) { return byId(id)?.walker.path ?? []; },
   };
   return { nodes, step, control, clips: () => animated.map((a) => ({ name: a.entry.person.name, clip: a.animator.clipName, source: a.entry.plan!.source })) };
@@ -281,6 +305,10 @@ export interface PeopleControl {
   place(id: number, x: number, y: number): void;
   /** Let people who are outdoors wander. */
   setWander(on: boolean): void;
+  /** Let people who are outdoors act on their desires: walk to a toilet or a counter when the need is high enough (docs/DESIRES.md). */
+  setDesires(on: boolean): void;
+  /** What the people who are busy with a desire are doing, for the dev menu. */
+  activities(): { name: string; action: string; state: string }[];
   /** The waypoints a person still has to walk. */
   route(id: number): readonly { x: number; y: number }[];
 }
@@ -469,7 +497,7 @@ export function buildWorld(scene: Scene, canvas: HTMLCanvasElement, world: World
   camera.wheelPrecision = 5;
   camera.panningSensibility = 60;
   camera.attachControl(canvas, true);
-  const built = buildPeople(scene, world.people, world.nav);
+  const built = buildPeople(scene, world.people, world.nav, world.props, world.desires);
   for (const node of built.nodes) for (const part of node.getChildMeshes()) shadowCasters.push({ mesh: part, material: null });
   const skyHandle = world.sky ? buildSky(scene, world.sky) : null;
   return { camera, instances, shadowCasters, setSkyVariant: (v) => skyHandle?.setVariant(v), stepAutoAnimations, autoAnimated, people: built.nodes, stepPeople: built.step, peopleClips: built.clips, peopleControl: built.control };

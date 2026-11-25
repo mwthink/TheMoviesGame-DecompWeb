@@ -15,6 +15,8 @@ export interface DevTools {
   onHighlight?: (on: boolean) => void;
   /** Movement: let loose people wander; the gait (0 stroll, 1 walk, 2 run) right-click orders use. */
   onWander?: (on: boolean) => void;
+  /** Movement: let loose people act on their desires (walk to a toilet or a counter). */
+  onDesires?: (on: boolean) => void;
   onGait?: (gait: 0 | 1 | 2) => void;
   /** The canvas the shadow map viewer draws into (the game view fills it). */
   shadowViewCanvas?: (canvas: HTMLCanvasElement | null) => void;
@@ -199,6 +201,11 @@ export class DevMenu {
     wanderBox.addEventListener("change", () => tools.onWander?.(wanderBox.checked));
     const wanderLabel = document.createElement("label");
     wanderLabel.append(wanderBox, " Loose people wander about");
+    const desireBox = document.createElement("input");
+    desireBox.type = "checkbox";
+    desireBox.addEventListener("change", () => tools.onDesires?.(desireBox.checked));
+    const desireLabel = document.createElement("label");
+    desireLabel.append(desireBox, " Loose people act on desires (toilet, food; docs/DESIRES.md)");
     const gaitSel = document.createElement("select");
     [["0", "Stroll"], ["1", "Walk"], ["2", "Run"]].forEach(([v, name]) => gaitSel.append(new Option(name, v)));
     gaitSel.value = "1";
@@ -207,7 +214,7 @@ export class DevMenu {
     gaitLabel.append("Right-click gait ", gaitSel);
     const hint = document.createElement("p");
     hint.textContent = "Click a person, then right-click the ground.";
-    moveSec.append(wanderLabel, gaitLabel, hint);
+    moveSec.append(wanderLabel, desireLabel, gaitLabel, hint);
     this.body.append(moveSec);
 
     // Time: a scale on the game speed and single steps (for watching motion).

@@ -341,6 +341,7 @@ export class GameView implements Screen {
       onTimeScale: (v) => { this.clock.timeScale = v; },
       onStep: () => this.stepOnce(),
       onWander: (on) => this.people?.setWander(on),
+      onDesires: (on) => this.people?.setDesires(on),
       onGait: (g) => { this.orderGait = g; },
       onDebugMode: (m) => { if (this.scene) setDebugMode(this.scene, m); },
       onSkyVariant: (v) => { this.skyMode = v; this.skyShown = -1; if (v !== "auto") { this.setSkyVariant?.(v); this.skyShown = v; } },

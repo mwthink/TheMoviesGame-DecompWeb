@@ -46,6 +46,14 @@ export class PersonWalker {
 
   stop(): void { this.path = []; }
 
+  /** Turn on the spot toward a heading for `dt` seconds (at the walker's turn rate); true once facing it. */
+  turnTo(target: number, dt: number): boolean {
+    const delta = wrapAngle(target - this.heading);
+    const turn = Math.min(Math.abs(delta), TURN_RATE * Math.max(0, dt));
+    this.heading = wrapAngle(this.heading + Math.sign(delta) * turn);
+    return Math.abs(wrapAngle(target - this.heading)) < 1e-6;
+  }
+
   /** Put the walker somewhere (a drop, a placement): it stops. */
   place(x: number, y: number, heading = this.heading): void {
     this.x = x; this.y = y; this.heading = heading;

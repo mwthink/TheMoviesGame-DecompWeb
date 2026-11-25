@@ -2575,3 +2575,28 @@ address,old_name,new_name,evidence
 009b10a0,FUN_009b10a0,Audio_SetVoiceVolume,"(voice handle, volume): sets a voice's level; used for the ambience, the speech ducking (min(0.1, DAT_0104B0B4)) and clips at master level"
 009b09f0,FUN_009b09f0,Audio_HasEventTag,"(tag): whether any bank has a sample or event for the tag; Audio_BuildAmbienceTag uses it to fall back to prefix + ""_2"""
 009b0520,FUN_009b0520,Audio_GetTagSampleCount,(tag): the number of samples under a tag; RadioSting_LoadCurrentClipList loops its indices 0..n-1
+00598e20,FUN_00598e20,TMCharacter_GetMover,"returns the character's mover: the path agent at +0x5D8, or the steering module (+0x5DC, sub-object +0x78) when the mode at +0x5E0 is 1"
+00538ac0,FUN_00538ac0,TMInWorld_GetPosition,copies the three floats at +0x100 to the out pointer (character vtable +0x34)
+005990f0,FUN_005990f0,TMCharacter_SetMoverMode,"(0 path agent, 1 steering module); changes only when the counter at +0x5F8 passed 20 ticks, then resets it"
+004298d0,FUN_004298d0,StateEnRoute_PickMoverMode,"steering module (mode 1) when within a distance of the goal and the flag at +0x724 is set, else the path agent (mode 0)"
+00429890,FUN_00429890,ActivityState_SendGoalToMover,"calls TMCharacter_GetMover and its slot 0 with (goal, angle); vtable +0x14 of the runner states"
+00429400,FUN_00429400,Angle_LerpShortest,"blend of two angles across the wrap, then Math_WrapAngle; used for the turn and the heading smoothing"
+004acd10,FUN_004acd10,PathAgent_Constructor,"0xB8-byte object stored at character +0x5D8: route vector at +0x60, goal +0x94, speed +0x04; links itself to the character's list"
+004ad750,FUN_004ad750,PathAgent_UpdateRoute,"slot 0 of the path agent, (goal): keeps or re-requests the route, collects a finished path, then runs UpdateSpeed, PopReachedWaypoints and StepAlongRoute"
+004ab440,FUN_004ab440,PathAgent_UpdateSpeed,"speed += acceleration up to the character's state speed (vtable +0x140), floor at a fraction of it; eases down near the activity's prop"
+004ac670,FUN_004ac670,PathAgent_PopReachedWaypoints,drops waypoints from the end of the route vector while the agent is within about its speed of the last one
+004abc50,FUN_004abc50,PathAgent_StepAlongRoute,"moves the agent toward the last waypoint at its speed, smooths the heading, pushes away from characters within 6 units, then places the character (vtable +0x28)"
+004ac340,FUN_004ac340,PathAgent_SetRouteCellFlags,"writes or clears a flag on every grid cell along the route (LotGrid_SetCellFlagsAtWorld, flag argument 8)"
+004acea0,FUN_004acea0,PathQueue_Enqueue,"under the critical section adds a request (id, start, goal) or updates the one with that id, and signals the worker's event"
+004abad0,FUN_004abad0,PathQueue_FindResult,looks up a finished path by request id under the critical section
+004adb90,FUN_004adb90,PathQueue_ProcessOne,"worker: takes the first request, calls PathFinder_FindRoute and moves the result to the results list"
+004ade00,FUN_004ade00,PathQueue_ThreadProc,"worker thread: waits on a stop event and a work event, runs PathQueue_ProcessOne until the queue is empty"
+004ade40,FUN_004ade40,PathQueue_StartThread,"creates the two critical sections, the two events and the worker thread"
+004ad040,FUN_004ad040,PathFinder_FindRoute,"(start, goal) -> route; tries Grid_FindPath, then points part-way along and fanned round the straight line, then a one-point straight route"
+0046f310,FUN_0046f310,Grid_FindPath,"snaps start and goal to free cells (mask 0x31), checks reachability and builds the route; a blocked goal is walked toward along the line in steps"
+0046e500,FUN_0046e500,Grid_AStarSearch,"(start cell, goal cell): 8-neighbour A* with a Manhattan estimate, open list in a heap, window of the two cells plus 128, at most 0xFFF6 expansions"
+0046f1f0,FUN_0046f1f0,Grid_BuildRouteFromNodes,walks the parent links of the found nodes and converts each cell to a world point (cell * size + origin) into the route vector
+0046cb40,FUN_0046cb40,LotGrid_SnapToFreeCell,"moves a cell to the nearest cell that LotGrid_IsCellFree accepts for the mask, searching in growing squares"
+0046d1c0,FUN_0046d1c0,LotGrid_SnapWorldToFreeCell,world point -> its cell -> LotGrid_SnapToFreeCell -> back to the cell's world point (unchanged when the cell was free)
+005094d0,FUN_005094d0,SteeringModule_Constructor,0xDC-byte object stored at character +0x5DC; registers the name AVCSteeringModule_TM in a global list
+00598f00,TMCharacter_SetMovingFlag5E4,TMCharacter_SetLocomotionLock,"sets the byte at +0x5E4; TMCharacter_UpdateLocomotionStateFromSpeed keeps state 3 or 5 while it is set and follows the urgency (+0x52C) when clear; the runner states set it in position and clear it while walking"
