@@ -24,7 +24,10 @@ export class GameToolbar {
   private readonly dateEl: HTMLElement;
   private readonly moneyEl: HTMLElement;
   private readonly trackEl: HTMLElement;
-  private markers: { el: HTMLElement; year: number; x: number | null }[] = [];
+  private readonly cardEl: HTMLElement;
+  private now = 0;
+  private hovered: { el: HTMLElement; tag: string; year: number } | null = null;
+  private markers: { el: HTMLElement; tag: string; year: number; x: number | null }[] = [];
 
   constructor(onSpeed: (speed: GameSpeed) => void) {
     const el = document.createElement("div");
@@ -46,6 +49,12 @@ export class GameToolbar {
     this.dateEl = el.querySelector(".date")!;
     this.moneyEl = el.querySelector(".money")!;
     this.trackEl = el.querySelector(".timeline")!;
+    const card = document.createElement("div");
+    card.className = "tlcard";
+    card.hidden = true;
+    card.innerHTML = `<strong class="name"></strong><span class="when"></span><p></p>`;
+    el.append(card);
+    this.cardEl = card;
   }
 
   /** Highlight the active speed button. */
@@ -62,16 +71,46 @@ export class GameToolbar {
     this.markers = events.map((e) => {
       const el = document.createElement("div");
       el.className = "tlevent";
-      el.dataset.tooltip = `${e.tag.replace(/^TIMELINE_/, "")}, ${Math.floor(e.year)}`;
       el.hidden = true;
+      // An empty tooltip stops the track's own bubble from showing over a dot (Tooltip.ts: the nearest `data-tooltip` wins); the card shows instead.
+      el.dataset.tooltip = "";
+      el.addEventListener("pointerenter", () => this.showCard({ el, tag: e.tag, year: e.year }));
+      el.addEventListener("pointerleave", () => this.hideCard());
       this.trackEl.append(el);
-      return { el, year: e.year, x: null };
+      return { el, tag: e.tag, year: e.year, x: null };
     });
+  }
+
+  /** The small card under a hovered event dot: its name, date and what it is. */
+  private showCard(m: { el: HTMLElement; tag: string; year: number }): void {
+    this.hovered = m;
+    this.fillCard(m);
+    const card = this.cardEl;
+    card.hidden = false;
+    const r = m.el.getBoundingClientRect();
+    const w = card.offsetWidth;
+    card.style.left = `${Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2))}px`;
+    card.style.top = `${r.bottom + 8}px`;
+  }
+
+  private hideCard(): void {
+    this.hovered = null;
+    this.cardEl.hidden = true;
+  }
+
+  private fillCard(m: { tag: string; year: number }): void {
+    const c = this.cardEl;
+    const set = (sel: string, text: string) => { const n = c.querySelector(sel)!; if (n.textContent !== text) n.textContent = text; };
+    set(".name", m.tag.replace(/^TIMELINE_/, ""));
+    set(".when", `${formatDate(m.year * 365)} · ${relativeYears(m.year - this.now)}`);
+    set("p", "A world event. It shifts which genres the audience favours, and the radio reports it in the news.");
   }
 
   /** Place each event by its date (`sim/ui/TimelineScale.ts`). Only touches an event whose pixel changed. */
   private placeEvents(days: number): void {
     const now = days / 365;
+    this.now = now;
+    if (this.hovered) this.fillCard(this.hovered);
     const width = this.trackEl.clientWidth || 600;
     for (const m of this.markers) {
       const x = timelineX(m.year - now, width);
@@ -93,6 +132,14 @@ export class GameToolbar {
 
   mount(parent: HTMLElement): void { parent.append(this.element); }
   dispose(): void { this.element.remove(); }
+}
+
+/** How far off a date is, in words: "in 2 years", "3 months ago", "this month". */
+export function relativeYears(yearsAhead: number): string {
+  const months = Math.round(Math.abs(yearsAhead) * 12);
+  if (months < 1) return "this month";
+  const span = months >= 24 ? `${Math.round(months / 12)} years` : months === 12 ? "1 year" : months === 1 ? "1 month" : `${months} months`;
+  return yearsAhead >= 0 ? `in ${span}` : `${span} ago`;
 }
 
 /** "$1,199,561", with a minus sign for debt. */
