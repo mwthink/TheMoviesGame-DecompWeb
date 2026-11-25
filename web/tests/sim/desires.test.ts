@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { DESIRE_UPDATE_SECONDS, DesireAgent, IDLE_THRESHOLD, TRY_START_SECONDS, USE_SECONDS, type Activity, type Actor } from "../../src/sim/ai/DesireAgent.ts";
 import { ADAPTIVE_MULTIPLIER, Desire, MAX_DESIRE_INTERVAL, parseDesires } from "../../src/sim/ai/Desires.ts";
 import { PropExplainer, explainerGoal, parseExplainer, parsePlacedExplainers } from "../../src/sim/ai/Explainers.ts";
-import { PersonWalker } from "../../src/sim/anim/Walker.ts";
+import { PersonWalker, wrapAngle } from "../../src/sim/anim/Walker.ts";
 import { NavGrid } from "../../src/sim/nav/NavGrid.ts";
 import { readFileSync } from "node:fs";
 import { parseSave } from "../../src/formats/Jad.ts";
@@ -260,6 +260,30 @@ test("a desire below the idle threshold does not start, one above it does", () =
   assert.equal((agent.activity as Activity | null)?.state, "enroute"); // read again: the check above narrowed it to null
 });
 
+test("an agent that must face a different way at its prop plays a turn clip, then faces it", () => {
+  const nav = new NavGrid();
+  nav.openRect(-60, -60, 60, 60);
+  const table = parseDesires(DESIRES);
+  const def = parseExplainer("male_loo", LOO.replace("LocalPositionX=1.5", "LocalPositionX=0").replace("LocalPositionY=-4", "LocalPositionY=0").replace("LocalAngle=1.2", "LocalAngle=1.5708"));
+  const prop = new PropExplainer(def, { name: "male_loo", offset: { x: 0, y: 0 }, angle: 0 }, { x: 10, y: 0, yaw: 0 }); // goal (10, 0), facing +y
+  const { actor, walker } = body(nav, 0, 0);
+  const agent = new DesireAgent(table, ["crap_male"], () => 0);
+  agent.desires[0]!.level = 0.9;
+  const clips = new Set<number>();
+  let now = 0;
+  const dt = 0.05;
+  for (let i = 0; i < 1200 && !(agent.activity?.state === "using"); i++) {
+    now += dt;
+    agent.update(dt, actor, [prop], now);
+    walker.step(dt);
+    if (walker.turnClip !== null) clips.add(walker.turnClip);
+  }
+  assert.equal(agent.activity?.state, "using");
+  assert.deepEqual([...clips], [37], "the 45-degree clip, positive, for the whole turn");
+  assert.ok(Math.abs(wrapAngle(walker.heading - 1.5708)) < 1e-3, `faces the prop: ${walker.heading}`);
+  assert.equal(walker.turning, false);
+});
+
 test("with no route to a prop the person tries the next one, and with none does nothing", () => {
   const nav = new NavGrid();
   nav.openRect(-60, -60, 60, 60);
@@ -314,6 +338,7 @@ test("a real world: toilets and counters are placed with reachable goals, and lo
   assert.ok((offered.get("buyfood") ?? 0) > 0, `counters: ${[...offered]}`);
   assert.ok((offered.get("propinteract") ?? 0) > 0, `benches and the like: ${[...offered]}`);
   assert.ok(world.desires.has("crap_male") && world.desires.has("buyfood"));
+  assert.ok(world.people.every((p) => p.gaits.turns.size === 6 && p.gaits.turnSeconds === 0.7), "everyone has the six turn clips, 0.7 s long");
 
   // every outdoor person gets an agent, the way the scene builds them; run 30 game minutes with strong desires so the loop is exercised
   const uses = new Map<string, number>();

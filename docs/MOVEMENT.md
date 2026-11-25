@@ -26,7 +26,11 @@ ego pairs, ids 27 to 32), `CStar_PlayBoredWalk` (22, 23), `CStar_PlaySadWalk` (2
 counter that caps at 1 [inferred]. The web app plays only the three gait clips.
 
 **Turning** [read]. `TMCharacter_PlayTurnAnimation` (`00447AE0`) picks a turn-on-the-spot clip from the heading difference: under 5 degrees none, 5 to 12 the 10-degree clip, 12 to 36 the 22-degree
-clip, above that the 45-degree clip; positive differences use ids 35 to 37, negative 38 to 40. The idle clip is id 41.
+clip, above that the 45-degree clip; positive differences use ids 35 to 37, negative 38 to 40. The idle clip is id 41. The difference is **target (`+0x478`) minus the heading the turn started from
+(`+0x47C`)**, not minus the current heading, so the clip is chosen once for the whole turn; a positive difference (counter-clockwise from above) uses the `POS` clips (the sign factor at `0xD171A8` is -1).
+The thresholds 5, 12 and 36 degrees are read from the executable. `ChooseLocomotionAnimation` calls this every tick while the locomotion state is 3. The files (`gait.ini`) are `stand_rot_p10.anm`,
+`_p22`, `_p45` and `_n10`, `_n22`, `_n45`: each has 19 frames, flag 3 (600 ms), is in place and ends on its first pose, so **the clip does not rotate the body**; the heading is rotated separately by
+`StateTurning_Update` [measured from the files].
 
 **Grid** [read]. Occupancy is a 256 x 256 grid of 2-unit cells, cell = round((world + 256) / 2) (the rounding is in `0x0046BFD0`). The route finder that runs on it is described in "Getting from A to B" below.
 
@@ -57,7 +61,11 @@ action. A prop with a queue (`CActivity_CreateRunner`: the prop's slot `+0xE0` r
 
 **Turning** (`StateTurning_Update`, `00429640`) [read]. If the heading difference is large enough: locomotion state 3 (turn on the spot), the turn time is the elapsed time over the turn clip's frame count, the heading is
 `Angle_LerpShortest` between start and target by that fraction; at 1 the heading is set, the activity state becomes 2, locomotion state 4 and the prop's interaction scene starts
-(`Prop_GetPuppetSceneName` -> character vtable `+0x160`, `TMCharacter_PlayInteractionScene`). A small difference skips the turn. The turn clips are chosen elsewhere (`TMCharacter_PlayTurnAnimation`, above).
+(`Prop_GetPuppetSceneName` -> character vtable `+0x160`, `TMCharacter_PlayInteractionScene`). A small difference (under 5 degrees: `0xD1855C`, with 57.2958 to convert) skips the turn and sets the heading at once. The turn lasts `frames * 100 ms` (`0xD1750C` = 100) where `frames` is
+the clip's frame count or, for flag bit 1, `(n - 1) / 3 + 1` (`FUN_00429570`): **7 frames, 0.7 s** for the six turn clips; the heading moves linearly (`FUN_00429400`, no easing). The turn clip is chosen above.
+
+**Heading while walking** [read]. There is no turn on the spot at the start of a trip or at a corner: `PathAgent_StepAlongRoute` moves the position toward the next waypoint and sets the heading 35 % of the
+way to the direction of travel every tick (`Angle_LerpShortest` with 0.35, the constant `0x3EB33333`), so a person who must turn round keeps moving while they swing round.
 
 **ReadyAndPuppet** (`00429D90`) [read]: each tick it keeps the character in locomotion state 4; when the character's finished flag (`+0x15C`) is set the runner is marked finished and the puppeted flag cleared.
 `CActivity_Tick` (`00402C40`) also sends `ai_stop` to the scene after a time limit and cancels an activity whose prop has the "gone" flag (`prop + 0x2B1`) before it reached state 2.
@@ -119,7 +127,9 @@ character starts when several tie (`TMCharacter_TryStartAnyDesireAction`).
   such a gait uses its nearest working neighbour's clip and speed.
 - **Grid** (`NavGrid.ts`): the lot's rectangle is walkable except under each placed model's footprint (`b15_02`, turned and moved as placed). Cells are 2 units, as the game's. Routes are
   A* over the cells with line-of-sight smoothing (a stand-in for the game's finder).
-- **Walker** (`Walker.ts`): turns toward the next waypoint at 4.5 rad/s [guess], walks only when within 50 degrees of it, moves at the gait's speed. No turn clips are played yet.
+- **Walker** (`Walker.ts`): moves toward the next waypoint at the gait's speed and steers its heading 35 % of the way to the direction of travel each tick (frame-rate independent), as the game does; it does not
+  pivot. `turnTo` is the turn on the spot of the desire activity: under 5 degrees it sets the heading, otherwise it picks the turn clip once from the whole turn (`turnClipId`, `walker.turnClip`), and moves
+  the heading linearly over `turnSeconds` (0.7 s, `turnSeconds` of the clip). The scene plays that clip (`WorldScene.ts`) and cross-fades into and out of it.
 - **Animation**: while a person walks, `PersonAnimator.setOverride` plays the gait clip; when they stop it returns to their room scene's idle. A change of clip **cross-fades** over 0.25 s (`BLEND_MS`,
   [guess]: the game's blend time is not read); without it the person snapped between the walk and standing poses at every start and stop. The gait clips themselves are in place (the root only bobs by a few
   centimetres) and loop cleanly [measured from `walk.anm`, `run_jog.anm`: last frame equals the first to 0.004 rad], so the walk cycle has no seam of its own.
@@ -131,4 +141,4 @@ character starts when several tie (`TMCharacter_TryStartAnyDesireAction`).
 
 ## Not done
 
-Turn clips, the game's own route finder (read, not ported), its collision rules, walking through doors and between rooms, people avoiding each other (the path agent's separation push), speed changes with urgency, the idle clip (id 41) between trips, the steering module, and every desire but crap, buyfood and propinteract.
+The game's own route finder (read, not ported), its collision rules, walking through doors and between rooms, people avoiding each other (the path agent's separation push), speed changes with urgency, the idle clip (id 41) between trips, the steering module, and every desire but crap, buyfood and propinteract.
