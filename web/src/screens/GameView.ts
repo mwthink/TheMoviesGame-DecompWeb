@@ -28,7 +28,7 @@ import { PersonDragger } from "../world/PersonDragger.ts";
 import { applySun, createSunLights, type SunLights } from "../world/SunLight.ts";
 import { DEFAULT_SHADOWS, DEFAULT_SUN, type ShadowSettings, type SunSettings } from "../world/Sun.ts";
 import { SunShadows } from "../world/SunShadows.ts";
-import { FrustumLines, HoverHighlight, PerfStats, ShadowMapViewer } from "../world/DevViews.ts";
+import { footprintOutline, FrustumLines, HoverHighlight, PerfStats, ShadowMapViewer } from "../world/DevViews.ts";
 import { setDebugMode } from "../world/SunLight.ts";
 import { skyVariantForYear, yearOfDate } from "../world/Sky.ts";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode";
@@ -492,8 +492,9 @@ export class GameView implements Screen {
     // outline what the pointer is over: a person, else a building (through clones of the instances that are showing)
     if (this.hoverPerson && !this.dragger?.active) this.highlight?.setPerson(this.hoverPerson);
     else if (underPointer) {
-      const set = this.instances.get(underPointer);
-      this.highlight?.setBuilding(underPointer, set ? [...set.full, ...set.cut].filter((i) => i.isEnabled()) : []);
+      const b = this.buildings.find((x) => x.meta.key === underPointer);
+      const scale = this.instances.get(underPointer)?.full[0]?.scaling.x ?? 1;
+      this.highlight?.setBuilding(underPointer, b?.footprint ? footprintOutline(b.footprint, b.meta.position, b.meta.angle, scale, 0.2) : []);
     } else this.highlight?.setPerson(null);
     const candidates: RevealCandidate[] = this.buildings.map((b) => {
       let distance = Infinity;

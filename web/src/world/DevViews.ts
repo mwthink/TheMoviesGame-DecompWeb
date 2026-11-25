@@ -7,7 +7,7 @@ import { HighlightLayer } from "@babylonjs/core/Layers/highlightLayer";
 import "@babylonjs/core/Layers/effectLayerSceneComponent"; // side effect: lets the scene render effect layers
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { CreateLineSystem } from "@babylonjs/core/Meshes/Builders/linesBuilder";
-import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { LinesMesh } from "@babylonjs/core/Meshes/linesMesh";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode";
@@ -17,14 +17,38 @@ import type { SunShadows } from "./SunShadows.ts";
 
 /**
  * Outlines what the pointer is over (docs/DEV_TOOLS.md): a person's meshes, or a building. Babylon's `HighlightLayer` takes plain meshes only (an instanced mesh has no
- * `onBeforeBindObservable`), so a building is outlined through temporary clones of its instances that share the geometry and the material; they are removed when the pointer leaves.
+ * `onBeforeBindObservable`), so a building is outlined by its footprint drawn as lines on the ground.
  */
+/**
+ * The outline of a footprint (`b15_02`: indexed triangles in the model's x, y plane) as closed loops of scene points: the edges used by one triangle only, turned by the placement's angle
+ * (game counter-clockwise), scaled, moved to its position and lifted to `height`. Game (x, y) is scene (x, z).
+ */
+export function footprintOutline(fp: { verts: ArrayLike<number>; tris: ArrayLike<number> }, position: ArrayLike<number>, angle: number, scale: number, height: number): Vector3[][] {
+  const count = new Map<string, [number, number, number]>();
+  for (let t = 0; t + 2 < fp.tris.length; t += 3) {
+    for (let e = 0; e < 3; e++) {
+      const a = fp.tris[t + e]!, b = fp.tris[t + (e + 1) % 3]!;
+      const key = a < b ? `${a},${b}` : `${b},${a}`;
+      const entry = count.get(key);
+      if (entry) entry[2]++; else count.set(key, [a, b, 1]);
+    }
+  }
+  const c = Math.cos(angle), s = Math.sin(angle);
+  const point = (i: number) => {
+    const x = fp.verts[i * 3]! * scale, y = fp.verts[i * 3 + 1]! * scale;
+    return new Vector3(position[0] + x * c - y * s, height, position[1] + x * s + y * c);
+  };
+  const lines: Vector3[][] = [];
+  for (const [a, b, n] of count.values()) if (n === 1) lines.push([point(a), point(b)]);
+  return lines;
+}
+
 export class HoverHighlight {
   private layer: HighlightLayer | null = null;
   private enabled = true;
   private current: string | null = null;
   private meshes: Mesh[] = [];
-  private clones: Mesh[] = [];
+  private outline: LinesMesh | null = null;
 
   constructor(private readonly scene: Scene) {}
 
@@ -55,35 +79,28 @@ export class HoverHighlight {
     for (const m of node.getChildMeshes()) { layer.addMesh(m as Mesh, new Color3(1, 0.85, 0.3)); this.meshes.push(m as Mesh); }
   }
 
-  /** Outline a building given its key and the instances that are showing now (clones of them are outlined). */
-  setBuilding(key: string | null, instances: InstancedMesh[]): void {
+  /**
+   * Outline a building by its footprint on the ground (`footprintOutline`). The glow cannot be used here: a building that shows its rooms is cut open by a discard in its own shader, and
+   * the glow layer draws the whole uncut silhouette in the highlight colour over the rooms.
+   */
+  setBuilding(key: string | null, loops: Vector3[][]): void {
     if (!this.enabled) return;
-    const k = key ? `building:${key}:${instances.map((i) => i.name).join("|")}` : null;
+    const k = key ? `building:${key}` : null;
     if (k === this.current) return;
     this.clear();
-    if (!key) return;
+    if (!key || !loops.length) return;
     this.current = k;
-    const layer = this.ensureLayer();
-    for (const inst of instances) {
-      const clone = inst.sourceMesh.clone(`hover/${inst.name}`, null);
-      if (!clone) continue;
-      clone.isVisible = true;
-      clone.isPickable = false;
-      clone.position.copyFrom(inst.position);
-      if (inst.rotationQuaternion) clone.rotationQuaternion = inst.rotationQuaternion.clone(); else clone.rotation.copyFrom(inst.rotation);
-      clone.scaling.copyFrom(inst.scaling);
-      layer.addMesh(clone, new Color3(0.5, 0.8, 1));
-      this.clones.push(clone);
-      this.meshes.push(clone);
-    }
+    this.outline = CreateLineSystem("hover/footprint", { lines: loops }, this.scene);
+    this.outline.color = new Color3(0.5, 0.8, 1);
+    this.outline.isPickable = false;
   }
 
   private clear(): void {
     this.current = null;
     if (this.layer) for (const m of this.meshes) this.layer.removeMesh(m);
-    for (const c of this.clones) c.dispose();
+    this.outline?.dispose();
+    this.outline = null;
     this.meshes = [];
-    this.clones = [];
   }
 
   dispose(): void {

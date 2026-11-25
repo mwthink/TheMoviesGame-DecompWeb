@@ -13,6 +13,6 @@ The dev menu (bottom right in the game view; every section folds away) holds the
 
 ## Notes
 
-- Babylon's `HighlightLayer` does not accept instanced meshes (it needs `onBeforeBindObservable`), and the world's buildings are instances; the outline is made through temporary clones of the building's showing instances (shared geometry and material), removed when the pointer leaves.
+- People are outlined with Babylon's `HighlightLayer`. Buildings are not: the layer draws the whole uncut silhouette in its colour, which covers the rooms of a building that is cut open for its room view (a discard in the building's own shader, which the layer does not know), and it does not take instanced meshes. A hovered building gets its footprint (`b15_02`) drawn as lines on the ground instead (`footprintOutline`).
 - The shadow map viewer draws the map through Babylon's `EffectRenderer` into a small render target, unpacking the packed depth in a fragment shader.
 - Shader source comments must not contain quotes or semicolons (`tests/shaders.test.ts`).
