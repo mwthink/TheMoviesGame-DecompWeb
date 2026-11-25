@@ -28,8 +28,8 @@ export interface MeshAsset {
   msh: Msh;
   /** Decoded textures by lower-case file name (diffuse and lightmap textures the model uses). Shared between meshes. */
   textures: Map<string, Rgba>;
-  /** Named rooms that have text on their floor (docs/SAVE_FORMAT.md): the text lines and the middle of the floor, in the model's own coordinates. Empty without the string database. */
-  rooms: { name: string; lines: string[]; x: number; y: number }[];
+  /** The model's named rooms (`room_*` parts, not the unnamed whole-floor part): the text on the floor (docs/SAVE_FORMAT.md, empty if the room has none or there is no string database) and the floor polygon. */
+  rooms: { name: string; lines: string[]; x: number; y: number; chunk: MshChunk }[];
 }
 
 /** The middle of a room floor polygon: the triangle centroids weighted by area. */
@@ -195,11 +195,9 @@ export async function loadWorldData(
           else warnings.push(`${meshName}: texture ${name} not found`);
         }
         const rooms: MeshAsset["rooms"] = [];
-        if (strings) {
-          for (const part of msh.parts) {
-            const lines = roomLines(strings, part.name);
-            if (lines.length) rooms.push({ name: part.name, lines, ...chunkCentre(part.chunk) });
-          }
+        for (const part of msh.parts) {
+          if (part.name.toLowerCase() === "room_") continue; // the union of the walkable floor
+          rooms.push({ name: part.name, lines: strings ? roomLines(strings, part.name) : [], ...chunkCentre(part.chunk), chunk: part.chunk });
         }
         return { name: meshName, msh, textures, rooms };
       })();

@@ -9,7 +9,8 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial";
 import type { Screen } from "./Screen.ts";
 import { buildWorld } from "../world/WorldScene.ts";
-import { Matrix, Vector3 as V3 } from "@babylonjs/core/Maths/math.vector";
+import { buildRoomFloors } from "../world/RoomFloors.ts";
+import type { MshChunk } from "../formats/Msh.ts";
 import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh";
 import type { WorldData } from "../world/WorldData.ts";
 import { FAR_PLANE, GameCamera } from "../camera/GameCamera.ts";
@@ -17,7 +18,7 @@ import { CameraInputSource } from "../camera/CameraInput.ts";
 import { DevMenu, type CameraMode } from "../ui/DevMenu.ts";
 import { MenuBar } from "../ui/MenuBar.ts";
 
-interface RoomInfo { name: string; lines: string[]; x: number; y: number }
+interface RoomInfo { name: string; lines: string[]; x: number; y: number; chunk: MshChunk }
 interface Meta { key: string; source: string; position: number[]; angle: number; rooms: RoomInfo[] }
 
 /** The in-game view: a Babylon scene on the page canvas, showing the loaded world (or nothing when there is none). */
@@ -43,9 +44,8 @@ export class GameView implements Screen {
   private hoverAt: { x: number; y: number } | null = null;
   private hoverDirty = false;
   private hoverMs = 0;
-  private hovered: { key: string; source: string; rooms: RoomInfo[]; x: number; y: number; angle: number } | null = null;
-  private labelLayer: HTMLElement | null = null;
-  private labels: HTMLElement[] = [];
+  private hovered: { key: string; source: string; rooms: RoomInfo[] } | null = null;
+  private floors: { dispose(): void } | null = null;
   private readonly onHoverMove = (e: PointerEvent) => {
     this.hoverAt = e.target === this.canvas && e.buttons === 0 ? { x: e.clientX, y: e.clientY } : null;
     this.hoverDirty = true;
@@ -107,7 +107,6 @@ export class GameView implements Screen {
       this.tickCamera();
       this.updateHover();
       this.scene?.render();
-      this.placeLabels();
     });
     window.addEventListener("resize", this.onResize);
     window.addEventListener("keydown", this.onKey);
@@ -153,9 +152,6 @@ export class GameView implements Screen {
     document.body.append(this.hud);
     this.menuBar = new MenuBar(() => this.onExit());
     this.menuBar.mount(this.hud);
-    this.labelLayer = document.createElement("div");
-    this.labelLayer.className = "roomlabels";
-    this.hud.append(this.labelLayer);
     this.devMenu = new DevMenu((m) => this.selectCamera(m), this.gameCamera !== null);
     this.devMenu.mount(this.hud);
   }
@@ -195,28 +191,22 @@ export class GameView implements Screen {
     const at = this.hoverAt;
     if (!at) { this.setHovered(null); return; }
     const k = this.engine.getRenderWidth() / window.innerWidth;
-    const hit = this.scene.pick(at.x * k, at.y * k, (m) => m.isPickable && m.isEnabled() && ((m.metadata as Meta | null)?.rooms?.length ?? 0) > 0);
+    const hit = this.scene.pick(at.x * k, at.y * k, (m) => m.isPickable && m.isEnabled() && ((m.metadata as Meta | null)?.rooms?.some((r) => r.lines.length) ?? false));
     const md = hit?.hit ? (hit.pickedMesh?.metadata as Meta | null) : null;
-    this.setHovered(md?.rooms?.length ? md : null);
+    this.setHovered(md?.rooms?.some((r) => r.lines.length) ? md : null);
   }
 
-  /** Cut the shell of the hovered building away (or put it back) and create the room labels. */
+  /** Cut the shell of the hovered building away (or put it back) and draw (or remove) its room floors. */
   private setHovered(md: Meta | null): void {
     if (md?.key === this.hovered?.key) return;
     this.showCutaway(this.hovered?.key, false);
-    for (const l of this.labels) l.remove();
-    this.labels = [];
+    this.floors?.dispose();
+    this.floors = null;
     this.hovered = null;
-    if (!md) return;
+    if (!md || !this.scene) return;
     this.showCutaway(md.key, true);
-    this.hovered = { key: md.key, source: md.source, rooms: md.rooms, x: md.position[0]!, y: md.position[1]!, angle: md.angle };
-    for (const r of md.rooms) {
-      const el = document.createElement("div");
-      el.className = "roomlabel";
-      el.innerHTML = r.lines.map((l) => `<div>${l.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!)}</div>`).join("");
-      this.labelLayer?.append(el);
-      this.labels.push(el);
-    }
+    this.hovered = { key: md.key, source: md.source, rooms: md.rooms };
+    this.floors = buildRoomFloors(this.scene, md.rooms, { x: md.position[0]!, y: md.position[1]!, angle: md.angle });
   }
 
   /** Swap a building between its whole model and its cutaway model. */
@@ -225,24 +215,6 @@ export class GameView implements Screen {
     if (!set) return;
     for (const i of set.full) i.setEnabled(!on);
     for (const i of set.cut) i.setEnabled(on);
-  }
-
-  /** Project each room label of the hovered building onto the screen. */
-  private placeLabels(): void {
-    const h = this.hovered, scene = this.scene, engine = this.engine, cam = scene?.activeCamera;
-    if (!h || !scene || !engine || !cam) return;
-    const w = engine.getRenderWidth(), ht = engine.getRenderHeight(), k = w / window.innerWidth;
-    const vp = cam.viewport.toGlobal(w, ht);
-    const m = scene.getTransformMatrix();
-    const c = Math.cos(h.angle), s = Math.sin(h.angle);
-    h.rooms.forEach((r, i) => {
-      const gx = h.x + r.x * c - r.y * s, gy = h.y + r.x * s + r.y * c; // game ground position of the floor's middle
-      const p = V3.Project(new V3(gx, 0.3, gy), Matrix.IdentityReadOnly, m, vp);
-      const el = this.labels[i]!;
-      el.hidden = p.z < 0 || p.z > 1;
-      el.style.left = `${p.x / k}px`;
-      el.style.top = `${p.y / k}px`;
-    });
   }
 
   private selectCamera(mode: CameraMode): void {

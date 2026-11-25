@@ -202,7 +202,7 @@ export function buildWorld(scene: Scene, canvas: HTMLCanvasElement, world: World
 
   // Frame the lot and its facilities: the centre of their positions, seen from the road side (south), looking north.
   const cutSources = new Map<MeshAsset, Mesh[]>();
-  for (const mesh of world.meshes) if (mesh.rooms.length) cutSources.set(mesh, buildSources(scene, mesh, caches, true));
+  for (const mesh of world.meshes) if (mesh.rooms.some((r) => r.lines.length)) cutSources.set(mesh, buildSources(scene, mesh, caches, true));
   const instances = new Map<string, { full: InstancedMesh[]; cut: InstancedMesh[] }>();
   const framed: [number, number][] = [];
   for (const { asset, mesh, scale } of world.placements) {

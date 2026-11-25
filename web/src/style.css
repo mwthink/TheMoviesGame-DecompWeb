@@ -78,11 +78,3 @@ body[data-screen="game"] .hud { display: block; }
 .devmenu .row .k { color: var(--muted); }
 .devmenu .row .v { text-align: right; }
 .devmenu [hidden] { display: none; }
-
-/* Room names on the floor of the building under the pointer (a DOM layer projected from the 3D positions each frame). */
-.roomlabels { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
-.roomlabel {
-  position: absolute; transform: translate(-50%, -50%); text-align: center; white-space: nowrap; font-size: 12px; line-height: 1.15;
-  color: #fff; text-shadow: 0 0 3px #000, 0 0 3px #000, 0 1px 2px #000; pointer-events: none;
-}
-.roomlabel[hidden] { display: none; }

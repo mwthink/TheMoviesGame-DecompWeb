@@ -97,4 +97,25 @@ export function registerShaders(): void {
       // flag.dds is mid-grey (mean about 0.44): like a lightmapped surface the cloth is doubled (255/127, as in otmStatic), which makes the cloth near white.
       gl_FragColor = vec4(mix(min(b.rgb * (255.0 / 127.0), vec3(1.0)), d.rgb, d.a), 1.0); // the gain is on the cloth only: doubled, the logo washes out
     }`;
+  // Flat colour or texture (the room floors and their wall outlines). Plain mesh, not instanced.
+  Effect.ShadersStore["otmFlatVertexShader"] = `
+    precision highp float;
+    attribute vec3 position;
+    attribute vec2 uv;
+    uniform mat4 world;
+    uniform mat4 viewProjection;
+    varying vec2 vUV;
+    void main() {
+      vUV = uv;
+      gl_Position = viewProjection * world * vec4(position, 1.0);
+    }`;
+  Effect.ShadersStore["otmFlatFragmentShader"] = `
+    precision highp float;
+    varying vec2 vUV;
+    uniform sampler2D tex;
+    uniform vec4 tint;
+    uniform float useTex;
+    void main() {
+      gl_FragColor = useTex > 0.5 ? texture2D(tex, vUV) : tint;
+    }`;
 }
