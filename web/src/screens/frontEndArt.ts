@@ -48,6 +48,30 @@ export async function frontEndLogo(): Promise<HTMLCanvasElement | null> {
   return canvas;
 }
 
+/** One of the game's loading-screen pictures: its file name (without `.dds`) and a way to decode it. */
+export interface LoadingPicture { name: string; load(): Promise<Rgba>; }
+
+const LOADING_DIR = "data\\textures\\ui\\loadingscreens\\";
+
+/**
+ * The pictures the original shows while a game loads (every `.dds` in `ui\\loadingscreens`; orig: 0x00422580 `Game_PickLoadingScreen` picks
+ * one uniformly at random per load, docs/LOADING_SCREENS.md), read from the player's install. Empty when no archives are available.
+ */
+export async function loadingPictures(): Promise<LoadingPicture[]> {
+  try {
+    const paks = await findArchives();
+    if (!paks.length) return [];
+    const pak = await PakIndex.open(paks);
+    return pak.list(LOADING_DIR).map((f) => ({
+      name: f.entry.name.replace(/\.dds$/i, ""),
+      load: async () => decodeDds(await pak.read(f)),
+    }));
+  } catch (e) {
+    console.warn("loading pictures unavailable:", e);
+    return [];
+  }
+}
+
 async function loadLogo(): Promise<Rgba | null> {
   try {
     const paks = await findArchives();

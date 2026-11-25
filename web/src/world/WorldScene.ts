@@ -8,9 +8,11 @@ import { CreateGround } from "@babylonjs/core/Meshes/Builders/groundBuilder";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh";
 import "@babylonjs/core/Meshes/instancedMesh"; // side effect: adds Mesh.createInstance
+import { VertexBuffer } from "@babylonjs/core/Buffers/buffer";
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData";
 import type { Scene } from "@babylonjs/core/scene";
 import type { Rgba } from "../formats/Dds.ts";
+import { AutoAnimator } from "../sim/anim/AutoAnimation.ts";
 import { registerShaders } from "./shaders.ts";
 import type { MeshAsset, TerrainData, WorldData } from "./WorldData.ts";
 
@@ -176,7 +178,8 @@ function buildSources(scene: Scene, m: MeshAsset, caches: Caches, cut = false): 
     data.uvs = p.uv;
     if (p.uv2) data.uvs2 = p.uv2;
     data.indices = Uint32Array.from(p.indices);
-    data.applyToMesh(mesh);
+    data.applyToMesh(mesh, p.skin !== null); // skinned primitives (flags) get new vertices every frame
+    mesh.metadata = { primitive: i };
     mesh.material = material;
     mesh.isVisible = false; // only its instances are drawn
     mesh.isPickable = false;
@@ -190,6 +193,13 @@ export interface BuiltWorld {
   camera: ArcRotateCamera;
   /** The buildings that have rooms, by `<source>#<id>`: the normal instances (enabled) and the cutaway ones (disabled until the building is hovered). */
   instances: Map<string, { full: InstancedMesh[]; cut: InstancedMesh[] }>;
+  /**
+   * Move every auto-animated model (the flags) on by the real time since the last rendered frame, in milliseconds. Call once per drawn frame;
+   * it is deliberately independent of the game clock, as in the original (`AutoAnimation.ts`).
+   */
+  stepAutoAnimations(dtMs: number): void;
+  /** How many models are auto-animated here (for the dev menu). */
+  autoAnimated: { model: string; clip: () => number }[];
 }
 
 /** Draw a loaded world into a scene: the ground and every placed model, with an orbit camera framing the lot and its facilities. */
@@ -225,6 +235,39 @@ export function buildWorld(scene: Scene, canvas: HTMLCanvasElement, world: World
     if (cuts) instances.set(key, { full, cut: cuts.map((source, i) => place(source, `${key}/${i}/cut`, true)) });
     if (asset.cls === "CLot" || asset.source === "outside/lot_gate" || asset.source.startsWith("facility/")) framed.push([x, y]);
   }
+  // Auto-animated models: one animator per model file, writing the skinned vertices of its (shared) source meshes each frame.
+  const animators: { animator: AutoAnimator; targets: { mesh: Mesh; skinned: number }[] }[] = [];
+  const autoAnimated: BuiltWorld["autoAnimated"] = [];
+  for (const mesh of world.meshes) {
+    if (!mesh.autoAnim) continue;
+    const animator = new AutoAnimator(mesh.msh, mesh.autoAnim);
+    const targets: { mesh: Mesh; skinned: number }[] = [];
+    for (const src of [...(sources.get(mesh) ?? []), ...(cutSources.get(mesh) ?? [])]) {
+      const skinned = animator.skinned.findIndex((s) => s.primitive === (src.metadata as { primitive: number } | null)?.primitive);
+      if (skinned >= 0) targets.push({ mesh: src, skinned });
+    }
+    if (!targets.length) continue;
+    animators.push({ animator, targets });
+    autoAnimated.push({ model: mesh.name, clip: () => animator.clip });
+  }
+  const swizzled = new Map<Mesh, { p: Float32Array; n: Float32Array }>();
+  const stepAutoAnimations = (dtMs: number) => {
+    for (const { animator, targets } of animators) {
+      animator.step(dtMs);
+      for (const { mesh, skinned } of targets) {
+        const s = animator.skinned[skinned]!;
+        let buf = swizzled.get(mesh);
+        if (!buf) swizzled.set(mesh, (buf = { p: new Float32Array(s.positions.length), n: new Float32Array(s.normals.length) }));
+        for (let v = 0; v < s.positions.length; v += 3) {
+          buf.p[v] = s.positions[v]!; buf.p[v + 1] = s.positions[v + 2]!; buf.p[v + 2] = s.positions[v + 1]!; // game (x, y, z) -> Babylon (x, z, y)
+          buf.n[v] = s.normals[v]!; buf.n[v + 1] = s.normals[v + 2]!; buf.n[v + 2] = s.normals[v + 1]!;
+        }
+        mesh.updateVerticesData(VertexBuffer.PositionKind, buf.p);
+        mesh.updateVerticesData(VertexBuffer.NormalKind, buf.n);
+      }
+    }
+  };
+
   let cx = 0, cy = 0;
   for (const [x, y] of framed) { cx += x; cy += y; }
   if (framed.length) { cx /= framed.length; cy /= framed.length; }
@@ -240,5 +283,5 @@ export function buildWorld(scene: Scene, canvas: HTMLCanvasElement, world: World
   camera.wheelPrecision = 5;
   camera.panningSensibility = 60;
   camera.attachControl(canvas, true);
-  return { camera, instances };
+  return { camera, instances, stepAutoAnimations, autoAnimated };
 }

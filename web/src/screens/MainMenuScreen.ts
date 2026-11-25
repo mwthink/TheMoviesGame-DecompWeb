@@ -11,7 +11,11 @@ interface MenuItem {
 export class MainMenuScreen implements Screen {
   private el: HTMLElement | null = null;
 
-  constructor(private readonly container: HTMLElement, private readonly onLoadGame: () => void) {}
+  private readonly onLoadingScreens: (() => void) | undefined;
+
+  constructor(private readonly container: HTMLElement, private readonly onLoadGame: () => void, onLoadingScreens?: () => void) {
+    this.onLoadingScreens = onLoadingScreens;
+  }
 
   enter(): void {
     const items: MenuItem[] = [
@@ -24,6 +28,8 @@ export class MainMenuScreen implements Screen {
       { label: "Credits" },
       { label: "Quit" },
     ];
+    // A dev tool, not a game feature: browse the original's loading pictures.
+    if (import.meta.env.DEV && this.onLoadingScreens) items.push({ label: "Loading screens (dev)", action: this.onLoadingScreens });
 
     this.el = mountScreen(this.container, "menu");
     this.el.innerHTML = `<h2>Main Menu</h2><ul></ul><div class="footer">Open The Movies - early development</div>`;

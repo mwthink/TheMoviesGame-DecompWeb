@@ -17,6 +17,9 @@ import { FAR_PLANE, GameCamera } from "../camera/GameCamera.ts";
 import { CameraInputSource } from "../camera/CameraInput.ts";
 import { DevMenu, type CameraMode } from "../ui/DevMenu.ts";
 import { MenuBar } from "../ui/MenuBar.ts";
+import { GameToolbar } from "../ui/GameToolbar.ts";
+import { StaffPanel } from "../ui/StaffPanel.ts";
+import { GameClock, type GameSpeed } from "../sim/core/GameClock.ts";
 
 interface RoomInfo { name: string; lines: string[]; x: number; y: number; chunk: MshChunk }
 interface Meta { key: string; source: string; position: number[]; angle: number; rooms: RoomInfo[] }
@@ -32,6 +35,13 @@ export class GameView implements Screen {
   private hud: HTMLElement | null = null;
   private devMenu: DevMenu | null = null;
   private menuBar: MenuBar | null = null;
+  private toolbar: GameToolbar | null = null;
+  private staffPanel: StaffPanel | null = null;
+  /** The game's date and speed (sim/core/GameClock.ts), advanced from the render loop at the original's fixed 10 Hz tick. */
+  private clock = new GameClock(1920 * 365);
+  /** Moves the flags on, by real frame time (world/WorldScene.ts `stepAutoAnimations`); independent of the clock and the pause. */
+  private stepAutoAnimations: ((dtMs: number) => void) | null = null;
+  private autoAnimated: { model: string; clip: () => number }[] = [];
   private orbit: ArcRotateCamera | null = null;
   private gameCamera: GameCamera | null = null;
   private gameBabylon: FreeCamera | null = null;
@@ -80,10 +90,15 @@ export class GameView implements Screen {
       const built = buildWorld(this.scene, this.canvas, this.world);
       this.orbit = built.camera;
       this.instances = built.instances;
+      this.stepAutoAnimations = built.stepAutoAnimations;
+      this.autoAnimated = built.autoAnimated;
     } else {
+      this.stepAutoAnimations = null;
+      this.autoAnimated = [];
       // A scene needs a camera to render. This one is a placeholder until the real game camera exists.
       this.orbit = new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 3, 20, Vector3.Zero(), this.scene);
     }
+    this.clock = new GameClock(this.world?.header?.date ?? 1920 * 365); // a fresh studio starts on 1 January 1920
     this.mode = "default";
     this.hovered = null;
     window.addEventListener("pointermove", this.onHoverMove);
@@ -111,6 +126,7 @@ export class GameView implements Screen {
     const scene = this.scene;
     this.ready = new Promise<void>((resolve) => { this.resolveReady = resolve; });
     this.engine.runRenderLoop(() => {
+      this.tickGame();
       this.tickCamera();
       this.updateHover();
       this.scene?.render();
@@ -142,8 +158,11 @@ export class GameView implements Screen {
     this.input?.detach();
     this.devMenu?.dispose();
     this.menuBar?.dispose();
+    this.toolbar?.dispose();
+    this.staffPanel?.dispose();
     this.hud?.remove();
-    this.hud = this.devMenu = this.menuBar = this.input = this.gameCamera = this.gameBabylon = this.orbit = null;
+    this.stepAutoAnimations = null;
+    this.hud = this.devMenu = this.menuBar = this.toolbar = this.staffPanel = this.input = this.gameCamera = this.gameBabylon = this.orbit = null;
     this.scene?.dispose();
     this.scene = null;
   }
@@ -169,8 +188,32 @@ export class GameView implements Screen {
     document.body.append(this.hud);
     this.menuBar = new MenuBar(() => this.onExit());
     this.menuBar.mount(this.hud);
+    this.toolbar = new GameToolbar((speed) => this.setSpeed(speed));
+    this.toolbar.mount(this.menuBar.toolbar);
+    this.toolbar.setSpeed(this.clock.speed);
+    this.toolbar.setStatus(this.clock.date, w?.header?.cash ?? null);
+    this.staffPanel = new StaffPanel(w?.staff ?? []);
+    this.staffPanel.mount(this.hud);
     this.devMenu = new DevMenu((m) => this.selectCamera(m), this.gameCamera !== null);
     this.devMenu.mount(this.hud);
+  }
+
+  /** The toolbar's speed buttons: pause, play (1x) or fast. Only the game clock changes; flags and the camera keep running (docs/AUTO_ANIMATION.md). */
+  private setSpeed(speed: GameSpeed): void {
+    this.clock.speed = speed;
+    this.toolbar?.setSpeed(speed);
+  }
+
+  /**
+   * Once per rendered frame: advance the game clock by the frame's real time (it turns that into 0.1 s simulation ticks scaled by the speed; none while
+   * paused), refresh the toolbar, and step the flags by the same real frame time, which the original also does outside the simulation tick.
+   */
+  private tickGame(): void {
+    const engine = this.engine;
+    if (!engine) return;
+    const dtMs = engine.getDeltaTime();
+    if (this.clock.advance(dtMs / 1000) > 0) this.toolbar?.setStatus(this.clock.date, this.world?.header?.cash ?? null);
+    this.stepAutoAnimations?.(dtMs);
   }
 
   /** Pick the placed object under a canvas pixel (terrain is not pickable) and record it for the dev menu. */
@@ -288,6 +331,13 @@ export class GameView implements Screen {
         "camera in use": this.mode === "game" ? "game camera" : "default (orbit)",
         placements: w ? String(w.placements.length) : "none",
       },
+    };
+    state["Time"] = {
+      date: this.toolbar ? this.clock.date.toFixed(3) : "",
+      speed: this.clock.speed,
+      "ticks run": String(this.clock.ticks),
+      "ticks per day": String(this.clock.ticksPerDay),
+      "waving models": this.autoAnimated.length ? this.autoAnimated.map((a) => `${a.model} (clip ${a.clip()})`).join(", ") : "none",
     };
     state["Last click"] = this.lastClick;
     state["Hover"] = this.hovered ? { building: this.hovered.source, rooms: this.hovered.rooms.map((r) => r.name.replace(/^room_/, "")).join(", ") } : { building: "none" };

@@ -52,6 +52,8 @@ the details and its open questions.
 | Scenes (`.flm`) | `FLM_FORMAT.md` | the format | no | no |
 | Boot, intro, main loop | `BOOT.md`, `MAIN_LOOP.md` | yes | the intro sequence and command line | the intro order (one Wine run) |
 | Main menu, new game | `FRONTEND.md`, `NEW_GAME.md` | the menu state machine, the start options, the starting layout | yes (logic, not the screens) | no |
+| Game clock, toolbar, auto-animated props (flags) | `AUTO_ANIMATION.md`, `MAIN_LOOP.md` | the fixed timestep and the date step; the flag driver and clip timing | yes (clock, pause / play / fast; flags wave; the day pace and the flag pose are guesses) | no |
+| Loading screens | `LOADING_SCREENS.md` | one random picture of 17 per load; the pictures | gallery only (dev) | no |
 | Camera | `CAMERA.md` | the normal (in-lot) state | yes, in the web app | eye placement against eight saves |
 | Saved games | `SAVE_FORMAT.md`, `CHARACTERS.md` | container, terrain, placement, many classes | the web app reads placement, landscape and camera | against the Python tools |
 | Models, textures, animation | `MSH_FORMAT.md`, `ANM_FORMAT.md`, `PAK_FORMAT.md` | static models, DDS, `.anm`, skinning | the web app draws static models | by eye against the game |

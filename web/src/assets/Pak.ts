@@ -138,6 +138,16 @@ export class PakIndex {
     return fallback;
   }
 
+  /** Every file (newest version of each name) in a directory, e.g. `data\\textures\\ui\\loadingscreens\\`, sorted by name. */
+  list(dir: string): PakFile[] {
+    const out: PakFile[] = [];
+    for (const name of this.byName.keys()) {
+      const f = this.find(name, { dir });
+      if (f) out.push(f);
+    }
+    return out.sort((a, b) => a.entry.name.localeCompare(b.entry.name));
+  }
+
   /** Every file of that name, newest archive first, with its directory. */
   findAll(name: string): PakFile[] {
     const list = this.byName.get(name.toLowerCase()) ?? [];

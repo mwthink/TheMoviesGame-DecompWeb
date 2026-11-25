@@ -9,6 +9,17 @@ export interface MshPrimitive {
   uv2: Float32Array | null; // lightmap uv per vertex, when the primitive has a second set
   indices: Uint16Array; // 3 per triangle
   flags: [number, number, number, number];
+  /** Bone weights for skinned primitives (flag bit 0 of the first flag byte): 4 weights and 4 skeleton bone indices per vertex; null when static. */
+  skin: { weights: Float32Array; bones: Uint8Array } | null;
+}
+
+/** One bone of a model's skeleton: its bind pose in model space (rows = the bone's x, y, z axes, row-vector convention; docs/ANM_FORMAT.md). */
+export interface MshBone {
+  name: string;
+  /** Index of the parent bone, -1 for the root. */
+  parent: number;
+  rot: [number, number, number, number, number, number, number, number, number];
+  pos: [number, number, number];
 }
 
 export interface MshMaterial {
@@ -29,6 +40,8 @@ export interface Msh {
   chunks: Record<string, MshChunk>;
   parts: { name: string; chunk: MshChunk }[];
   primitives: MshPrimitive[];
+  /** The skeleton the skinned primitives and `.anm` clips refer to (empty for static models). */
+  skeleton: MshBone[];
 }
 
 const CHUNK_SLOTS: [string, number, number][] = [
@@ -43,6 +56,26 @@ const CHUNK_SLOTS: [string, number, number][] = [
 
 const align4 = (p: number) => (p + 3) & ~3;
 
+/** The skeleton block after the nodes: u32 ?, u32 bone count, then 84 bytes per bone (name, parent, 12 floats of bind pose). Port of tools/msh_dump.py `parse_skeleton`. */
+function readSkeleton(d: Uint8Array, v: DataView, pos: number): MshBone[] {
+  if (pos + 8 > d.length) return [];
+  const n = v.getUint32(pos + 4, true);
+  if (!(n > 0 && n < 512) || pos + 8 + 84 * n > d.length) return [];
+  const out: MshBone[] = [];
+  for (let i = 0; i < n; i++) {
+    const o = pos + 8 + 84 * i;
+    const f: number[] = [];
+    for (let k = 0; k < 12; k++) f.push(v.getFloat32(o + 36 + 4 * k, true));
+    out.push({
+      name: cstr(d, o, 32),
+      parent: v.getInt32(o + 32, true),
+      rot: f.slice(0, 9) as MshBone["rot"],
+      pos: f.slice(9, 12) as MshBone["pos"],
+    });
+  }
+  return out;
+}
+
 function cstr(d: Uint8Array, pos: number, len: number): string {
   let s = "";
   for (let i = 0; i < len && d[pos + i] !== 0; i++) s += String.fromCharCode(d[pos + i]!);
@@ -50,8 +83,8 @@ function cstr(d: Uint8Array, pos: number, len: number): string {
 }
 
 /**
- * Parse a version-10 .msh (port of tools/msh_dump.py `parse`, layout in docs/MSH_FORMAT.md). Skeletons, tag points and skin weights are
- * skipped: this reads static models only.
+ * Parse a version-10 .msh (port of tools/msh_dump.py `parse`, layout in docs/MSH_FORMAT.md). The skeleton and skin weights are kept (they drive
+ * the auto-animated models, `sim/anim/AutoAnimation.ts`); tag points are skipped.
  */
 export function parseMsh(file: Uint8Array): Msh {
   const d = unwrapZcmp(file);
@@ -188,10 +221,21 @@ export function parseMsh(file: Uint8Array): Msh {
         }
       }
       pos = align4(pos);
-      if (f0 & 1) pos += 20 * nvert; // skin weights and bone indices: not used for static models
+      let skin: MshPrimitive["skin"] = null;
+      if (f0 & 1) {
+        // skinning: 4 x f32 weights then 4 x u8 bone indices per vertex
+        const weights = new Float32Array(nvert * 4);
+        const bones = new Uint8Array(nvert * 4);
+        for (let i = 0; i < nvert; i++) {
+          for (let k = 0; k < 4; k++) weights[i * 4 + k] = v.getFloat32(pos + 20 * i + 4 * k, true);
+          for (let k = 0; k < 4; k++) bones[i * 4 + k] = d[pos + 20 * i + 16 + k]!;
+        }
+        skin = { weights, bones };
+        pos += 20 * nvert;
+      }
       pos += 8 * skipRecords;
-      primitives.push({ material, positions, normals, uv, uv2, indices, flags: [f0, f1, f2, f3] });
+      primitives.push({ material, positions, normals, uv, uv2, indices, flags: [f0, f1, f2, f3], skin });
     }
   }
-  return { textures, materials, chunks, parts, primitives };
+  return { textures, materials, chunks, parts, primitives, skeleton: flags[0] ? readSkeleton(d, v, pos) : [] };
 }

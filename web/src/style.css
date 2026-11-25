@@ -93,3 +93,47 @@ body[data-screen="game"] .hud { display: block; }
 .loading .actions { margin-top: 1.5rem; }
 .loading .actions button { font: inherit; background: none; color: var(--fg); border: 1px solid #3a3a48; padding: 0.5rem 1.2rem; cursor: pointer; }
 .loading .actions button:hover, .loading .actions button:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+
+/* Game toolbar (in the menu bar): speed buttons, date and cash. */
+.gametoolbar { display: flex; align-items: center; gap: 14px; }
+.gametoolbar .speed { display: flex; gap: 2px; }
+.gametoolbar .speedbtn { width: 28px; height: 22px; padding: 0; display: grid; place-items: center; }
+.gametoolbar .speedbtn svg { width: 12px; height: 12px; fill: currentColor; }
+.gametoolbar .speedbtn.active { border-color: var(--accent); color: var(--accent); background: rgba(224, 165, 38, 0.1); }
+.gametoolbar .date { min-width: 8ch; font-variant-numeric: tabular-nums; }
+.gametoolbar .money { color: #8fd18f; font-variant-numeric: tabular-nums; }
+
+/* Staff viewer: left side, under the menu bar. */
+.staffpanel {
+  position: absolute; top: 40px; left: 8px; width: 190px; max-height: calc(100vh - 56px); display: flex; flex-direction: column;
+  background: rgba(11, 11, 16, 0.88); border: 1px solid #3a3a48; color: var(--fg); pointer-events: auto;
+}
+.staffpanel header { display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-bottom: 1px solid #25252f; color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase; font-size: 11px; }
+.staffpanel header b { color: var(--muted); font-weight: normal; margin-left: 4px; }
+.staffpanel header button { font: inherit; color: var(--fg); background: transparent; border: 1px solid #3a3a48; padding: 0 7px; cursor: pointer; }
+.staffpanel header button:hover { border-color: var(--accent); color: var(--accent); }
+.staffpanel .body { overflow-y: auto; padding: 2px 0 6px; }
+.staffpanel.collapsed .body { display: none; }
+.staffpanel section { padding: 2px 8px; }
+.staffpanel h4 { margin: 6px 0 2px; font-weight: normal; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; font-size: 10px; }
+.staffpanel ul { list-style: none; margin: 0; padding: 0; }
+.staffpanel li { padding: 1px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.staffpanel .empty { margin: 8px; color: var(--muted); }
+
+/* Loading-screen gallery (dev). */
+.gallery { justify-content: flex-start; padding: 2rem 1rem 1rem; overflow-y: auto; }
+.gallery h2 { margin-bottom: 0.75rem; }
+.gallery .note { color: var(--muted); font-size: 0.85rem; margin: 0 0 1rem; text-align: center; max-width: 40rem; }
+.gallery .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.75rem; width: min(70rem, 96vw); }
+.gallery .thumb { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.4rem; text-align: center; font-size: 0.8rem; }
+.gallery .thumb canvas { width: 100%; aspect-ratio: 1; object-fit: cover; background: #14141c; }
+.gallery .thumb span { letter-spacing: 0.08em; }
+.gallery .actions { margin: 1.5rem 0; }
+.gallery .actions button { width: auto; padding: 0.5rem 1.4rem; font-size: 0.95rem; }
+.gallery .viewer { position: fixed; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; gap: 1rem; background: rgba(5, 5, 8, 0.96); }
+.gallery .viewer[hidden] { display: none; }
+.gallery .viewer figure { margin: 0; text-align: center; }
+.gallery .viewer .stage canvas { max-width: min(86vw, 90vh); max-height: 86vh; width: auto; height: auto; aspect-ratio: 1; }
+.gallery .viewer figcaption { margin-top: 0.5rem; color: var(--muted); letter-spacing: 0.1em; font-size: 0.85rem; }
+.gallery .viewer .nav, .gallery .viewer .close { width: auto; padding: 0.4rem 1rem; font-size: 1.6rem; }
+.gallery .viewer .close { position: absolute; top: 1rem; right: 1rem; }

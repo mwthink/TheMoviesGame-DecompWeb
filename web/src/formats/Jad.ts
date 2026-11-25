@@ -29,7 +29,30 @@ export interface SavedCamera {
   zoom: number;
 }
 
+/** The saved game's header: the in-game date and the player studio's cash (docs/SAVE_FORMAT.md, "Header"). */
+export interface SaveHeader {
+  /** The in-game date: days at 365 per year, the fraction is the time of day (715563.875 = June 1960). */
+  date: number;
+  /** The player studio's cash. */
+  cash: number;
+}
+
+/** A person employed by the player's studio: a `CStaff` (crew) or a `CStar` (docs/SAVE_FORMAT.md). */
+export interface SavedStaff {
+  id: number;
+  /** The object class: `CStaff` for crew, `CStar` for actors. */
+  cls: "CStaff" | "CStar";
+  name: string;
+  /** What the staff slot group they belong to is for (`CSubFacility.StaffCareer`: `staff`, `wannabe`, `scientist`, `writer`, ...); "" when unknown. */
+  career: string;
+  /** The day they were hired (same day count as the date); 0 when absent. */
+  hired: number;
+}
+
 export interface Save {
+  header: SaveHeader | null;
+  /** Everyone the player's studio employs, in the order of the save. */
+  staff: SavedStaff[];
   placed: PlacedAsset[];
   landscape: Landscape | null;
   /** From the CLot object; null if the save has none. */
@@ -85,6 +108,10 @@ export function parseSave(d: Uint8Array): Save {
   const placed: PlacedAsset[] = [];
   let landscapeBlob: Uint8Array | null = null;
   let lotCamera: SavedCamera | null = null;
+  const staffRaw: { id: number; cls: "CStaff" | "CStar"; name: string; employer: number; subFacility: number; hired: number }[] = [];
+  const careers = new Map<number, string>(); // CSubFacility id -> StaffCareer
+  let playerStudio = -1;
+  const tName = tagOf("name"), tEmployer = tagOf("PEmployer"), tSub = tagOf("PSubFacility"), tHired = tagOf("Hired"), tCareer = tagOf("StaffCareer");
 
   const open = enc("[OBJ]\n");
   const close = enc("\n[/OBJ]");
@@ -111,6 +138,11 @@ export function parseSave(d: Uint8Array): Save {
     const first = new Map<string, Uint8Array>();
     for (const f of fields) if (!first.has(f.tag)) first.set(f.tag, f.value);
     if (cls === "CLot" && !lotCamera) lotCamera = readCamera(first);
+    if (cls === "CStudioPlayer") playerStudio = id;
+    else if (cls === "CSubFacility") careers.set(id, readNarrow(first.get(tCareer)));
+    else if (cls === "CStaff" || cls === "CStar") {
+      staffRaw.push({ id, cls, name: readWide(first.get(tName)), employer: readU32(first.get(tEmployer)), subFacility: readU32(first.get(tSub)), hired: readF32(first.get(tHired)) });
+    }
     const src = first.get(tSrc);
     const pos = first.get(tPos);
     if (!src || !pos || pos.length < 12) continue;
@@ -131,7 +163,41 @@ export function parseSave(d: Uint8Array): Save {
       angle: ang && ang.length >= 4 ? new DataView(ang.buffer, ang.byteOffset, 4).getFloat32(0, true) : 0,
     });
   }
-  return { placed, landscape: landscapeBlob ? parseLandscape(landscapeBlob) : null, lotCamera };
+  const staff: SavedStaff[] = staffRaw
+    .filter((r) => r.employer === playerStudio && playerStudio >= 0)
+    .map((r) => ({ id: r.id, cls: r.cls, name: r.name, career: careers.get(r.subFacility) ?? "", hired: r.hired }));
+  return { header: readHeader(d, v), staff, placed, landscape: landscapeBlob ? parseLandscape(landscapeBlob) : null, lotCamera };
+}
+
+/** The header's two leading floats: the date, then the cash. */
+function readHeader(d: Uint8Array, v: DataView): SaveHeader | null {
+  const at = find(d, enc("[HEADER]\n"), 0);
+  if (at < 0 || at + 17 > d.length) return null;
+  return { date: v.getFloat32(at + 9, true), cash: v.getFloat32(at + 13, true) };
+}
+
+const view = (b: Uint8Array) => new DataView(b.buffer, b.byteOffset, b.byteLength);
+function readU32(b: Uint8Array | undefined): number { return b && b.length >= 4 ? view(b).getUint32(0, true) : 0; }
+function readF32(b: Uint8Array | undefined): number { return b && b.length >= 4 ? view(b).getFloat32(0, true) : 0; }
+/** A u32 byte length then ASCII. */
+function readNarrow(b: Uint8Array | undefined): string {
+  if (!b || b.length < 4) return "";
+  const n = Math.min(view(b).getUint32(0, true), b.length - 4);
+  let s = "";
+  for (let i = 0; i < n && b[4 + i] !== 0; i++) s += String.fromCharCode(b[4 + i]!);
+  return s;
+}
+/** A u32 byte length then UTF-16LE including the terminator. */
+function readWide(b: Uint8Array | undefined): string {
+  if (!b || b.length < 4) return "";
+  const n = Math.min(view(b).getUint32(0, true), b.length - 4);
+  let s = "";
+  for (let i = 0; i + 1 < n; i += 2) {
+    const c = b[4 + i]! | (b[5 + i]! << 8);
+    if (c === 0) break;
+    s += String.fromCharCode(c);
+  }
+  return s;
 }
 
 function readCamera(first: Map<string, Uint8Array>): SavedCamera | null {

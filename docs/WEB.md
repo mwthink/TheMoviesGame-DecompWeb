@@ -63,7 +63,8 @@ splash  --(3 s, click or any key)-->  main menu  --(Load Game)-->  Load Game  --
 | Splash | `src/screens/SplashScreen.ts` | Title card, fades in. Advances after `SPLASH_MS` (3000 ms) or on click or key. |
 | Main menu | `src/screens/MainMenuScreen.ts` | Eight entries, listed in the `items` array. An entry is enabled only if it has an `action`; only **Load Game** is. |
 | Load Game | `src/screens/LoadGameScreen.ts` | Pick the game folder and a `.jad`, then Load: opens the archives, parses the save, loads the world data, hands it to the game view. Shows progress and errors. |
-| World view | `src/screens/GameView.ts` | A Babylon `Engine` and `Scene` on the page canvas, the menu bar and the dev menu. Default camera: drag = orbit, right-drag = pan, wheel = zoom. Game camera (chosen in the dev menu): WASD / arrows scroll, wheel zoom, Ctrl + arrows rotate, middle-drag rotate, Shift = 3x, pointer shoved against the window edge scrolls. Esc returns to the menu. |
+| Loading screens (dev) | `src/screens/LoadingGalleryScreen.ts` | Dev builds only: a menu entry that browses the original's loading pictures (`LOADING_SCREENS.md`). |
+| World view | `src/screens/GameView.ts` | The toolbar (pause, play, fast, date, cash), the staff panel, a Babylon `Engine` and `Scene` on the page canvas, the menu bar and the dev menu. Default camera: drag = orbit, right-drag = pan, wheel = zoom. Game camera (chosen in the dev menu): WASD / arrows scroll, wheel zoom, Ctrl + arrows rotate, middle-drag rotate, Shift = 3x, pointer shoved against the window edge scrolls. Esc returns to the menu. |
 
 ## Code layout
 
@@ -79,7 +80,7 @@ web/
   src/sim/              the simulation, ported from the game (docs/REIMPLEMENTATION.md): movie, staff, studio, ai, boot, frontend, sandbox, character
   src/world/            WorldData (loads and prepares everything; no engine types), WorldScene (builds the Babylon scene), shaders
   src/camera/           GameCamera (the game's gameplay camera, no engine or DOM types, docs/CAMERA.md), CameraInput (DOM events -> its per-frame input)
-  src/ui/               DOM overlays above the canvas: MenuBar (fixed to the top; `toolbar` is the empty slot for the game's toolbar), DevMenu (fixed bottom right)
+  src/ui/               DOM overlays above the canvas: MenuBar (fixed to the top; `toolbar` is the slot GameToolbar mounts into), GameToolbar (speed buttons, date, cash), StaffPanel (left, under the bar), DevMenu (fixed bottom right)
   tests/                node:test files and helpers; tests/sim/ for the simulation; the ones that read the real game files skip without them
   tools/                command-line tools run with node (movie-calc)
   localPaths.ts         this machine's game install and saves, from local.env (Node only)
@@ -176,7 +177,9 @@ Things worth knowing before extending it:
   the terrain does, against the clear colour.
 - **Ground.** `land_alpha.dds` (a ragged edge vignette; its use in the draw code is not read) is not used. The terrain is flat because no height data was found.
 - **Not drawn:** facility interiors and room floors, the other lot meshes, anything but the assets in the save (no people, litter, cars).
-- **Saves:** only the placed assets and the landscape are read. Money, staff, films and everything else in `.jad` is ignored.
+- **Saves:** the placed assets, the landscape, the header (date, cash) and the player's employees' names and roles are read. Films and everything else in `.jad` is ignored.
+- **Clock and toolbar:** the date runs from the save's date at the original's 10 Hz tick scaled by the pause / play / fast buttons (`AUTO_ANIMATION.md`); the pace per day and the fast speed are guesses, and the cash does not change (no economy yet).
+- **Flags:** the lot gate's and the flag props' cloth waves (`AUTO_ANIMATION.md`); one animator per model, so all flags are in step; the pose mode is a guess.
 - **Performance:** the Quick Start lot is 1,621 instances of about 300 source meshes and 1 M vertices; loading takes about 3 s in Node (decoding is the cost) and the
   scene ran at about 30 fps in a software-rendered Chromium (not a measure of a real GPU). Not profiled. Possible next steps: merge static geometry per
   material, thin instances, and caching decoded textures.

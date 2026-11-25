@@ -27,5 +27,10 @@ Skinning is the `f0 & 1` block (20 bytes per vertex): 4 x f32 weights (sum to 1)
 ## Textures: same-named files in the paks
 Several textures exist twice or more under one name in different directories of the paks: `hair_50s_m1.dds` is a 512x512 DXT3 texture in `data\\textures\\hair\\` and a 128x128 icon in `data\\textures\\thumbs\\hair\\`; `eyes.dds` is a 256x256 sheet (irises, teeth) in `data\\textures\\` and a 256x128 one in `sm\\`; `head_m_white_joe.dds` is 512x512 in `people\\` and a 128x256 icon in `thumbs\\heads\\`. `pak_extract.py` now resolves each entry's directory (its first u32 is the hash of `dir + name`, see the header of that script), overrides only per directory, writes the extra copies as `name.2` ... or, with `--tree`, under their directory. `export_person.py` searches the directories `data\\textures\\` first, then costumes, hair, makeup, people, sm, ui, and the `thumbs` ones last; whether that is the order the game uses is not checked (it gives the right textures for the files seen).
 
+## Auto-animated props
+`aa_<model>_v00.anm` in `data\animations\high\autoanimated\` animates a skinned prop or building (the flags): same file format, channels = the model's bones, played by the
+render frame time (`AUTO_ANIMATION.md`, which also has the clip length rule: 100 ms per frame, every third frame when set-header flag bit 1 is set).
+`web/src/formats/Anm.ts` is the TypeScript port of `anm_dump.py`.
+
 ## Open
 `StarMaker.exe` contains the same `.anm` header, track-set, channel, RLE and Euler functions as 1:1 matches (`docs/STARMAKER.md` section 3) and its own, not matched, animation loader (`0x439a10`, messages `Can't load anim %s` / `WRONG ANIM FILE FORMAT %s`), which could show which `.anm` versions an earlier build accepted. How the `.cos` costume file (body mesh, textures, hat, glasses ...) picks its parts is not decoded; the head and hair in the viewer were picked by hand (`generic_head.msh`, `hair_50s_m1.msh`). Skin and hair tinting at runtime (the `skin_*`, `hair_*_bk/_rd/...` variants) is not looked at. The viewer does not apply root motion.

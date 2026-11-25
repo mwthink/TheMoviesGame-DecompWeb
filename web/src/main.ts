@@ -3,11 +3,12 @@ import type { Screen } from "./screens/Screen.ts";
 import { SplashScreen } from "./screens/SplashScreen.ts";
 import { MainMenuScreen } from "./screens/MainMenuScreen.ts";
 import { GameView } from "./screens/GameView.ts";
+import { LoadingGalleryScreen } from "./screens/LoadingGalleryScreen.ts";
 import { LoadGameScreen } from "./screens/LoadGameScreen.ts";
 import { LoadingScreen, type LoadTask } from "./screens/LoadingScreen.ts";
 import type { WorldData } from "./world/WorldData.ts";
 
-type ScreenId = "splash" | "menu" | "load" | "loading" | "game";
+type ScreenId = "splash" | "menu" | "load" | "loading" | "game" | "gallery";
 
 const canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
 const container = document.getElementById("screens") as HTMLElement;
@@ -49,7 +50,8 @@ function loadWorld(task: LoadTask<WorldData>): void {
 const gameView = new GameView(canvas, () => show("menu"));
 const screens: Record<ScreenId, () => Screen> = {
   splash: () => new SplashScreen(container, () => show("menu")),
-  menu: () => new MainMenuScreen(container, () => show("load")),
+  menu: () => new MainMenuScreen(container, () => show("load"), () => show("gallery")),
+  gallery: () => new LoadingGalleryScreen(container, () => show("menu")),
   load: () => new LoadGameScreen(loadWorld, () => show("menu"), container),
   game: () => gameView,
   loading: () => { throw new Error("the loading screen is started by loadWorld"); },

@@ -68,6 +68,10 @@ In the saves: the state label (`post-intro-tutorial`; set by the tutorial script
 `no-facility-hired-star`, `pending-building`; a Quick Start save shows `script-casting`), the **studio name**, and the **boss/owner name** (`crossover`, `big boss`; the studio name is
 empty/absent in the tutorial saves and is typed in at the end of the tutorial). A section marker (`[HEADER]` etc.) is a length-prefixed string `"\n[HEADER]\n"` (`Save_SectionMarker`, `004b1790`).
 
+The web app (`web/src/formats/Jad.ts`) reads the first two header floats (date, cash) and the player's employees: every `CStaff` and `CStar` whose `PEmployer` is
+the `CStudioPlayer`'s id, with `name` (UTF-16) and the `StaffCareer` of their `PSubFacility` (seen: `staff`, `crew`, `scientist`, `wannabe` for the stars; some staff have no
+sub-facility). One Quick Start save has 30 such people (4 stars); the rival studios' people carry their own studio's id. A fresh studio has none.
+
 ## Value encodings seen
 
 * **Money** (`CFinance`, `CStudioAI.Capital`, `CStarCosts.*`): signed 64-bit fixed point, **value x 2^23**, checked against the header cash:

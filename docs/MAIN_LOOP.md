@@ -144,3 +144,8 @@ The per-tick steps are in code order. The coverage data show which functions run
 - Breakpoint or hook `Game_PushState` and `Game_PopState` (the debugger already hooks `Game_TickOneFrame`, `Game_TickState1/2/4/5`, `Game_TickPaused` and `Game_TickActiveGameplay`, so state changes
   can be logged with the id) and click through the menu: expect `[0]`, then 2 for the menu, 2 again for the profile screen, then back to `[0]`.
 - Log the top state id in `Game_TickOneFrame` once per tick for a whole session: it should be 2 in the menu and 0 once the game runs, and 5 when the pause menu is open.
+
+## What does not run on the simulation tick
+
+Auto-animated models (the flags, `AUTO_ANIMATION.md`) are stepped once per **rendered frame** by `Frame_PresentationUpdate` (`009A5090`) with the real frame
+time in milliseconds, so they ignore the game speed and keep moving while the clock is paused.

@@ -1,8 +1,10 @@
 import type { PakIndex } from "../assets/Pak.ts";
 import { decodeDds, type Rgba } from "../formats/Dds.ts";
 import { Ini } from "../formats/Ini.ts";
-import type { Landscape, PlacedAsset, Save } from "../formats/Jad.ts";
+import type { Landscape, PlacedAsset, Save, SaveHeader, SavedStaff } from "../formats/Jad.ts";
+import { parseAnm, type Anm } from "../formats/Anm.ts";
 import { parseMsh, type Msh, type MshChunk } from "../formats/Msh.ts";
+import { clipFits } from "../sim/anim/AutoAnimation.ts";
 import { roomLines, type Strings } from "../formats/Lhts.ts";
 import { parseRob } from "../formats/Rob.ts";
 import { lotBounds, lotSize, perimeterPieces, type LotBounds } from "./Perimeter.ts";
@@ -30,9 +32,31 @@ export interface MeshAsset {
   textures: Map<string, Rgba>;
   /** The model's named rooms (`room_*` parts, not the unnamed whole-floor part): the text on the floor (docs/SAVE_FORMAT.md, empty if the room has none or there is no string database) and the floor polygon. */
   rooms: { name: string; lines: string[]; x: number; y: number; chunk: MshChunk }[];
+  /** The model's auto-animation clips (`aa_<model>_v00.anm`, `_v01`, ...; docs/AUTO_ANIMATION.md) when it is skinned and has some that fit its skeleton. */
+  autoAnim?: Anm[];
 }
 
+/** The most clip variants the original loads for a model (`AutoAnimSet_Constructor` names them `aa_<model>_v00` to `_v010`, then `_v`). */
+const MAX_AUTO_CLIPS = 11;
+
 /** The middle of a room floor polygon: the triangle centroids weighted by area. */
+/**
+ * The auto-animation clips of a model: `aa_<model name without .msh>_v00.anm`, `_v01`, ... from `data\\animations\\high\\autoanimated\\`
+ * (orig: 0x00A72A60 `AutoAnimSet_GetOrLoad` builds the name, 0x00A71DE0 `AutoAnimSet_Constructor` loads the variants). Only skinned models are looked at, and only clips that fit the skeleton are kept.
+ */
+export async function loadAutoAnimClips(pak: PakIndex, meshName: string, msh: Msh): Promise<Anm[]> {
+  if (!msh.skeleton.length || !msh.primitives.some((p) => p.skin)) return [];
+  const stem = meshName.replace(/\.msh$/i, "");
+  const clips: Anm[] = [];
+  for (let i = 0; i < MAX_AUTO_CLIPS; i++) {
+    const bytes = await pak.readByName(`aa_${stem}_v${String(i).padStart(2, "0")}.anm`, { dir: "data\\animations\\high\\autoanimated\\" });
+    if (!bytes) break;
+    const clip = parseAnm(bytes);
+    if (clipFits(msh.skeleton, clip)) clips.push(clip);
+  }
+  return clips;
+}
+
 export function chunkCentre(c: MshChunk): { x: number; y: number } {
   let ax = 0, ay = 0, area = 0;
   for (let t = 0; t < c.tris.length; t += 3) {
@@ -66,6 +90,9 @@ export interface WorldData {
   terrain: TerrainData | null;
   meshes: MeshAsset[];
   placements: Placement[];
+  /** The saved game's date and cash, and the people the player's studio employs. */
+  header: SaveHeader | null;
+  staff: SavedStaff[];
   warnings: string[];
 }
 
@@ -199,7 +226,10 @@ export async function loadWorldData(
           if (part.name.toLowerCase() === "room_") continue; // the union of the walkable floor
           rooms.push({ name: part.name, lines: strings ? roomLines(strings, part.name) : [], ...chunkCentre(part.chunk), chunk: part.chunk });
         }
-        return { name: meshName, msh, textures, rooms };
+        const asset: MeshAsset = { name: meshName, msh, textures, rooms };
+        const clips = await loadAutoAnimClips(pak, meshName, msh);
+        if (clips.length) asset.autoAnim = clips;
+        return asset;
       })();
       meshCache.set(meshName, m);
     }
@@ -283,5 +313,5 @@ export async function loadWorldData(
     }
   }
   const meshes = [...new Set(placements.map((p) => p.mesh))];
-  return { camera, lot, terrain, meshes, placements, warnings };
+  return { camera, lot, terrain, meshes, placements, header: save.header, staff: save.staff, warnings };
 }
