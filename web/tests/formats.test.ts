@@ -1,18 +1,18 @@
 // The expected numbers come from the Python tools (tools/msh_dump.py, tools/dds.py, tools/jad_dump.py, tools/pak_extract.py) run on the same files.
 import assert from "node:assert/strict";
-import { readdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { decodeDds } from "../src/formats/Dds.ts";
 import { Ini } from "../src/formats/Ini.ts";
 import { parseSave } from "../src/formats/Jad.ts";
 import { parseMsh } from "../src/formats/Msh.ts";
 import { gameHash } from "../src/assets/hash.ts";
-import { haveGame, haveSave, pakIndex, SAVE_PATH } from "./helpers.ts";
+import { findSave, haveGame, pakIndex } from "./helpers.ts";
+
+const FRESH = findSave("FRESH");
 
 const game = { skip: haveGame ? false : "game archives not found (set OTM_PAK_DIR)" };
-const save = { skip: haveSave ? false : "saved game not found (set OTM_SAVE)" };
+const save = { skip: FRESH ? false : "needs a fresh-studio save (1 January 1920, blank lot; or set OTM_SAVE_FRESH)" };
 
 test("gameHash is the game's case-folding string hash", () => {
   assert.equal(gameHash("abc"), gameHash("ABC"));
@@ -100,7 +100,7 @@ test("gatehouse mesh matches tools/msh_dump.py", game, async () => {
 });
 
 test("saved game: placed assets and landscape match tools/jad_dump.py", save, async () => {
-  const s = parseSave(new Uint8Array(await readFile(SAVE_PATH)));
+  const s = parseSave(new Uint8Array(await readFile(FRESH!)));
   assert.deepEqual(s.placed.map((p) => [p.cls, p.id, p.source, p.position.map((x) => Math.round(x * 100) / 100), p.angle]), [
     ["CLot", 1007, "lot", [0, 0, 0], 0],
     ["CSponsoredBillboard", 1008, "ornament/p_billboard", [43.24, 2.47, 0], 0],
@@ -127,7 +127,7 @@ test("saved game: placed assets and landscape match tools/jad_dump.py", save, as
 
 test("world data: splat weights and the gatehouse model load from the real files", { ...game, ...save }, async () => {
   const { loadWorldData } = await import("../src/world/WorldData.ts");
-  const world = await loadWorldData(await pakIndex(), parseSave(new Uint8Array(await readFile(SAVE_PATH))));
+  const world = await loadWorldData(await pakIndex(), parseSave(new Uint8Array(await readFile(FRESH!))));
   const t = world.terrain!;
   assert.ok(t);
   assert.equal(t.groundTextures.length, 7);
@@ -145,12 +145,9 @@ test("world data: splat weights and the gatehouse model load from the real files
   console.log("world warnings:", world.warnings);
 });
 
-const QS = (() => {
-  const dir = dirname(SAVE_PATH);
-  try { const f = readdirSync(dir).find((n) => n.startsWith("quick film studios22 January")); return f ? join(dir, f) : null; } catch { return null; }
-})();
+const QS = findSave("QUICKSTART");
 
-test("a Quick Start save loads completely: every model and texture found, models shared between placements", { skip: haveGame && QS ? false : "needs the game archives and a Quick Start save" }, async () => {
+test("a Quick Start save loads completely: every model and texture found, models shared between placements", { skip: haveGame && QS ? false : "needs the game archives and a Quick Start save (22 January 1960; or set OTM_SAVE_QUICKSTART)" }, async () => {
   const { loadWorldData } = await import("../src/world/WorldData.ts");
   const world = await loadWorldData(await pakIndex(), parseSave(new Uint8Array(await readFile(QS!))));
   // the only gaps: two distant-tree names in the outside-the-lot scenery (osl_*) that have no ini or mesh of that name

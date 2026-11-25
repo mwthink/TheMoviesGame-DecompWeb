@@ -11,7 +11,7 @@ What we can read out of a The Movies save, from three saves made on the Wine/Cro
 | `quick film studios… 0114` | Quick Start after loading in (added 2026-11-24): 1 Jan 1960, $1,247,923, state label `QUICKSTART`, 24 placed facilities, 252 ornaments, 7 `CSet` sets, ~30 `*Room` classes, 3,845 objects, 1.19 MB |
 
 Tool: [tools/jad_dump.py](../tools/jad_dump.py) (summary, `--class`, two-save diff). Everything here is **observed from
-saves and cross-checked against the decompiled save code** (see `FINDINGS.md` and `docs/MOVIE_SUCCESS.md` "Save mechanics");
+saves and cross-checked against the decompiled save code** (see "Where the save code sits" below, and `CLASS_NOTES.md` 3ag and 3ai);
 anything marked *unverified* is a guess.
 
 ## Container

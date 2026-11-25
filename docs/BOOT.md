@@ -186,6 +186,12 @@ boot1 (finishing the intro returns 0 and `Game_MainLoop` runs) this fixes the re
 fits a main thread that is busy loading the next splash (the slow transition in the section above). Closing at other points
 (the first splash, the animation and movie variants) was not tried.
 
+## The developer console
+
+`CVarSystem_Register_STUBBED` (`005434a0`) is an empty stub in the retail build. Over 100 debug commands register through it (`sbx_*`, `awd_*`, `gnd_*`,
+`sitt_*`, `ee_*`, `ass_*`) and do nothing. Their names are a list of what the developers could tweak at run time, and a candidate for a debug console in the
+reimplementation.
+
 ## Open questions
 
 1. **Resolved:** `LH_MasterGameLoop` returns 0 when the intro finishes and nonzero when the window is closed (boot1, close1).

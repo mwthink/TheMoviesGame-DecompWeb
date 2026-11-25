@@ -9,7 +9,7 @@
 # While playing: F9 = marker, F8 = re-arm all functions + marker (the next phase then lists its COMPLETE set),
 # F10 = write coverage_summary.txt. The game clock starting and every game month add markers automatically.
 # Results: coverage_log.csv (seq,microseconds,thread,phase,rva) in the game folder.
-param([string]$game = 'F:\DecompilingTheMovies\The Movies')   # the game folder (MoviesSE.exe); e.g. -game C:\Games\TheMovies
+param([string]$game = 'C:\Games\TheMovies')   # the game folder (MoviesSE.exe); the default is where tools/winbox/setup_box.ps1 puts it
 $tools = Split-Path -Parent $PSScriptRoot   # repo root
 $injector = Join-Path $game 'TheMoviesInjector.exe'
 if (-not (Test-Path $injector)) { $injector = Join-Path $tools 'debugger\build\RelWithDebInfo\TheMoviesInjector.exe' }

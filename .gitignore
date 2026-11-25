@@ -38,3 +38,6 @@ tools/run_coverage.*.txt
 # Web app
 web/node_modules/
 web/dist/
+
+# This machine's paths (local.env.example lists the keys)
+local.env

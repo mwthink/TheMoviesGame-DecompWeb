@@ -1,18 +1,32 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { open, readdir, stat } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ByteSource } from "../src/assets/ByteSource.ts";
 import { PakIndex } from "../src/assets/Pak.ts";
+import { parseSave, type Save } from "../src/formats/Jad.ts";
+import { PAK_DIR as PAK, saveCandidates, type SaveRole } from "../localPaths.ts";
 
-/** Where the tests look for the game's archives and a saved game. Override with OTM_PAK_DIR / OTM_SAVE (the same data the Python tools use). */
-export const PAK_DIR =
-  process.env.OTM_PAK_DIR ?? join(homedir(), "Library/Application Support/CrossOver/Bottles/tmovies/drive_c/Games/TheMovies/Data/pak");
-export const SAVE_PATH =
-  process.env.OTM_SAVE ?? join(homedir(), "Documents/The Movies/Saved Games/wine studios1 January 19202357Monday23November2026.jad");
+/** The game's archives (OTM_GAME_DIR or OTM_PAK_DIR, see localPaths.ts). Tests that need them skip when they are absent. */
+export const PAK_DIR = PAK ?? "";
+export const haveGame = PAK !== undefined && existsSync(PAK);
 
-export const haveGame = existsSync(PAK_DIR);
-export const haveSave = existsSync(SAVE_PATH);
+/** What makes a save the kind a test expects (the date in its name only narrows the search). */
+const ROLE_CHECKS: Record<SaveRole, (s: Save) => boolean> = {
+  FRESH: (s) => s.placed.length === 3,
+  QUICKSTART: (s) => s.placed.length > 200,
+};
+
+/** The first save of that kind on this machine, or undefined (the test skips). */
+export function findSave(role: SaveRole): string | undefined {
+  for (const path of saveCandidates(role)) {
+    try {
+      if (ROLE_CHECKS[role](parseSave(new Uint8Array(readFileSync(path))))) return path;
+    } catch {
+      // not a save this reader understands: keep looking
+    }
+  }
+  return undefined;
+}
 
 /** A file on disk as a ByteSource (reads ranges, like the browser's File does). */
 export class NodeSource implements ByteSource {

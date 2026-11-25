@@ -112,6 +112,22 @@ function buildSources(scene: Scene, m: MeshAsset, caches: Caches): Mesh[] {
     const mat = m.msh.materials[index];
     const diffuseName = mat ? m.msh.textures[mat.tex[0]] : undefined;
     if (!mat || !diffuseName || NOT_DIFFUSE.some((p) => diffuseName.toLowerCase().startsWith(p))) return null;
+    // A material whose second slot is not a lightmap (lm_*) is two-layer: slot 2 is the base (the gate's flag cloth) and slot 0 is laid over it by alpha (the logo).
+    const slot2 = m.msh.textures[mat.tex[2]];
+    if (slot2 && !slot2.toLowerCase().startsWith("lm_")) {
+      const dkey = `decal|${slot2.toLowerCase()}|${diffuseName.toLowerCase()}`;
+      if (caches.materials.has(dkey)) return caches.materials.get(dkey)!;
+      const base = tex(slot2), decal = tex(diffuseName);
+      let dm: ShaderMaterial | null = null;
+      if (base && decal) {
+        dm = new ShaderMaterial(dkey, scene, "otmDecal", { attributes: ["position", "uv", "uv2"], uniforms: ["world", "viewProjection"], samplers: ["base", "decal"] });
+        dm.setTexture("base", base);
+        dm.setTexture("decal", decal);
+        dm.backFaceCulling = false; // cloth is seen from both sides
+      }
+      caches.materials.set(dkey, dm);
+      return dm;
+    }
     const lmName = hasUv2 ? m.msh.textures[mat.tex[2]] : undefined;
     const key = `${diffuseName.toLowerCase()}|${lmName?.toLowerCase() ?? ""}`;
     if (caches.materials.has(key)) return caches.materials.get(key)!;

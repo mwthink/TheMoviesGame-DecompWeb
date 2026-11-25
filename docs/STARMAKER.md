@@ -25,6 +25,9 @@ Items are marked **[read]** (read in the decompiled code or disassembly), **[dat
 * What the program does (from `Doc.txt` and the strings): create a male or female star, pick a head and a second head and **blend** them (head shape and skin tone sliders), eye colour, an age slider, hairstyle and hair colour, eyebrows, eye makeup, facial hair and lipstick,
   an advanced mode with 43 face sliders, a "Star Information" page that spends points on attributes, save/load/delete of stars. In the main game a star is brought in through an "Import Star" room of the Stage School, which only opens once a star has been saved. **[data]**
 
+* The game and the editor do not run together: `Game_CheckStarMakerNotRunning` (`00542aa0`) checks the `"LionheadStudiosTheStarMaker"` mutex
+  (`CreateMutexA`). `Game_InitUserDataFolders` (`0056bd80`) creates the `Documents\The Movies\` folder tree, `Starmaker\` included. **[read]**
+
 ## 2. How the analysis was done (reproducible)
 
 Ghidra 12.1.2 headless, the project in `~/ghidra-projects-starmaker` (outside the repo; the main project `~/ghidra-projects` is not touched). Scripts in `ghidra/scripts/`:

@@ -2,7 +2,7 @@
 // whole binary can be searched offline with grep (offset usage, string refs, call patterns).
 // Read-only: does not modify the Ghidra program.
 //
-// GUI:      Script Manager -> add F:\DecompilingTheMovies\ghidra_scripts as a script directory,
+// GUI:      Script Manager -> add this repository's ghidra/scripts as a script directory,
 //           run ExportDecompiled, pick an output folder.
 // Headless: analyzeHeadless <projectDir> <projectName> -process MoviesSE.exe -noanalysis -readOnly
 //           -scriptPath <thisFolder> -postScript ExportDecompiled.java <outputFolder>

@@ -45,7 +45,8 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$SessionDir,
 
-    [string]$ExePath = "F:\DecompilingTheMovies\The Movies\MoviesSE.exe",
+    [Parameter(Mandatory = $true)]
+    [string]$ExePath,
 
     [string]$FunctionRva = $null
 )
@@ -57,7 +58,7 @@ if (-not (Test-Path $eventsPath)) { throw "events.jsonl not found in $SessionDir
 if (-not (Test-Path $metadataPath)) { throw "metadata.json not found in $SessionDir" }
 
 # Not using ConvertFrom-Json here: Session.cpp's metadata.json writer emits
-# exe_path with raw, unescaped backslashes (e.g. "F:\...\MoviesSE.exe"),
+# exe_path with raw, unescaped backslashes (e.g. "C:\Games\TheMovies\MoviesSE.exe"),
 # which is invalid JSON and makes ConvertFrom-Json throw. Regex-extracting
 # just the one field needed sidesteps that pre-existing bug entirely rather
 # than requiring a DLL rebuild just to run this script. Worth fixing in

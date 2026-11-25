@@ -2,7 +2,7 @@
 """Group the NtReadFile calls in a Wine +file,+timestamp trace into bursts (docs/BOOT.md, intro timing).
 
 Record the trace with a plain launch (no injector):
-  wine --bottle tmovies --debugmsg -all,+file,+timestamp --cx-log FILE --workdir 'C:\\Games\\TheMovies' 'C:\\Games\\TheMovies\\MoviesSE.exe'
+  wine --bottle <bottle> --debugmsg -all,+file,+timestamp --cx-log FILE --workdir 'C:\\Games\\TheMovies' 'C:\\Games\\TheMovies\\MoviesSE.exe'
 usage: boot_reads.py <wine_trace.log> [gap_seconds=0.4]
 Times are seconds from the first trace line. Image names are not visible (the splash images come out of the pak by index),
 so a burst is only 'some asset I/O'; match it to a splash by position."""
