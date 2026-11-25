@@ -47,9 +47,16 @@ export const STARTING_LEVEL: Record<string, [number, number] | number | null> = 
   crap_male: [0.2, 0.5],
   crap_female: [0.2, 0.5],
   buyfood: [0.15, 0.4],
+  propinteract: [0.1, 0.4],
   gawp: 0.4,
   staybybase: null,
 };
+
+/**
+ * Desires that grow by the base class's tick (`FUN_00837A80`): `level + increment`, linear. Every other ported desire has its own tick of the form `level + (1 - level) * increment`
+ * (`DesireCrap_Tick`, `DesireBuyFood_Tick`). `DesirePropInteract` has no tick of its own and uses the base one (its vtable slot `+0x0C`).
+ */
+const LINEAR_GROWTH = new Set(["propinteract"]);
 
 function clamp01(v: number): number { return v < 0 ? 0 : v > 1 ? 1 : v; }
 
@@ -70,14 +77,20 @@ export class Desire {
   /** The action this desire asks for (the name of its explainer action). */
   get action(): string { return this.def.name; }
 
-  /** One update. A fixed desire does not change; a growing one climbs `increment` of the way to 1 and is capped at `maxDesire`. */
+  /**
+   * One update. A fixed desire does not change; a growing one climbs by `increment` (linear for the base tick, a fraction of the way to 1 for the others) and is capped at `maxDesire`.
+   */
   tick(): void {
     const { increment, maxDesire } = this.def;
     if (increment === undefined) return;
-    let v = clamp01(this.level + (1 - this.level) * increment);
+    const step = LINEAR_GROWTH.has(this.def.name) ? increment : (1 - this.level) * increment;
+    let v = clamp01(this.level + step);
     if (maxDesire !== undefined && v > maxDesire) v = clamp01(maxDesire);
     this.level = v;
   }
+
+  /** A prop's `desire_<name>` slider: add to the level and clamp to 0..1 (`FUN_00842F40`). */
+  adjust(delta: number): void { this.level = clamp01(this.level + delta); }
 
   /** What a finished use does to the desire (`DesireCrap_ResetUrgency`). [guess] the same for every desire here. */
   reset(): void { this.level = 0; }

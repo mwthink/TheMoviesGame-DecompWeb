@@ -50,11 +50,13 @@ export class DesireAgent {
   activity: Activity | null = null;
   private sinceTry: number;
   private sinceTick = 0;
+  private readonly random: () => number;
   /** What a desire has to beat to start (`IDLE_THRESHOLD` unless the caller sets another). */
   threshold = IDLE_THRESHOLD;
 
   /** `actions` are the desire names this person has (for example `crap_male`, `buyfood`); a name missing from the table is skipped. */
   constructor(table: Map<string, DesireDef>, actions: string[], random: () => number = Math.random) {
+    this.random = random;
     this.desires = [];
     for (const a of actions) {
       const def = table.get(a);
@@ -108,7 +110,7 @@ export class DesireAgent {
       case "using":
         a.left -= dt;
         if (a.left <= 0) {
-          a.desire.reset();
+          this.satisfy(a);
           a.prop.occupied = false;
           a.prop.users = Math.max(0, a.prop.users - 1);
           this.activity = null;
@@ -116,6 +118,19 @@ export class DesireAgent {
         break;
     }
     return this.activity !== null;
+  }
+
+  /**
+   * What a finished use does. A prop that lists a `desire_<name>` slider for a desire of this person adjusts it by that amount (a bench takes a little off `propinteract`); a desire the prop says
+   * nothing about is satisfied outright (`DesireCrap_ResetUrgency`). [guess] the sliders are applied once, at the end of the use (the game applies them when the scene fires its event).
+   */
+  private satisfy(a: Activity): void {
+    let slid = false;
+    for (const d of this.desires) {
+      const delta = a.prop.def.desireSliders.get(d.action);
+      if (delta !== undefined) { d.adjust(delta); slid = true; }
+    }
+    if (!slid) a.desire.reset();
   }
 
   /** At the prop and facing it: use it if nobody is, else wait for them. */
@@ -139,11 +154,14 @@ export class DesireAgent {
         const cost = prop.cost(desire.action, actor.x, actor.y, now);
         if (cost !== null) scored.push({ prop, cost });
       }
+      // the cheapest first; props that cost the same (many have no weights at all) in a random order, as `CMetaExplainer_StartRandomUsable` would pick
+      for (let i = scored.length - 1; i > 0; i--) { const j = Math.floor(this.random() * (i + 1)); [scored[i], scored[j]] = [scored[j]!, scored[i]!]; }
       scored.sort((p, q) => p.cost - q.cost);
       for (const { prop } of scored) {
         if (!actor.walkTo(prop.goal.x, prop.goal.y)) continue; // no route to it: next cheapest
         prop.users++;
         prop.takenUntil = now + EXPLAINED_COOLDOWN;
+        prop.def.type.chosenAt = now;
         this.activity = { desire, prop, state: "enroute", left: 0 };
         return;
       }

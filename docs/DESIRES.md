@@ -17,11 +17,13 @@ parameter row. The current level is the float at `+0xE0` and slot `+0x24` return
 `+0x9D` "last start failed", `+0xE8` an adaptive "despair" rate (starts at `InitialDespRate`, clamped to 0..1).
 
 **Growth** [read]. `DesireCrap_Tick` (`00834640`, the same code in `DesireBuyFood_Tick`): `level = level + (1 - level) * increment`, clamped to 0..1, then capped at the row's `maxdesire`.
+`DesirePropInteract` has **no tick of its own**: its tick slot (`+0x0C`) is the base class's `FUN_00837A80`, which is **linear**: `level = level + increment`, clamped, and held at `maxdesire` once it reaches it. A desire
+is therefore exponential or linear by its class, not by its row.
 `TMBaseDesire_TickShared` (`00837B90`) calls the update every time when `AdaptiveDesires` is 0; when it is on, a per-desire countdown (`+0x108`) is reloaded with `interval * AdaptiveMultiplier`
 (at most `MaxDesireInterval`) between updates [read]. How often the character's desires are ticked, and what `interval` is, is **not read**. `DesireCrap_ResetUrgency` sets the level to 0.
 
 **Starting level** [read]. A character with a saved value (`MyDesireMap`, `CLASS_NOTES.md` 3ar) starts from it. Otherwise: crap a random level between 0.2 and 0.5, buyfood between about 0.15 and
-0.4, gawp 0.4, staybybase the row's fixed desire. The other desires' starting levels are not read.
+0.4, propinteract between 0.1 and 0.4, gawp 0.4, staybybase the row's fixed desire. The other desires' starting levels are not read.
 
 ## Choosing the next action
 
@@ -60,6 +62,7 @@ selected by a substring of the key, not read).
 | `override`, `BoostedDesire`, `satisfyincrement`, `interactive`, `bargeable`, `Possesable` | cost override, a desire this prop boosts, how much a use satisfies, and drop-icon behaviour (not decoded one by one) |
 | `[pos]` `LocalPositionX/Y/Z`, `LocalAngle` | the goal point and heading **in the prop's frame** (`FUN_008BC6D0`) |
 | `[action/<name>]`, `.../thoughts`, `.../cost` | the action this prop offers (the desire's action name); the thought texts; the cost weights `distancecost`, `queuecost`, `nicenesscost` |
+| `typeinterval` | after anyone is sent to a prop of this explainer, none is chosen for this long: the explainer keeps a record shared by its whole kind (`FUN_008B41E0` creates it, `CAssetActionExplainer_GetActionCost` checks it). The number is in ticks [inferred]; `reexplainticks` and `globalreexplainticks` are the same kind of cooldown for one prop and for the kind after a use |
 | `[aisliders/...]` | what a use does to the character: `desire_<name>` (negative = satisfied), `stress`, `boredom`, `drunkeness`, `weight`, `sexappeal`, `addiction_food` |
 
 A placed object brings its own explainers: `[extra_info/explainer/<name>]` in its ini (`facility\*.ini`: 12 files, `ornament\*.ini`: 41, `lot.ini`), loaded by `CAsset_LoadTaskDefinitions`
@@ -71,6 +74,12 @@ A placed object brings its own explainers: `[extra_info/explainer/<name>]` in it
 z is ignored. The heading adds the explainer's `LocalAngle` and the placed `angle` to the prop's yaw [inferred]. The queue entry point is computed from `queue` and `queueangle` the same way
 (`CQueue_GetOrCreateEntryPointPosition`; not decoded).
 
+**What a use does** [read]. A slider named `desire_<name>` adds its value to the character's desire of that name and clamps to 0..1 (`FUN_008AC360` finds it with `TMCharacter_FindResidentDesireByName` and calls
+`FUN_00842F40`); a bench's `desire_propinteract = -0.05` takes that off. The sliders are applied by `TMActivityManager_DispatchAiChannelEvents` (`00404B40`, through `FUN_008AC9E0`) **when the interaction scene fires
+an event naming the slider set**, so how often a long use applies them depends on the scene, which is not read. `DesirePropInteract`'s reset slot (`+0x30`) is a clamped subtract of a value the running activity
+holds (`FUN_00407100`), not a reset to 0 as in `DesireCrap_ResetUrgency` [read; the value's source is not]. Other sliders (`stress`, `boredom`, `drunkeness`, `weight`, `sexappeal`, `cuteness`, `addiction_food`, `genre_*`)
+change a star's mood stats and traits (`FUN_008AC360`).
+
 `data\dropactions.ini` [data]: for the default, runner, actor and director classes of person and each sex, a weight per action (`readyposition`, `crap_male` / `crap_female`, `buyfood`, `gawp`,
 `propinteract`, `tidy`, `repair`, `detox`, ...). It reads as the actions a person may take when put down; **no code that reads it was found** (the file name is not a plain string in the executable).
 
@@ -78,20 +87,21 @@ z is ignored. The heading adds the explainer's `LocalAngle` and the placed `angl
 
 `web/src/sim/ai/Desires.ts` (the table, the level, growth and starting levels), `Explainers.ts` (parse an explainer, the goal, the cost, busy and cooldown), `DesireAgent.ts` (the
 selection and the activity states enroute -> turning -> using, with waiting when the prop is occupied), `web/src/world/Props.ts` (collects the explainers of the placed facilities and ornaments and the
-desire table), wired in `web/src/world/WorldScene.ts` and `WorldData.ts`; tests `web/tests/sim/desires.test.ts`. Ported desires: `crap_male`, `crap_female`, `buyfood`.
+desire table), wired in `web/src/world/WorldScene.ts` and `WorldData.ts`; tests `web/tests/sim/desires.test.ts`. Ported desires: `crap_male`, `crap_female`, `buyfood` (exponential growth, reset by a use) and `propinteract` (linear growth, adjusted by the prop's slider).
 Off by default; the dev menu's Movement section ("Loose people act on desires") turns it on. A person given an order, or picked up, drops their activity and frees the prop.
 
 Choices that are **[guess]**: the desire update rate (10 per second, no adaptive skipping), the interval between start attempts (2 s), the length of a use (the scenes are not played; a fixed 8 s),
-a use resets the desire to 0, `niceness` is taken as 1 (no niceness cost), the turn is a plain heading change at the walker's turn rate, an occupied prop makes the next person wait at its goal (no
+a use resets the desire to 0 unless the prop has a slider for it, in which case the slider is added once at the end of the use, props with equal cost are picked at random, `niceness` is taken as 1 (no niceness cost), the turn is a plain heading change at the walker's turn rate, an occupied prop makes the next person wait at its goal (no
 queue points), and the **idle threshold**: the game starts a desire when its urgency beats the running action's, and an idle character there always has one (`roam`, `wander`), which are not
 ported, so a fixed 0.5 stands in (otherwise a reset desire would win again at once, at level 0.0001).
 
-Measured in the port, on the Quick Start save [measured, ours, not the game's]: 126 explainer props are placed (3 toilets each for men and women, 2 food counters among them), 51 of their goal
-points fall in grid cells the footprints block (the route ends at the nearest free cell and that counts as arrived), and the 17 people who are loose complete about 40 toilet and food trips in 30
-game minutes when their desires start at 0.8.
+Measured in the port, on the Quick Start save [measured, ours, not the game's]: 126 explainer props are placed (3 toilets each for men and women, 2 food counters and 16 `propinteract` props: 3 benches, 8 trees,
+3 parasols, a sun lounger and a gym bar), 51 of their goal points fall in grid cells the footprints block (the route ends at the nearest free cell and that counts as arrived), and the 17 people who are loose
+complete about 70 uses in 30 game minutes when the crap and food desires start at 0.8. **The update rate decides how busy people are:** `propinteract` climbs 0.002 per update, so at 10 updates a second it
+reaches the idle threshold in seconds; if the real update is slower the people would sit far less. It is the first thing to tune by eye.
 
 ## Not read
 
-Where the update and start timers' intervals come from, `interval` in the adaptive update, the other desires' starting levels and updates (`propinteract`, `getdrunk`, `overeat`, `disposeoflitter`,
-`smalltalk`, `leave`, ...), what a finished use does to a desire (the `aisliders` apply through code not read), the `override` cost functions, `niceness`, the queue geometry, how an interaction scene
+Who ticks a desire and how often (the per-desire update slot is called from somewhere not found; `TMCharacter_ReleaseAllDesires` releases them and `+0x108` removes one), `interval` in the adaptive update,
+the other desires' starting levels and updates (`getdrunk`, `overeat`, `disposeoflitter`, `smalltalk`, `leave`, ...), when a long scene applies its sliders, the `override` cost functions, `niceness`, the queue geometry, how an interaction scene
 ends, and the use of `dropactions.ini`.

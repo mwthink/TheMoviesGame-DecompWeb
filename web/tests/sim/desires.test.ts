@@ -19,6 +19,7 @@ readyposition,0.9,,,,,,,,,
 buyfood,,0.8,0.001,,1,2,,,scene_a.flm,
 crap_male,,0.7,0.002,,3,3,,,scene_b.flm,
 crap_female,,0.7,0.002,,3,3,,,scene_b.flm,
+propinteract,,0.8,0.01,0.5,,,,,,
 rehearse ,,,,0.5,,,,,,
 urgent,,,,1,,,,,,
 urgent,,,,,,,,,,
@@ -58,6 +59,28 @@ LocalPositionZ=0
 LocalAngle=0
 `;
 
+// Invented: a bench-like explainer with no cost weights, a slider and a type interval.
+const BENCH = `interaction = test_sit.flm
+queueable = 0
+range = 100
+typeinterval = 300
+
+[action]
+	[action/propinteract]
+		[action/propinteract/cost]
+
+[aisliders]
+	[aisliders/test_sit]
+		desire_propinteract = -0.25
+		stress = -0.01
+
+[pos]
+LocalPositionX=0
+LocalPositionY=0
+LocalPositionZ=0
+LocalAngle=0
+`;
+
 const TOILET_FACILITY = `mesh = fac_toilet3.msh
 [extra_info]
 [extra_info/explainer]
@@ -74,7 +97,7 @@ const TOILET_FACILITY = `mesh = fac_toilet3.msh
 
 test("the desire table: blanks are undefined, names are trimmed, the first of a repeated name wins", () => {
   const t = parseDesires(DESIRES);
-  assert.equal(t.size, 6);
+  assert.equal(t.size, 7);
   assert.deepEqual(t.get("crap_male"), { name: "crap_male", fixedDesire: undefined, maxDesire: 0.7, increment: 0.002, fixedUrgency: undefined });
   assert.equal(t.get("readyposition")!.fixedDesire, 0.9);
   assert.ok(t.has("rehearse"));
@@ -274,6 +297,11 @@ test("the real files parse as decoded", { skip: haveGame ? false : "needs the ga
   assert.ok(portaloo);
   const def = parseExplainer("female_portaloo", new TextDecoder("latin1").decode(portaloo));
   assert.ok(def.actions.has("crap_female"));
+  const seat = await pak.readByName("seat.ini", { dir: "data\\explainers\\" });
+  assert.ok(seat);
+  const seatDef = parseExplainer("seat", new TextDecoder("latin1").decode(seat));
+  assert.ok(seatDef.actions.has("propinteract") && (seatDef.desireSliders.get("propinteract") ?? 0) < 0, "a bench satisfies propinteract");
+  assert.ok((seatDef.typeInterval ?? 0) > 0, "a bench has a type interval");
   const counter = await pak.readByName("counter.ini", { dir: "data\\explainers\\" });
   assert.ok(counter && parseExplainer("counter", new TextDecoder("latin1").decode(counter)).actions.has("buyfood"));
 });
@@ -284,6 +312,7 @@ test("a real world: toilets and counters are placed with reachable goals, and lo
   for (const p of world.props) for (const a of p.def.actions.keys()) offered.set(a, (offered.get(a) ?? 0) + 1);
   assert.ok((offered.get("crap_male") ?? 0) > 0 && (offered.get("crap_female") ?? 0) > 0, `toilets: ${[...offered]}`);
   assert.ok((offered.get("buyfood") ?? 0) > 0, `counters: ${[...offered]}`);
+  assert.ok((offered.get("propinteract") ?? 0) > 0, `benches and the like: ${[...offered]}`);
   assert.ok(world.desires.has("crap_male") && world.desires.has("buyfood"));
 
   // every outdoor person gets an agent, the way the scene builds them; run 30 game minutes with strong desires so the loop is exercised
@@ -296,7 +325,7 @@ test("a real world: toilets and counters are placed with reachable goals, and lo
       walkTo(x, y) { const path = world.nav.findPath(walker, { x, y }); if (!path) return false; walker.go(path, 0); return true; },
       turnTo: (h, dt) => walker.turnTo(h, dt), stop: () => walker.stop(),
     };
-    const agent = new DesireAgent(world.desires, [female ? "crap_female" : "crap_male", "buyfood"]);
+    const agent = new DesireAgent(world.desires, [female ? "crap_female" : "crap_male", "buyfood", "propinteract"]);
     for (const d of agent.desires) d.level = 0.8;
     return { agent, actor, walker };
   });
@@ -313,4 +342,78 @@ test("a real world: toilets and counters are placed with reachable goals, and lo
     }
   }
   assert.ok([...uses.values()].reduce((x, y) => x + y, 0) > 0, `nobody finished a use of ${world.props.length} props among ${agents.length} people`);
+});
+
+test("propinteract grows linearly (the base tick), the others by a fraction of the way to 1", () => {
+  const t = parseDesires(DESIRES);
+  const p = new Desire(t.get("propinteract")!, () => 0); // starts at 0.1
+  assert.ok(Math.abs(p.level - 0.1) < 1e-12);
+  p.tick();
+  assert.ok(Math.abs(p.level - 0.11) < 1e-12);
+  for (let i = 0; i < 1000; i++) p.tick();
+  assert.equal(p.level, 0.8); // capped
+  const c = new Desire(t.get("crap_male")!, () => 0.5); // 0.35
+  c.tick();
+  assert.ok(Math.abs(c.level - (0.35 + 0.65 * 0.002)) < 1e-12); // not linear
+  p.adjust(-0.25);
+  assert.ok(Math.abs(p.level - 0.55) < 1e-12);
+  p.adjust(-5);
+  assert.equal(p.level, 0); // clamped
+  p.adjust(5);
+  assert.equal(p.level, 1);
+});
+
+test("an explainer's desire sliders and type interval are read", () => {
+  const bench = parseExplainer("seat", BENCH);
+  assert.deepEqual([...bench.desireSliders], [["propinteract", -0.25]]); // stress is not a desire
+  assert.equal(bench.typeInterval, 30); // 300 ticks
+  assert.equal(parseExplainer("male_loo", LOO).typeInterval, undefined);
+  assert.equal(parseExplainer("male_loo", LOO).desireSliders.size, 0);
+});
+
+test("a use with a slider adjusts the desire instead of resetting it, and the kind of prop is closed for its type interval", () => {
+  const nav = new NavGrid();
+  nav.openRect(-60, -60, 60, 60);
+  const table = parseDesires(DESIRES);
+  const def = parseExplainer("seat", BENCH);
+  const ref = { name: "seat", offset: { x: 0, y: 0 }, angle: 0 };
+  const one = new PropExplainer(def, ref, { x: 10, y: 0, yaw: 0 }), two = new PropExplainer(def, ref, { x: -10, y: 0, yaw: 0 });
+  const a = body(nav, 0, 0), b = body(nav, 0, 5);
+  const first = new DesireAgent(table, ["propinteract"], () => 0), second = new DesireAgent(table, ["propinteract"], () => 0);
+  first.desires[0]!.level = 0.7;
+  second.desires[0]!.level = 0.7;
+  const dt = 0.05;
+  let now = 3;
+  first.update(TRY_START_SECONDS + 0.1, a.actor, [one, two], now); // starts, and closes the type
+  assert.ok(first.activity);
+  assert.equal(def.type.chosenAt, now);
+  second.update(TRY_START_SECONDS + 0.1, b.actor, [one, two], now + 1); // the type is closed: no bench for them yet
+  assert.equal(second.activity, null);
+  for (let i = 0; i < 1200 && first.activity; i++) { now += dt; first.update(dt, a.actor, [one, two], now); a.walker.step(dt); }
+  assert.equal(first.activity, null);
+  const level = first.desires[0]!.level;
+  assert.ok(level > 0.4 && level < 0.7, `adjusted by -0.25 (plus the growth meanwhile), not reset: ${level}`);
+  second.update(TRY_START_SECONDS + 0.1, b.actor, [one, two], now + 40); // past the interval
+  assert.ok(second.activity, "the type is open again");
+});
+
+test("props that cost the same are picked in a random order", () => {
+  const nav = new NavGrid();
+  nav.openRect(-60, -60, 60, 60);
+  const table = parseDesires(DESIRES);
+  const def = parseExplainer("seat", BENCH.replace("typeinterval = 300", "typeinterval = 0"));
+  const ref = { name: "seat", offset: { x: 0, y: 0 }, angle: 0 };
+  const props = [0, 1, 2, 3].map((i) => new PropExplainer(def, ref, { x: 5 + i, y: 0, yaw: 0 }));
+  const chosen = new Set<PropExplainer>();
+  for (let r = 0; r < 40; r++) {
+    let n = 0;
+    const rng = () => ((n = (n * 7 + 3 + r) % 11) / 11);
+    const { actor } = body(nav, 0, 0);
+    const agent = new DesireAgent(table, ["propinteract"], rng);
+    agent.desires[0]!.level = 0.7;
+    agent.update(TRY_START_SECONDS + 0.1, actor, props, 0);
+    if (agent.activity) chosen.add(agent.activity.prop);
+    agent.cancel();
+  }
+  assert.ok(chosen.size > 1, "more than one of four equal props gets chosen across runs");
 });

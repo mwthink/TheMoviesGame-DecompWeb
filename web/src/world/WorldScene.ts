@@ -241,7 +241,7 @@ function buildPeople(scene: Scene, people: PersonInWorld[], nav: NavGrid | null,
       };
       animated.push({
         animator: new PersonAnimator(entry.skeleton, entry.clips, entry.plan), entry, meshes, walker, wanderer: new Wanderer(),
-        agent: new DesireAgent(desireTable, [female ? "crap_female" : "crap_male", "buyfood"]), actor,
+        agent: new DesireAgent(desireTable, [female ? "crap_female" : "crap_male", "buyfood", "propinteract"]), actor,
       });
     }
   }

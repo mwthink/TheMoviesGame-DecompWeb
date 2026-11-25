@@ -205,7 +205,7 @@ export class DevMenu {
     desireBox.type = "checkbox";
     desireBox.addEventListener("change", () => tools.onDesires?.(desireBox.checked));
     const desireLabel = document.createElement("label");
-    desireLabel.append(desireBox, " Loose people act on desires (toilet, food; docs/DESIRES.md)");
+    desireLabel.append(desireBox, " Loose people act on desires (toilet, food, benches; docs/DESIRES.md)");
     const gaitSel = document.createElement("select");
     [["0", "Stroll"], ["1", "Walk"], ["2", "Run"]].forEach(([v, name]) => gaitSel.append(new Option(name, v)));
     gaitSel.value = "1";

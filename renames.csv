@@ -2600,3 +2600,14 @@ address,old_name,new_name,evidence
 0046d1c0,FUN_0046d1c0,LotGrid_SnapWorldToFreeCell,world point -> its cell -> LotGrid_SnapToFreeCell -> back to the cell's world point (unchanged when the cell was free)
 005094d0,FUN_005094d0,SteeringModule_Constructor,0xDC-byte object stored at character +0x5DC; registers the name AVCSteeringModule_TM in a global list
 00598f00,TMCharacter_SetMovingFlag5E4,TMCharacter_SetLocomotionLock,"sets the byte at +0x5E4; TMCharacter_UpdateLocomotionStateFromSpeed keeps state 3 or 5 while it is set and follows the urgency (+0x52C) when clear; the runner states set it in position and clear it while walking"
+00837a80,FUN_00837a80,Desire_TickLinear,"the base desire tick: level = clamp(level + increment), held at the row's maxdesire once reached; DesirePropInteract's tick slot (+0x0C) is this"
+00842f40,FUN_00842f40,Desire_AddToLevel,level = clamp01(level + value) at +0xE0; FUN_008AC360 calls it for a desire_<name> slider
+00407100,FUN_00407100,Float_SubtractClamp01,*this = clamp01(*this - value); DesirePropInteract's slot +0x30 calls it with a value held by the running activity
+008ac360,FUN_008ac360,SliderSet_ApplyToCharacter,"one slider set's entries by name: drunkeness, sexappeal, boredom, stress, weight, cuteness, genre_*, and desire_<name> -> TMCharacter_FindResidentDesireByName + Desire_AddToLevel"
+008ac9e0,FUN_008ac9e0,SliderSets_ApplyNamed,finds the slider set whose name matches and applies it with SliderSet_ApplyToCharacter; its only caller is TMActivityManager_DispatchAiChannelEvents
+008b41e0,FUN_008b41e0,Explainer_LoadReexplainConfig,"reads bHideDropIcon, reexplainticks, globalreexplainticks and typeinterval; typeinterval makes a record shared by the explainer's kind"
+008b2d30,FUN_008b2d30,ExplainerTypeRecord_Find,looks a kind's cooldown record up by name in the global list; CAssetActionExplainer_GetActionCost skips the explainer while the record's interval has not passed
+00837e70,FUN_00837e70,DesireParams_FindByName,"finds the desires.csv row (the per-desire parameter block) by action name, or builds a default block"
+0059b9c0,FUN_0059b9c0,TMCharacter_ReleaseResidentDesire,unlinks a desire from the resident list (+0x53C) and drops its reference (vtable +0x108)
+0059a1f0,TMCharacter_UpdateAllDesires,TMCharacter_ReleaseAllDesires,"calls the release slot (+0x108) for every resident desire; callers are destructors and constructor chains, not a per-tick update"
+0083b4a0,DesirePropInteract_GetUrgency,DesirePropInteract_SubtractActivityValue,slot +0x30 of DesirePropInteract (where DesireCrap has ResetUrgency): clamp01 subtract of a value of the character's first activity

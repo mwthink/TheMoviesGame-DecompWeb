@@ -21,7 +21,22 @@ export interface ExplainerDef {
   local: { x: number; y: number; z: number; angle: number };
   /** The actions the prop offers, with their cost weights. An action with no cost section is not offered (`Explainer_GetActionCost`). */
   actions: Map<string, CostWeights>;
+  /**
+   * What a use does to the person's desires: every `desire_<name>` slider of `[aisliders/...]` by desire name (negative satisfies). The game applies a slider set when the interaction scene
+   * fires its event (`TMActivityManager_DispatchAiChannelEvents`), which is not read.
+   */
+  desireSliders: Map<string, number>;
+  /**
+   * `typeinterval`, in seconds: after anyone chooses a prop of this kind, no prop of the kind is chosen for this long (a record shared by the whole type, checked in `Explainer_GetActionCost`).
+   * [inferred] the file's number is game ticks, 10 to the second.
+   */
+  typeInterval?: number;
+  /** The type's shared state: the game time someone last chose a prop of this kind. */
+  readonly type: { chosenAt: number };
 }
+
+/** The game ticks 10 times a second (MAIN_LOOP.md). */
+const TICKS_PER_SECOND = 10;
 
 function num(ini: Ini, section: string, key: string, fallback: number): number {
   return ini.getNumber(section, key) ?? fallback;
@@ -36,6 +51,15 @@ export function parseExplainer(name: string, text: string): ExplainerDef {
     if (!m) continue;
     actions.set(m[1]!, { distance: num(ini, section, "distancecost", 0), queue: num(ini, section, "queuecost", 0), niceness: num(ini, section, "nicenesscost", 0) });
   }
+  const desireSliders = new Map<string, number>();
+  for (const section of ini.sectionNames()) {
+    if (!/^aisliders\//.test(section)) continue;
+    for (const [key, value] of ini.entries(section)) {
+      const v = parseNumber(value);
+      if (key.startsWith("desire_") && v !== undefined) desireSliders.set(key.slice(7), (desireSliders.get(key.slice(7)) ?? 0) + v);
+    }
+  }
+  const typeTicks = ini.getNumber("", "typeinterval");
   // the keys sit above the first section; the [pos] block repeats the local position (the game reads LocalPosition* from [pos])
   const queueable = ini.getNumber("", "queueable");
   const range = ini.getNumber("", "range");
@@ -46,6 +70,9 @@ export function parseExplainer(name: string, text: string): ExplainerDef {
     range: range !== undefined && range > 0 ? range : undefined,
     local: { x: num(ini, "pos", "localpositionx", 0), y: num(ini, "pos", "localpositiony", 0), z: num(ini, "pos", "localpositionz", 0), angle: wrapAngle(num(ini, "pos", "localangle", 0)) },
     actions,
+    desireSliders,
+    typeInterval: typeTicks !== undefined && typeTicks > 0 ? typeTicks / TICKS_PER_SECOND : undefined,
+    type: { chosenAt: -Infinity },
   };
 }
 
@@ -111,6 +138,7 @@ export class PropExplainer {
     const distance = Math.hypot(this.goal.x - x, this.goal.y - y);
     if (this.def.range !== undefined && distance > this.def.range) return null;
     if (!this.def.queueable && this.busy(now)) return null;
+    if (this.def.typeInterval !== undefined && now - this.def.type.chosenAt < this.def.typeInterval) return null; // someone chose this kind of prop a moment ago
     // queueable props: the cost grows with the people already there (a queue position), as `queuecost` says
     const queue = this.def.queueable ? this.users : 0;
     return distance * w.distance + queue * w.queue + (1 - niceness) * w.niceness;

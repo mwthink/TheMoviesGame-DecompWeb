@@ -121,7 +121,7 @@ character starts when several tie (`TMCharacter_TryStartAnyDesireAction`).
   A* over the cells with line-of-sight smoothing (a stand-in for the game's finder).
 - **Walker** (`Walker.ts`): turns toward the next waypoint at 4.5 rad/s [guess], walks only when within 50 degrees of it, moves at the gait's speed. No turn clips are played yet.
 - **Animation**: while a person walks, `PersonAnimator.setOverride` plays the gait clip; when they stop it returns to their room scene's idle.
-- **Desires** (`web/src/sim/ai/DesireAgent.ts`, docs/DESIRES.md): people who are outdoors can act on the crap and buyfood desires: the most urgent one above a threshold picks the cheapest prop that offers it,
+- **Desires** (`web/src/sim/ai/DesireAgent.ts`, docs/DESIRES.md): people who are outdoors can act on the crap, buyfood and propinteract desires: the most urgent one above a threshold picks the cheapest prop that offers it,
   the person walks to its goal, turns to its heading and uses it for a while. A person with an activity does not wander. Off by default (dev menu, Movement).
 - **Wander** (`Wander.ts`): a [guess] stand-in for the game's desire-driven AI: people who are outdoors (no room scene, standing on open ground) wait 2 to 8 s, then stroll to a point 6 to 30 units
   away. Off by default; the dev menu's Movement section turns it on.
@@ -129,4 +129,4 @@ character starts when several tie (`TMCharacter_TryStartAnyDesireAction`).
 
 ## Not done
 
-Turn clips, the game's own route finder (read, not ported), its collision rules, walking through doors and between rooms, people avoiding each other (the path agent's separation push), speed changes with urgency, the idle clip (id 41) between trips, the steering module, and every desire but crap and buyfood.
+Turn clips, the game's own route finder (read, not ported), its collision rules, walking through doors and between rooms, people avoiding each other (the path agent's separation push), speed changes with urgency, the idle clip (id 41) between trips, the steering module, and every desire but crap, buyfood and propinteract.
