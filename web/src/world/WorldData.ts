@@ -44,6 +44,29 @@ export interface MeshAsset {
   autoAnim?: Anm[];
 }
 
+/**
+ * The sky box: `Sky_box.msh` (orig: loaded by the landscape code at 0x009CC160 with `Mesh_LoadCached("Sky_box.msh")`) and the textures of its three variants. The model has four
+ * curved sky walls (textures `sky_01_v00` .. `sky_04_v00`), a top cap (`sky_top`) and a 2200-unit ground plane (`land_sand00` with the lightmap `lm_sky`).
+ */
+async function loadSky(pak: PakIndex, texture: (name: string) => Promise<Rgba | null>, warnings: string[]): Promise<SkyData | null> {
+  const bytes = await pak.readByName("sky_box.msh");
+  if (!bytes) { warnings.push("sky_box.msh not found: no sky"); return null; }
+  const msh = parseMsh(bytes);
+  const textures = new Map<string, Rgba>();
+  const names = new Set<string>();
+  for (const t of msh.textures) {
+    names.add(t.toLowerCase());
+    const m = /^(sky_\d\d)_v00\.dds$/i.exec(t);
+    if (m) for (const v of ["v01", "v02"]) names.add(`${m[1]!.toLowerCase()}_${v}.dds`);
+  }
+  for (const name of names) {
+    const img = await texture(name);
+    if (img) textures.set(name, img);
+    else warnings.push(`sky texture ${name} not found`);
+  }
+  return { msh, textures };
+}
+
 /** The most clip variants the original loads for a model (`AutoAnimSet_Constructor` names them `aa_<model>_v00` to `_v010`, then `_v`). */
 const MAX_AUTO_CLIPS = 11;
 
@@ -287,7 +310,16 @@ export interface PersonInWorld {
   clips: Map<string, Anm>;
 }
 
+/** The game's sky box (`Sky_box.msh`, docs/SKY.md): its model and the textures of every sky variant. */
+export interface SkyData {
+  msh: Msh;
+  /** Decoded textures by lower-case file name, including every `sky_NN_v00/v01/v02` variant of the four sky walls. */
+  textures: Map<string, Rgba>;
+}
+
 export interface WorldData {
+  /** The sky box and the ground plane around the lot; null if the archives lack `Sky_box.msh`. */
+  sky: SkyData | null;
   /** When each building's floor plan is revealed (`data\\floorplans\\floorplanrevealing.csv`); null if the archives lack it. */
   floorplanRules: RevealRules | null;
   /** The people who are in the world (a position and a costume), at their saved positions. */
@@ -525,5 +557,6 @@ export async function loadWorldData(
   const people = await loadPeople(pak, save, texture, warnings, progress);
   const rulesBytes = await pak.readByName("floorplanrevealing.csv", { dir: "data\\floorplans\\" });
   const floorplanRules = rulesBytes ? parseFloorplanRevealing(new TextDecoder("latin1").decode(rulesBytes)) : null;
-  return { floorplanRules, people, camera, lot, terrain, meshes, placements, header: save.header, staff: save.staff, warnings };
+  const sky = await loadSky(pak, texture, warnings);
+  return { sky, floorplanRules, people, camera, lot, terrain, meshes, placements, header: save.header, staff: save.staff, warnings };
 }

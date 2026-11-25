@@ -27,6 +27,11 @@ import { PersonDragger } from "../world/PersonDragger.ts";
 import { applySun, createSunLights, type SunLights } from "../world/SunLight.ts";
 import { DEFAULT_SHADOWS, DEFAULT_SUN, type ShadowSettings, type SunSettings } from "../world/Sun.ts";
 import { SunShadows } from "../world/SunShadows.ts";
+import { FrustumLines, HoverHighlight, PerfStats, ShadowMapViewer } from "../world/DevViews.ts";
+import { setDebugMode } from "../world/SunLight.ts";
+import { skyVariantForHour } from "../world/Sky.ts";
+import { calendarDate } from "../sim/core/GameClock.ts";
+import type { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import { FxaaPostProcess } from "@babylonjs/core/PostProcesses/fxaaPostProcess";
 import type { Settings, SettingsStore } from "../settings/Settings.ts";
 import { GameClock, SPEED_FACTOR, type GameSpeed } from "../sim/core/GameClock.ts";
@@ -86,6 +91,16 @@ export class GameView implements Screen {
   private sunLights: SunLights | null = null;
   private shadowSettings: ShadowSettings = { ...DEFAULT_SHADOWS };
   private shadows: SunShadows | null = null;
+  /** Dev tools (docs/DEV_TOOLS.md): hover outline, the shadow frustum and map viewer, performance rows, the sky variant and the pointer's person. */
+  private highlight: HoverHighlight | null = null;
+  private frustum: FrustumLines | null = null;
+  private frustumOn = false;
+  private shadowViewer: ShadowMapViewer | null = null;
+  private perf: PerfStats | null = null;
+  private setSkyVariant: ((v: 0 | 1 | 2) => void) | null = null;
+  private skyMode: "auto" | 0 | 1 | 2 = 2;
+  private skyShown: number = -1;
+  private hoverPerson: TransformNode | null = null;
   private readonly onHoverMove = (e: PointerEvent) => {
     this.hoverAt = e.target === this.canvas && e.buttons === 0 ? { x: e.clientX, y: e.clientY } : null;
     this.hoverDirty = true;
@@ -146,12 +161,21 @@ export class GameView implements Screen {
       this.shadows = new SunShadows(this.scene, { min: { x: -192, y: 0, z: -128 }, max: { x: 192, y: 45, z: 256 } }, this.shadowSettings.size);
       for (const c of built.shadowCasters) this.shadows.addCaster(c.mesh, c.material);
       this.stepPeople = built.stepPeople;
+      this.setSkyVariant = built.setSkyVariant;
+      this.skyShown = -1;
+      this.highlight = new HoverHighlight(this.scene);
+      this.frustum = new FrustumLines(this.scene, () => this.shadows);
+      this.perf = new PerfStats(this.scene, () => this.shadows);
       this.dragger = this.makeDragger(this.scene);
       this.peopleClips = built.peopleClips;
       this.autoAnimated = built.autoAnimated;
     } else {
       this.stepAutoAnimations = null;
       this.shadows = null;
+      this.highlight = null;
+      this.frustum = null;
+      this.perf = null;
+      this.setSkyVariant = null;
       this.stepPeople = null;
       this.peopleClips = null;
       this.autoAnimated = [];
@@ -243,6 +267,12 @@ export class GameView implements Screen {
     this.tooltip?.dispose();
     this.hud?.remove();
     this.stepAutoAnimations = null;
+    this.highlight?.dispose();
+    this.frustum?.dispose();
+    this.shadowViewer?.dispose();
+    this.perf?.dispose();
+    this.highlight = this.frustum = this.shadowViewer = this.perf = null;
+    this.setSkyVariant = null;
     this.shadows = null;
     this.stepPeople = null;
     this.peopleClips = null;
@@ -286,7 +316,18 @@ export class GameView implements Screen {
     this.staffPanel.mount(this.hud);
     this.tooltip = new Tooltip();
     this.tooltip.attach(this.hud);
-    this.devMenu = new DevMenu((m) => this.selectCamera(m), this.gameCamera !== null, (on) => { this.revealAlways = on; }, (s) => { this.sun = s; if (this.scene && this.sunLights) applySun(this.scene, this.sunLights, s); this.shadows?.update(this.sun, this.shadowSettings); }, (s) => { this.shadowSettings = s; this.shadows?.update(this.sun, s); });
+    this.devMenu = new DevMenu((m) => this.selectCamera(m), this.gameCamera !== null, (on) => { this.revealAlways = on; }, (s) => { this.sun = s; if (this.scene && this.sunLights) applySun(this.scene, this.sunLights, s); this.shadows?.update(this.sun, this.shadowSettings); this.frustum?.update(this.frustumOn); }, (s) => { this.shadowSettings = s; this.shadows?.update(this.sun, s); this.frustum?.update(this.frustumOn); }, {
+      onTimeScale: (v) => { this.clock.timeScale = v; },
+      onStep: () => this.stepOnce(),
+      onDebugMode: (m) => { if (this.scene) setDebugMode(this.scene, m); },
+      onSkyVariant: (v) => { this.skyMode = v; this.skyShown = -1; if (v !== "auto") { this.setSkyVariant?.(v); this.skyShown = v; } },
+      onShadowFrustum: (on) => { this.frustumOn = on; this.frustum?.update(on); },
+      onHighlight: (on) => this.highlight?.setEnabled(on),
+      shadowViewCanvas: (canvas) => {
+        if (canvas && this.engine && this.scene) this.shadowViewer ??= new ShadowMapViewer(this.engine, this.scene, () => this.shadows);
+        this.shadowViewer?.setCanvas(canvas);
+      },
+    });
     this.devMenu.mount(this.hud);
     this.pauseMenu.mount(this.hud);
   }
@@ -329,6 +370,13 @@ export class GameView implements Screen {
     }
   }
 
+  /** Dev menu: run one simulation tick now (0.1 s of game time), for watching motion step by step while paused. */
+  private stepOnce(): void {
+    this.clock.tick();
+    this.toolbar?.setStatus(this.clock.date, this.world?.header?.cash ?? null);
+    this.stepPeople?.(100);
+  }
+
   /** The toolbar's speed buttons: pause, play (1x) or fast. Only the game clock changes; flags and the camera keep running (docs/AUTO_ANIMATION.md). */
   private setSpeed(speed: GameSpeed): void {
     this.clock.speed = speed;
@@ -348,7 +396,11 @@ export class GameView implements Screen {
     this.dragger?.tick(dtMs);
     // people animate in game time: the speed buttons scale it and a pause freezes them [guess, docs/PEOPLE.md]
     const factor = SPEED_FACTOR[this.clock.speed];
-    if (factor > 0) this.stepPeople?.(Math.min(dtMs, 99) * factor);
+    if (factor > 0) this.stepPeople?.(Math.min(dtMs, 99) * factor * this.clock.timeScale);
+    if (this.skyMode === "auto") {
+      const v = skyVariantForHour(calendarDate(this.clock.date).hour);
+      if (v !== this.skyShown) { this.setSkyVariant?.(v); this.skyShown = v; }
+    }
   }
 
   /** Pick the placed object under a canvas pixel (terrain is not pickable) and record it for the dev menu. */
@@ -394,11 +446,12 @@ export class GameView implements Screen {
     const ground = at ? this.groundPoint(at.x * k, at.y * k) : null;
     if (this.hoverDirty) {
       this.hoverDirty = false;
-      if (!at) this.tooltip?.show(null);
+      if (!at) { this.tooltip?.show(null); this.hoverPerson = null; }
       else {
         // a person under the pointer: their name goes to the tooltip
         const who = this.scene.pick(at.x * k, at.y * k, (m) => m.isPickable && m.isEnabled() && !!(m.metadata as { person?: unknown } | null)?.person);
         const person = who?.hit ? (who.pickedMesh?.metadata as { person: { name: string; cls: string } }).person : null;
+        this.hoverPerson = who?.hit ? ((who.pickedMesh?.parent as TransformNode | null) ?? null) : null;
         this.tooltip?.show(!this.dragger?.active && person ? `${person.name || "Someone"}${person.cls === "CStar" ? " (star)" : person.cls === "CWannabe" ? " (wannabe)" : ""}` : null);
         if (!this.dragger?.active) this.canvas.style.cursor = person ? "grab" : "";
       }
@@ -407,6 +460,12 @@ export class GameView implements Screen {
       const hit = this.scene.pick(at.x * k, at.y * k, (m) => m.isPickable && m.isEnabled() && ((m.metadata as Meta | null)?.rooms?.some((r) => r.lines.length) ?? false));
       underPointer = hit?.hit ? ((hit.pickedMesh?.metadata as Meta | null)?.key ?? null) : null;
     }
+    // outline what the pointer is over: a person, else a building (through clones of the instances that are showing)
+    if (this.hoverPerson && !this.dragger?.active) this.highlight?.setPerson(this.hoverPerson);
+    else if (underPointer) {
+      const set = this.instances.get(underPointer);
+      this.highlight?.setBuilding(underPointer, set ? [...set.full, ...set.cut].filter((i) => i.isEnabled()) : []);
+    } else this.highlight?.setPerson(null);
     const candidates: RevealCandidate[] = this.buildings.map((b) => {
       let distance = Infinity;
       if (b.meta.key === underPointer) distance = 0;
@@ -548,6 +607,7 @@ export class GameView implements Screen {
     if (clips.length) {
       state["People"] = { animating: String(clips.length), "from room scenes": String(clips.filter((c) => !c.source.startsWith("fallback")).length), "fallback idle": String(clips.filter((c) => c.source.startsWith("fallback")).length) };
     }
+    if (this.perf) state["Performance"] = this.perf.rows();
     state["Last click"] = this.lastClick;
     state["Hover"] = this.hovered ? { building: this.hovered.source, rooms: this.hovered.rooms.map((r) => r.name.replace(/^room_/, "")).join(", ") } : { building: "none" };
     const gc = this.gameCamera;

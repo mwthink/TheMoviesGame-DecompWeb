@@ -54,6 +54,7 @@ export function registerShaders(): void {
     uniform float sunOn;
     uniform vec3 sunDir;
     uniform vec3 sunParams;
+    uniform float debugMode;
     void main() {
       vec2 cell = (vXZ + 256.0) * 0.5;      // vertex units: vertex i is at world 2i - 256
       vec2 suv = (cell + 0.5) / 256.0;
@@ -68,6 +69,14 @@ export function registerShaders(): void {
       float path = texture2D(pathMask, (floor(cell) + 0.5) / 256.0).r * pathOn;
       vec3 paved = texture2D(sidewalk, vXZ / pathTileSize).rgb;
       vec3 col = mix(c, paved, path);
+      if (debugMode > 0.5) {
+        if (debugMode < 1.5) gl_FragColor = vec4(col, 1.0);
+        else if (debugMode < 2.5) gl_FragColor = vec4(1.0);
+        else if (debugMode < 3.5) gl_FragColor = vec4(0.5, 1.0, 0.5, 1.0);
+        else if (debugMode < 4.5) gl_FragColor = vec4(vec3(max(sunDir.y, 0.0)), 1.0);
+        else gl_FragColor = vec4(vec3(shadowFactor(vShadow)), 1.0);
+        return;
+      }
       if (sunOn > 0.5) {
         float sh = shadowFactor(vShadow);
         col *= (sunParams.z + sunParams.y) * (1.0 - shadowParams.y * (1.0 - sh)) + sunParams.x * max(sunDir.y, 0.0) * sh;
@@ -115,11 +124,22 @@ export function registerShaders(): void {
     uniform float sunOn;
     uniform vec3 sunDir;
     uniform vec3 sunParams;
+    uniform float debugMode;
     void main() {
       if (vY > cutHeight) discard;
       vec4 d = texture2D(diffuse, vUV);
       if (d.a < 0.5) discard;
       vec3 c = d.rgb;
+      if (debugMode > 0.5) {
+        vec3 n = normalize(vNormal);
+        vec3 lmv = useLightmap > 0.5 ? texture2D(lightmap, vUV2).rgb * (255.0 / 127.0) : vec3(1.0);
+        if (debugMode < 1.5) gl_FragColor = vec4(d.rgb, 1.0);
+        else if (debugMode < 2.5) gl_FragColor = vec4(min(lmv, vec3(1.0)), 1.0);
+        else if (debugMode < 3.5) gl_FragColor = vec4(n * 0.5 + 0.5, 1.0);
+        else if (debugMode < 4.5) gl_FragColor = vec4(vec3(max(dot(n, sunDir), 0.0)), 1.0);
+        else gl_FragColor = vec4(vec3(shadowFactor(vShadow)), 1.0);
+        return;
+      }
       if (sunOn > 0.5) {
         vec3 lm = useLightmap > 0.5 ? texture2D(lightmap, vUV2).rgb * (255.0 / 127.0) : vec3(1.0);
         float ndl = max(dot(normalize(vNormal), sunDir), 0.0);

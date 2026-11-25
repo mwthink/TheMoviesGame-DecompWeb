@@ -29,6 +29,10 @@ export class SunShadows {
   private active = false;
   private size: number;
   private white: Texture | null = null;
+  private lastMatrix: Matrix | null = null;
+  /** Milliseconds the last shadow pass took on the CPU side (an average), for the performance panel. */
+  passMs = 0;
+  private passStart = 0;
 
   /** `box` is the volume that must be inside the map: the lot's ground and the height of the tallest things on it. */
   constructor(scene: Scene, box: { min: Vec3; max: Vec3 }, size = 4096) {
@@ -46,6 +50,8 @@ export class SunShadows {
     rtt.wrapV = Texture.CLAMP_ADDRESSMODE;
     rtt.refreshRate = 2;
     rtt.renderList = [];
+    rtt.onBeforeRenderObservable.add(() => { this.passStart = performance.now(); });
+    rtt.onAfterRenderObservable.add(() => { this.passMs = this.passMs * 0.9 + (performance.now() - this.passStart) * 0.1; });
     return rtt;
   }
 
@@ -91,6 +97,7 @@ export class SunShadows {
     this.active = on;
     const frustum = shadowMatrix(sunDirection(sun.azimuth, sun.elevation), this.box);
     const matrix = Matrix.FromArray(frustum.m);
+    this.lastMatrix = matrix;
     const params = new Vector3(shadows.bias / frustum.depthRange, shadows.darkness, 1 / this.size);
     for (const twin of this.twins.values()) twin.setMatrix("shadowMatrix", matrix);
     for (const m of this.scene.materials) {
@@ -101,6 +108,21 @@ export class SunShadows {
       sm.setTexture("shadowMap", this.rtt);
       sm.setVector3("shadowParams", params);
     }
+  }
+
+  /** The shadow map texture (for the dev viewer). */
+  get map(): RenderTargetTexture { return this.rtt; }
+
+  /** Whether the pass is running. */
+  get running(): boolean { return this.active; }
+
+  /** The eight corners of the shadow box in scene coordinates (the unit cube through the inverse of the shadow matrix), or null before the first update. */
+  corners(): Vector3[] | null {
+    if (!this.lastMatrix) return null;
+    const inv = this.lastMatrix.clone().invert();
+    const out: Vector3[] = [];
+    for (const u of [0, 1]) for (const v of [0, 1]) for (const d of [0, 1]) out.push(Vector3.TransformCoordinates(new Vector3(u, v, d), inv));
+    return out;
   }
 
   dispose(): void {

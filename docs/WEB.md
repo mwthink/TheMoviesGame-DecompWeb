@@ -175,8 +175,7 @@ Things worth knowing before extending it:
 
 - **Materials.** Reflection, environment and sky textures (`refl_*`, `envmap*`, `gen_*`) are not drawn, so glass and mirrored surfaces are missing. The
   other flag dwords of a material and the second texture layer are not decoded. All materials are treated as opaque with an alpha cut-off.
-- **No shadows or dynamic light, no sky.** Lighting is only the baked lightmaps (which assume a 2x gain; unconfirmed). The world ends at 256 units where
-  the terrain does, against the clear colour.
+- **Sun and shadows are dev-menu experiments (`LIGHTING.md`); the sky is drawn (`SKY.md`).** Lighting is the baked lightmaps (which assume a 2x gain; unconfirmed) unless the dev menu's sun is on. Beyond the terrain the sky box's sand plane and sky show.
 - **Ground.** `land_alpha.dds` (a ragged edge vignette; its use in the draw code is not read) is not used. The terrain is flat because no height data was found.
 - **Not drawn:** facility interiors and room floors, the other lot meshes, litter and cars. People are drawn standing in a stand-in pose, unlit, without costume layers, makeup or hair colour (`PEOPLE.md`).
 - **Saves:** the placed assets, the landscape, the header (date, cash) and the player's employees' names and roles are read. Films and everything else in `.jad` is ignored.

@@ -236,3 +236,8 @@ body[data-screen="game"] .devmenu { bottom: 70px; }
 .loadpic.bg-dark { background: radial-gradient(ellipse at 50% 40%, #1d1d2a 0%, #07070b 75%); }
 .loadpic.bg-dark .picture { visibility: hidden; }
 .loadpic { overflow: hidden; }
+
+/* Dev menu: the shadow map viewer. */
+.devmenu canvas.shadowview { width: 100%; image-rendering: pixelated; background: #000; margin-top: 4px; }
+.devmenu canvas.shadowview[hidden] { display: none; }
+.devmenu button { margin-top: 4px; }

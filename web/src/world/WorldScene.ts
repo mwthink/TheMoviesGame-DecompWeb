@@ -22,7 +22,8 @@ import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import type { Material } from "@babylonjs/core/Materials/material";
 import { PersonMeshes } from "./PersonMeshes.ts";
 import { SUN_LIT } from "./SunLight.ts";
-import type { MeshAsset, PersonInWorld, TerrainData, WorldData } from "./WorldData.ts";
+export { skyVariantForHour } from "./Sky.ts";
+import type { MeshAsset, PersonInWorld, SkyData, TerrainData, WorldData } from "./WorldData.ts";
 
 /**
  * Coordinates. The game is right-handed with z up and the ground in x, y (seen from above: x right, y up). Babylon is left-handed with y up.
@@ -54,7 +55,7 @@ function buildTerrain(scene: Scene, t: TerrainData): Mesh {
   ground.bakeCurrentTransformIntoVertices(); // the shader reads world x, z from the vertex positions
   const mat = new ShaderMaterial("terrain", scene, "otmTerrain", {
     attributes: ["position"],
-    uniforms: ["worldViewProjection", "tileSize", "pathTileSize", "pathOn", "sunOn", "sunDir", "sunParams", "shadowMatrix", "shadowOn", "shadowParams"],
+    uniforms: ["worldViewProjection", "tileSize", "pathTileSize", "pathOn", "sunOn", "sunDir", "sunParams", "shadowMatrix", "shadowOn", "shadowParams", "debugMode"],
     samplers: ["ground0", "ground1", "ground2", "ground3", "ground4", "ground5", "ground6", "ground7", "weightsA", "weightsB", "pathMask", "sidewalk", "shadowMap"],
   });
   for (let i = 0; i < 8; i++) mat.setTexture(`ground${i}`, makeTexture(scene, t.groundTextures[i] ?? white));
@@ -142,7 +143,7 @@ function buildSources(scene: Scene, m: MeshAsset, caches: Caches, cut = false): 
     if (diffuse) {
       result = new ShaderMaterial(key, scene, "otmStatic", {
         attributes: ["position", "uv", "uv2", "normal"],
-        uniforms: ["world", "viewProjection", "useLightmap", "cutHeight", "sunOn", "sunDir", "sunParams", "shadowMatrix", "shadowOn", "shadowParams"],
+        uniforms: ["world", "viewProjection", "useLightmap", "cutHeight", "sunOn", "sunDir", "sunParams", "shadowMatrix", "shadowOn", "shadowParams", "debugMode"],
         samplers: ["diffuse", "lightmap", "shadowMap"],
       });
       result.setTexture("diffuse", diffuse);
@@ -212,6 +213,78 @@ function buildPeople(scene: Scene, people: PersonInWorld[]): { nodes: TransformN
   return { nodes, step, clips: () => animated.map((a) => ({ name: a.entry.person.name, clip: a.animator.clipName, source: a.entry.plan!.source })) };
 }
 
+/** The sky's scale: the game's sky box is about 980 units across but its camera sees only 300 units (`FAR_PLANE`), so the sky is drawn at a fifth of its size and stays centred on the camera. */
+const SKY_SCALE = 0.2;
+/** The sand plane lies a little below the terrain so it never fights it. */
+const SAND_Y = -0.6;
+
+/**
+ * The sky: the box's four walls and top cap, scaled down and following the camera (`infiniteDistance`), drawn unlit with the chosen variant's textures; and the big sand plane
+ * under the lot, which shows beyond the terrain's edge and is lit like the other models (its lightmap `lm_sky`). Returns a way to change the variant.
+ */
+function buildSky(scene: Scene, sky: SkyData): { setVariant(v: 0 | 1 | 2): void } {
+  const m = sky.msh;
+  const panels: { mat: ShaderMaterial; base: string }[] = [];
+  const tex = (name: string) => { const img = sky.textures.get(name.toLowerCase()); return img ? makeTexture(scene, img, { clamp: true }) : null; };
+  m.primitives.forEach((p, i) => {
+    const mat = m.materials[p.material];
+    const diffuse = mat ? m.textures[mat.tex[0]] : undefined;
+    if (!diffuse) return;
+    const isGround = /^land_/i.test(diffuse);
+    const n = p.positions.length / 3;
+    const positions = new Float32Array(n * 3), normals = new Float32Array(n * 3);
+    const s = isGround ? 1 : SKY_SCALE;
+    for (let v = 0; v < n; v++) {
+      positions.set([p.positions[v * 3]! * s, isGround ? SAND_Y : p.positions[v * 3 + 2]! * s, p.positions[v * 3 + 1]! * s], v * 3); // game (x, y, z) -> scene (x, z, y)
+      normals.set([p.normals[v * 3]!, p.normals[v * 3 + 2]!, p.normals[v * 3 + 1]!], v * 3);
+    }
+    const mesh = new Mesh(`sky/${i}`, scene);
+    const d = new VertexData();
+    d.positions = positions; d.normals = normals; d.uvs = p.uv; if (p.uv2) d.uvs2 = p.uv2;
+    d.indices = Uint32Array.from(p.indices);
+    d.applyToMesh(mesh);
+    mesh.isPickable = false;
+    if (isGround) {
+      const lm = m.textures[mat!.tex[2]];
+      const diffuseTex = tex(diffuse), lmTex = lm ? tex(lm) : null;
+      if (!diffuseTex) return;
+      const gm = new ShaderMaterial("sky/ground", scene, "otmStatic", {
+        attributes: ["position", "uv", "uv2", "normal"],
+        uniforms: ["world", "viewProjection", "useLightmap", "cutHeight", "sunOn", "sunDir", "sunParams", "shadowMatrix", "shadowOn", "shadowParams", "debugMode"],
+        samplers: ["diffuse", "lightmap", "shadowMap"],
+      });
+      gm.setTexture("diffuse", diffuseTex);
+      gm.setTexture("lightmap", lmTex ?? diffuseTex);
+      gm.setFloat("useLightmap", lmTex ? 1 : 0);
+      gm.setFloat("cutHeight", NO_CUT);
+      gm.metadata = { ...SUN_LIT, diffuse: diffuseTex, cutHeight: NO_CUT };
+      gm.backFaceCulling = false;
+      mesh.material = gm;
+    } else {
+      const fm = new ShaderMaterial(`sky/${diffuse}`, scene, "otmFlat", { attributes: ["position", "uv"], uniforms: ["world", "viewProjection", "tint", "useTex"], samplers: ["tex"] });
+      fm.setFloat("useTex", 1);
+      fm.setFloats("tint", [1, 1, 1, 1]);
+      fm.backFaceCulling = false;
+      fm.disableDepthWrite = true;
+      mesh.material = fm;
+      mesh.infiniteDistance = true; // stays centred on the camera
+      panels.push({ mat: fm, base: diffuse });
+    }
+  });
+  const textures = new Map<string, ReturnType<typeof tex>>();
+  const setVariant = (v: 0 | 1 | 2) => {
+    for (const { mat, base } of panels) {
+      const name = /^sky_\d\d_v00\.dds$/i.test(base) ? base.replace(/_v00\./i, `_v0${v}.`) : base;
+      const key = name.toLowerCase();
+      if (!textures.has(key)) textures.set(key, tex(key));
+      const t = textures.get(key);
+      if (t) mat.setTexture("tex", t);
+    }
+  };
+  setVariant(2);
+  return { setVariant };
+}
+
 /** A model or person that casts shadows, with the material it is drawn with (`SunShadows.addCaster`). */
 export interface ShadowCaster { mesh: AbstractMesh; material: Material | null; }
 
@@ -224,6 +297,8 @@ export interface BuiltWorld {
    * it is deliberately independent of the game clock, as in the original (`AutoAnimation.ts`).
    */
   stepAutoAnimations(dtMs: number): void;
+  /** Change the sky variant (0 night, 1 morning, 2 day); a no-op when the world has no sky. */
+  setSkyVariant(v: 0 | 1 | 2): void;
   /** Every placed model instance and every part of every person: what casts the sun's shadow. */
   shadowCasters: ShadowCaster[];
   /** One node per person drawn. */
@@ -322,5 +397,6 @@ export function buildWorld(scene: Scene, canvas: HTMLCanvasElement, world: World
   camera.attachControl(canvas, true);
   const built = buildPeople(scene, world.people);
   for (const node of built.nodes) for (const part of node.getChildMeshes()) shadowCasters.push({ mesh: part, material: null });
-  return { camera, instances, shadowCasters, stepAutoAnimations, autoAnimated, people: built.nodes, stepPeople: built.step, peopleClips: built.clips };
+  const skyHandle = world.sky ? buildSky(scene, world.sky) : null;
+  return { camera, instances, shadowCasters, setSkyVariant: (v) => skyHandle?.setVariant(v), stepAutoAnimations, autoAnimated, people: built.nodes, stepPeople: built.step, peopleClips: built.clips };
 }

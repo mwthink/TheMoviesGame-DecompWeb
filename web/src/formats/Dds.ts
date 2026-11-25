@@ -27,6 +27,30 @@ function colourBlock(d: DataView, o: number, dxt1: boolean, out: Uint8Array): vo
   for (let i = 0; i < 16; i++) out.set(pal[(bits >>> (2 * i)) & 3]!, i * 4);
 }
 
+/**
+ * An uncompressed RGB or RGBA .dds (pixel-format flag 0x40; 16, 24 or 32 bits a pixel with channel masks). Only the sky box's lightmap `lm_sky.dds` (128 x 128, 24-bit BGR) is known
+ * to use it, so only whole-byte channels are supported.
+ */
+function decodeUncompressed(d: DataView, file: Uint8Array, width: number, height: number): Rgba {
+  const bits = d.getUint32(88, true);
+  const bpp = bits / 8;
+  if (bits !== 24 && bits !== 32) throw new Error(`unsupported uncompressed DDS (${bits} bits)`);
+  const masks = [92, 96, 100, 104].map((o) => d.getUint32(o, true)); // R, G, B, A
+  const shift = (m: number) => (m === 0 ? -1 : 31 - Math.clz32(m & -m));
+  const [sr, sg, sb, sa] = masks.map(shift) as [number, number, number, number];
+  const data = new Uint8Array(width * height * 4);
+  for (let i = 0; i < width * height; i++) {
+    const o = 128 + i * bpp;
+    let v = 0;
+    for (let k = 0; k < bpp; k++) v |= file[o + k]! << (8 * k);
+    data[i * 4] = (v >>> sr) & 255;
+    data[i * 4 + 1] = (v >>> sg) & 255;
+    data[i * 4 + 2] = (v >>> sb) & 255;
+    data[i * 4 + 3] = sa < 0 ? 255 : (v >>> sa) & 255;
+  }
+  return { width, height, data };
+}
+
 /** Decode the top mip of a DXT1, DXT3 or DXT5 .dds (the only formats the game's textures use). Port of tools/dds.py. */
 export function decodeDds(file: Uint8Array): Rgba {
   const d = new DataView(file.buffer, file.byteOffset, file.byteLength);
@@ -35,6 +59,8 @@ export function decodeDds(file: Uint8Array): Rgba {
   const width = d.getUint32(16, true);
   const fourcc = String.fromCharCode(file[84]!, file[85]!, file[86]!, file[87]!);
   const data = new Uint8Array(width * height * 4);
+  const pfFlags = d.getUint32(80, true);
+  if ((pfFlags & 0x40) !== 0 && (pfFlags & 4) === 0) return decodeUncompressed(d, file, width, height); // uncompressed RGB(A): the sky's lightmap is 24-bit
   const block = new Uint8Array(64);
   let o = 128;
   for (let by = 0; by < Math.max(1, height >> 2); by++) {

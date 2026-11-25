@@ -2,7 +2,20 @@
  * The developer menu: a panel fixed to the bottom-right of the game view for testing controls and read-only state. It is plain DOM, outside the
  * engine. Rows are added once and their text is refreshed a few times a second.
  */
+import { DEBUG_MODES } from "../world/SunLight.ts";
 import { DEFAULT_SHADOWS, DEFAULT_SUN, normalizeShadows, normalizeSun, type ShadowSettings, type SunSettings } from "../world/Sun.ts";
+
+/** Callbacks for the dev tools section: time scale and single steps, debug views, the sky variant, the shadow viewers and the hover highlight. */
+export interface DevTools {
+  onTimeScale?: (scale: number) => void;
+  onStep?: () => void;
+  onDebugMode?: (mode: number) => void;
+  onSkyVariant?: (v: "auto" | 0 | 1 | 2) => void;
+  onShadowFrustum?: (on: boolean) => void;
+  onHighlight?: (on: boolean) => void;
+  /** The canvas the shadow map viewer draws into (the game view fills it). */
+  shadowViewCanvas?: (canvas: HTMLCanvasElement | null) => void;
+}
 
 export type CameraMode = "default" | "game";
 
@@ -17,7 +30,7 @@ export class DevMenu {
   private readonly radios = new Map<CameraMode, HTMLInputElement>();
   private collapsed = false;
 
-  constructor(private readonly onCamera: (mode: CameraMode) => void, gameCameraAvailable: boolean, onRevealAlways: (on: boolean) => void = () => {}, onSun: (s: SunSettings) => void = () => {}, onShadows: (s: ShadowSettings) => void = () => {}) {
+  constructor(private readonly onCamera: (mode: CameraMode) => void, gameCameraAvailable: boolean, onRevealAlways: (on: boolean) => void = () => {}, onSun: (s: SunSettings) => void = () => {}, onShadows: (s: ShadowSettings) => void = () => {}, tools: DevTools = {}) {
     const el = document.createElement("aside");
     el.className = "devmenu";
     el.innerHTML = `<header><span>Dev menu</span><button type="button" title="Collapse">–</button></header><div class="body"></div>`;
@@ -128,6 +141,73 @@ export class DevMenu {
     shSlider("Darkness", "darkness", 0, 1, 0.05);
     shSlider("Bias (units)", "bias", 0, 3, 0.05);
     this.body.append(shSec);
+
+    // Debug views, the shadow map viewer and frustum (docs/DEV_TOOLS.md).
+    const viewSec = document.createElement("section");
+    viewSec.innerHTML = `<h4>Views</h4>`;
+    const modeSel = document.createElement("select");
+    DEBUG_MODES.forEach((name, i) => modeSel.append(new Option(name, String(i))));
+    modeSel.addEventListener("change", () => tools.onDebugMode?.(Number(modeSel.value)));
+    const modeLabel = document.createElement("label");
+    modeLabel.append("World shading ", modeSel);
+    viewSec.append(modeLabel);
+    const frustumBox = document.createElement("input");
+    frustumBox.type = "checkbox";
+    frustumBox.addEventListener("change", () => tools.onShadowFrustum?.(frustumBox.checked));
+    const frustumLabel = document.createElement("label");
+    frustumLabel.append(frustumBox, " Show the shadow frustum");
+    viewSec.append(frustumLabel);
+    const mapBox = document.createElement("input");
+    mapBox.type = "checkbox";
+    const mapCanvas = document.createElement("canvas");
+    mapCanvas.width = 192;
+    mapCanvas.height = 192;
+    mapCanvas.className = "shadowview";
+    mapCanvas.hidden = true;
+    mapBox.addEventListener("change", () => { mapCanvas.hidden = !mapBox.checked; tools.shadowViewCanvas?.(mapBox.checked ? mapCanvas : null); });
+    const mapLabel = document.createElement("label");
+    mapLabel.append(mapBox, " Shadow map viewer (needs shadows on)");
+    viewSec.append(mapLabel, mapCanvas);
+    const hlBox = document.createElement("input");
+    hlBox.type = "checkbox";
+    hlBox.checked = true;
+    hlBox.addEventListener("change", () => tools.onHighlight?.(hlBox.checked));
+    const hlLabel = document.createElement("label");
+    hlLabel.append(hlBox, " Outline what the pointer is over");
+    viewSec.append(hlLabel);
+    this.body.append(viewSec);
+
+    // The sky's variant: the game picks it from the hour (night to 5, morning 6 to 9, day from 10); Day is the default here.
+    const skySec = document.createElement("section");
+    skySec.innerHTML = `<h4>Sky</h4>`;
+    const skySel = document.createElement("select");
+    [["2", "Day"], ["1", "Morning"], ["0", "Night"], ["auto", "From the game clock's hour"]].forEach(([v, name]) => skySel.append(new Option(name, v)));
+    skySel.addEventListener("change", () => tools.onSkyVariant?.(skySel.value === "auto" ? "auto" : (Number(skySel.value) as 0 | 1 | 2)));
+    const skyLabel = document.createElement("label");
+    skyLabel.append("Variant ", skySel);
+    skySec.append(skyLabel);
+    this.body.append(skySec);
+
+    // Time: a scale on the game speed and single steps (for watching motion).
+    const timeSec = document.createElement("section");
+    timeSec.innerHTML = `<h4>Time control</h4>`;
+    const scaleLabel = document.createElement("label");
+    scaleLabel.className = "slider";
+    const scaleOut = document.createElement("output");
+    const scale = document.createElement("input");
+    scale.type = "range";
+    scale.min = "-1"; scale.max = "1"; scale.step = "0.05"; scale.value = "0"; // a log scale: 10^-1 .. 10^1
+    const showScale = () => { scaleOut.textContent = `${(10 ** Number(scale.value)).toFixed(2)}x`; };
+    showScale();
+    scale.addEventListener("input", () => { showScale(); tools.onTimeScale?.(10 ** Number(scale.value)); });
+    scaleLabel.append("Time scale ", scaleOut, scale);
+    timeSec.append(scaleLabel);
+    const stepBtn = document.createElement("button");
+    stepBtn.type = "button";
+    stepBtn.textContent = "Step one tick (0.1 s)";
+    stepBtn.addEventListener("click", () => tools.onStep?.());
+    timeSec.append(stepBtn);
+    this.body.append(timeSec);
     for (const sec of this.body.querySelectorAll<HTMLElement>("section")) this.makeCollapsible(sec);
   }
 

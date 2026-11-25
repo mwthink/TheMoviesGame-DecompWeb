@@ -59,6 +59,8 @@ the details and its open questions.
 | Character viewer | `CHARACTER_VIEWER.md`, `CHARACTERS.md`, `ANM_FORMAT.md` | costume, head, hair, skeleton, clips | yes (viewer screen in the app; face sliders / editing not yet) | by eye only |
 | Room floors on hover | `ROOM_DISPLAY.md`, `SAVE_FORMAT.md` | text placement and size, the room colours, the reveal rules (`floorplanrevealing.csv`) | yes (text per the game's rules, game colour, reveal delay; not the drop-in animation or highlight states) | no |
 | Dragging people | `DRAGGING.md`, `CLASS_NOTES.md` | click vs hold, the carry target, bob, the return motion | yes (carry anywhere on the ground; no rooms, sound or held clip) | by eye only |
+| Sky | `SKY.md` | `Sky_box.msh`, its three time-of-day variants and the hour rule | yes (walls, cap, sand plane, variant from the dev menu) | by eye only |
+| Dev tools | `DEV_TOOLS.md`, `LIGHTING.md` | - | debug views, shadow map viewer and frustum, performance rows, time scale and step, hover outline | no |
 | Loading screens | `LOADING_SCREENS.md` | one random picture of 17 per load with a baked-in text box; a random `FRONTEND_SPLASHSCREEN_<n>` tip in it | yes (picture + tip box + our progress bar; gallery in dev) | by eye only |
 | Camera | `CAMERA.md` | the normal (in-lot) state | yes, in the web app | eye placement against eight saves |
 | Saved games | `SAVE_FORMAT.md`, `CHARACTERS.md` | container, terrain, placement, many classes | the web app reads placement, landscape and camera | against the Python tools |

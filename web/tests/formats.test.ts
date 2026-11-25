@@ -165,3 +165,16 @@ test("rob: scenery lines are integer thousandths, repeats are dropped", async ()
     { name: "p_palm_tree02", x: 10.5, y: -20.25, z: 0, angle: -2.869, scale: 0.65 },
   ]);
 });
+
+test("an uncompressed 24-bit DDS decodes (the sky's lightmap)", () => {
+  const w = 2, h = 1;
+  const f = new Uint8Array(128 + w * h * 3);
+  const v = new DataView(f.buffer);
+  v.setUint32(0, 0x20534444, true);
+  v.setUint32(12, h, true); v.setUint32(16, w, true);
+  v.setUint32(80, 0x40, true); v.setUint32(88, 24, true);
+  v.setUint32(92, 0xff0000, true); v.setUint32(96, 0xff00, true); v.setUint32(100, 0xff, true);
+  f.set([10, 20, 30, 40, 50, 60], 128); // stored blue, green, red
+  const img = decodeDds(f);
+  assert.deepEqual([...img.data], [30, 20, 10, 255, 60, 50, 40, 255]);
+});

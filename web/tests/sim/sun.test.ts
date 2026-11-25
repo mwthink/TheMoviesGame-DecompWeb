@@ -65,3 +65,23 @@ test("shadow settings are clamped", () => {
   assert.equal(normalizeShadows({ size: 1000 as 2048 }).size, 4096);
   assert.deepEqual(normalizeShadows({}), DEFAULT_SHADOWS);
 });
+
+import { skyVariantForHour } from "../../src/world/Sky.ts";
+import { GameClock } from "../../src/sim/core/GameClock.ts";
+
+test("the sky variant follows the game's hour thresholds: night to 5, morning 6 to 9, day from 10", () => {
+  assert.deepEqual([0, 3, 5].map(skyVariantForHour), [0, 0, 0]);
+  assert.deepEqual([6, 8, 9].map(skyVariantForHour), [1, 1, 1]);
+  assert.deepEqual([10, 14, 23].map(skyVariantForHour), [2, 2, 2]);
+});
+
+test("the dev time scale multiplies the game speed", () => {
+  const clock = new GameClock(1960 * 365);
+  clock.timeScale = 5;
+  assert.equal(clock.advance(0.1), 5);
+  clock.timeScale = 0.1;
+  assert.equal(clock.advance(1), 1);
+  clock.speed = "pause";
+  clock.timeScale = 10;
+  assert.equal(clock.advance(10), 0);
+});

@@ -2522,3 +2522,6 @@ address,old_name,new_name,evidence
 00423750,FUN_00423750,Game_Destructor,"removes audio state 0 (Audio_RemoveState(0, this, 1)), frees the game object's buffers; the constructor Game_Constructor sets that state"
 00541ae0,FUN_00541ae0,Config_GetOrCreateFloat,"(key, default): the float counterpart of Config_GetOrCreateInt / Bool; AudioOptions_LoadMixerLevels reads ""Volume 0""..""Volume 2"" with default 1.0"
 009b1000,FUN_009b1000,Audio_SetChannelVolume,"(channel, volume, fade): AudioOptions_LoadMixerLevels applies each loaded level to mixer channel 0, 1 and 2 through it"
+009cba90,FUN_009cba90,Landscape_UpdateTimeOfDayVariant,"per frame: rounds a time-of-day value (DAT_0105BEA4 returns it); when it changes sets the variant DAT_0105CE08 = 0 up to 5, 1 for 6 to 9, 2 from 10; on a variant change calls Landscape_ApplySkyVariantTextures and re-textures the landscape objects with %s_v%02d.dds"
+009cae20,FUN_009cae20,Landscape_ApplySkyVariantTextures,"for n = 1 to 4: Object_SetTextureByName(sky_%02d_v00.dds, sky_%02d_v<variant>.dds) on the sky box"
+009cc160,FUN_009cc160,Landscape_LoadOutsideLotAndSky,"loads data\\Landscape\\OutsideLot_high.rob (or _low), then Mesh_LoadCached(Sky_box.msh): re-flags the sand and tarmac materials, creates the 0x110-byte sky object DAT_0105CDFC"

@@ -10,6 +10,17 @@ import { sunDirection, type SunSettings } from "./Sun.ts";
 /** Marker put in a material's `metadata` when its shader takes the sun uniforms (`sunOn`, `sunDir`, `sunParams`). */
 export const SUN_LIT = { sunLit: true };
 
+/**
+ * Debug views of the world shaders (dev menu): 0 normal; 1 the diffuse texture only; 2 the baked lightmap only; 3 the normals; 4 the sun's lambert term (normal . toSun);
+ * 5 the shadow factor (white = lit, black = shadowed). The people (Babylon materials) are not affected.
+ */
+export const DEBUG_MODES = ["Normal", "Diffuse only", "Lightmap only", "Normals", "Sun term (n . sun)", "Shadow factor"] as const;
+
+/** Set the debug view on every sun-aware shader material. */
+export function setDebugMode(scene: Scene, mode: number): void {
+  for (const m of scene.materials) if ((m.metadata as { sunLit?: boolean } | null)?.sunLit) (m as ShaderMaterial).setFloat("debugMode", mode);
+}
+
 /** The lights that light the people (the world's own shaders take the sun as uniforms): a directional sun and a hemispheric ambient. */
 export interface SunLights { sun: DirectionalLight; ambient: HemisphericLight; }
 

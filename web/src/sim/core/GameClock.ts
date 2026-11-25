@@ -61,6 +61,8 @@ export class GameClock {
   ticks = 0;
   ticksPerDay: number;
   speed: GameSpeed = "play";
+  /** Dev tool: a further multiplier on the speed (0.1 to 10), so motion can be watched slowly or hurried along. 1 = the game's own pace. */
+  timeScale = 1;
   /** The accumulator of speed-scaled seconds, below one tick. */
   private accumulator = 0;
 
@@ -75,7 +77,7 @@ export class GameClock {
    * accumulator keeps the rest); here the count is capped at 5 per frame so a long stall cannot lock up the page.
    */
   advance(frameSeconds: number): number {
-    this.accumulator += Math.max(0, frameSeconds) * SPEED_FACTOR[this.speed];
+    this.accumulator += Math.max(0, frameSeconds) * SPEED_FACTOR[this.speed] * this.timeScale;
     let n = 0;
     while (this.accumulator >= TICK_SECONDS && n < 5) {
       this.accumulator -= TICK_SECONDS;
