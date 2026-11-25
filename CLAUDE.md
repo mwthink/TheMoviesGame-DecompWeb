@@ -9,6 +9,7 @@ has the rules for ported code (`orig:` tags, `verified`, `quirk:`, `Math.fround`
   they live under `data/`, `docs/generated/`, `viewer/data/` (gitignored).
 - Commit only when the user asks.
 - Stay on current branch unless user says otherwise.
+- Avoid taking screenshots when reasonably possible because screenshots require lots of processing power (tokens). Prefer asking the user if you need visual analysis of something being rendered on the screen.
 - Machine paths come from `local.env` (`local.env.example`), read by `web/localPaths.ts` and `tools/local_paths.py`. Never write a path from this
   machine, a save's file name or a star's name into code, tests or docs: refer to saves by what they are (`web/localPaths.ts`, `SAVE_ROLES`).
 
