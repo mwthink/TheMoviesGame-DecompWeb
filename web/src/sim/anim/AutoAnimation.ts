@@ -51,13 +51,13 @@ export type PoseMode = "rebased" | "absolute";
 /** One bone's pose in model space: its axes (rows) and origin. */
 interface BonePose { rot: Mat3; pos: [number, number, number]; }
 
-/** The clip's Euler angles (x, y, z) of one channel at a fractional frame (blended linearly between the two stored frames). */
+/** The clip's Euler angles (x, y, z) of one channel at a fractional frame (blended between the two stored frames the short way round: the stored angles are wrapped to +-pi, so a joint crossing the wrap would otherwise swing through zero for the frames in between). */
 function localAngles(a: Anm, channel: number, frame: number): [number, number, number] {
   const f0 = Math.min(Math.floor(frame), a.nFrames - 1);
   const f1 = f0 + 1 < a.nFrames ? f0 + 1 : 0; // the last frame equals the first: loop
   const u = frame - f0;
   const g = (f: number, k: number) => a.angles[(f * a.nChannels + channel) * 3 + k]!;
-  const ang = (k: number) => g(f0, k) + (g(f1, k) - g(f0, k)) * u;
+  const ang = (k: number) => lerpAngle(g(f0, k), g(f1, k), u);
   return [ang(0), ang(1), ang(2)];
 }
 
