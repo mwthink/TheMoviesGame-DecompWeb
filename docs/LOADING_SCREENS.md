@@ -93,7 +93,7 @@ character, so a scene is made by posing someone in the viewer as usual. The sect
 
 - **Name**, **Start from** (fills the fields from a scene already in `LOADING_SCENES`), **Side**, **Size**, **Nudge across / up**, **Turn**, **Hold the frame shown now** (off: the clip loops), **Backdrop colour**.
 - **A film set behind:** the set (every `set_*.msh` in the archives), the camera (`eye` and `look`, x y z in the game's coordinates) and the field of view, blur and brightness.
-- **Preview** shows the real loading layers (`buildSceneLayers`, the same code as the loading screen) over the whole window, with a sample tip and a moving bar; Escape or the button closes it. The camera is
+- **Preview** shows the real loading layers (`buildSceneLayers`, the same code as the loading screen) in the window beside the editor panel, with a sample tip and a moving bar. The panel stays up and any change in it (this section, or the person and pose above) redraws the preview about 0.7 s after the last edit; **Hide editor** on the preview folds the panel away to see the whole window, and Escape or Close preview ends it. The camera is
   set by typing numbers; there is no dragging it round the set yet.
 - **Copy scene as code** puts the TypeScript for the scene on the clipboard (`sceneToCode`, `loadingSceneCode.ts`, test `web/tests/loadingSceneCode.test.ts`): paste it into `LOADING_SCENES` in `loadingScenes.ts`. A
   whole look is written as `lookFromCode("OTMCHAR1:...")`, the same string the viewer's Copy character button makes. Nothing else is saved: the repository holds the scenes.

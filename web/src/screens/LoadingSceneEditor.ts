@@ -32,7 +32,11 @@ const POINTS: [string, string][] = [["Camera x", "ex"], ["y", "ey"], ["z", "ez"]
  */
 export class LoadingSceneEditor {
   private root: HTMLElement | null = null;
-  private preview: { screen: HTMLElement; layers: SceneLayers | null; stop: () => void } | null = null;
+  private preview: { screen: HTMLElement; view: LoadingView; layers: SceneLayers | null; stop: () => void; token: number } | null = null;
+  /** The viewer's side panel, which stays up beside the preview and can be folded away. */
+  private panel: HTMLElement | null = null;
+  private refreshTimer = 0;
+  private readonly onEdit = () => this.scheduleRefresh();
   private readonly onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && this.preview) { e.stopPropagation(); void this.closePreview(); } };
 
   constructor(
@@ -73,6 +77,10 @@ export class LoadingSceneEditor {
     for (const f of p?.list("data\\meshes\\") ?? []) if (/^set_.*\.msh$/i.test(f.entry.name)) mesh.add(new Option(f.entry.name, f.entry.name));
     this.setBackdrop(BACKDROP_DEFAULT);
     root.addEventListener("input", () => this.showNumbers());
+    // any change in the viewer's panel (this section, or the person and pose above it) redraws an open preview
+    this.panel = root.closest<HTMLElement>(".screen.viewer");
+    this.panel?.addEventListener("input", this.onEdit);
+    this.panel?.addEventListener("change", this.onEdit);
     this.field<HTMLInputElement>("useSet").addEventListener("change", () => this.showSet());
     this.field<HTMLSelectElement>("from").addEventListener("change", () => this.startFrom());
     root.querySelector("[data-s-preview]")!.addEventListener("click", () => void this.openPreview());
@@ -84,6 +92,9 @@ export class LoadingSceneEditor {
 
   dispose(): void {
     window.removeEventListener("keydown", this.onKey, true);
+    this.panel?.removeEventListener("input", this.onEdit);
+    this.panel?.removeEventListener("change", this.onEdit);
+    window.clearTimeout(this.refreshTimer);
     void this.closePreview();
     this.root = null;
   }
@@ -159,11 +170,14 @@ export class LoadingSceneEditor {
     try { await navigator.clipboard.writeText(`${sceneToCode(s)}\n`); this.say("Scene code copied. Paste it into LOADING_SCENES in loadingScenes.ts."); } catch { this.say("The browser did not allow writing to the clipboard."); }
   }
 
-  /** Show the scene as the loading screen would: over the whole window, with a sample tip and a moving bar. Escape or the button closes it. */
+  /**
+   * Show the scene as the loading screen would, in the window beside the editor panel (which stays up; the toggle on the preview folds it away to see the whole window), with a
+   * sample tip and a moving bar. Changing anything in the panel redraws it. Escape or the button closes it.
+   */
   private async openPreview(): Promise<void> {
     await this.closePreview();
-    const pak = this.pak(), s = this.scene();
-    if (!pak || !s) { this.say("There is no person to preview yet."); return; }
+    const pak = this.pak();
+    if (!pak || !this.scene()) { this.say("There is no person to preview yet."); return; }
     const screen = mountScreen(this.container, "menu loading dressed preview");
     const view = new LoadingView();
     view.setLayout({ ...DEFAULT_LOADING_LAYOUT, background: "dark" });
@@ -171,26 +185,55 @@ export class LoadingSceneEditor {
     view.setLegacyPanel(true);
     view.setTip({ heading: "Preview", body: "This is how the loading screen looks with this scene: the character and the set behind, and the box on top. Escape closes it." });
     screen.append(view.element);
-    const close = document.createElement("button");
-    close.type = "button"; close.textContent = "Close preview"; close.className = "previewclose";
-    close.addEventListener("click", () => void this.closePreview());
-    screen.append(close);
+    const button = (text: string, className: string, onClick: () => void) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = text; b.className = className;
+      b.addEventListener("click", onClick);
+      screen.append(b);
+      return b;
+    };
+    button("Close preview", "previewclose", () => void this.closePreview());
+    const toggle = button("Hide editor", "previewtoggle", () => {
+      const hidden = !this.panel!.classList.contains("collapsed");
+      this.panel!.classList.toggle("collapsed", hidden);
+      screen.classList.toggle("full", hidden);
+      toggle.textContent = hidden ? "Show editor" : "Hide editor";
+    });
     let fraction = 0;
     const timer = window.setInterval(() => { fraction = (fraction + 0.02) % 1.02; view.setProgress(fraction, "Loading"); }, 100);
-    this.preview = { screen, layers: null, stop: () => window.clearInterval(timer) };
+    this.preview = { screen, view, layers: null, stop: () => window.clearInterval(timer), token: 0 };
     const strings = await gameStrings();
     const tip = strings ? pickTip(strings) : null;
     if (tip) view.setTip(tip);
-    const layers = await buildSceneLayers(pak, screen, view.element, s);
-    if (!this.preview || this.preview.screen !== screen) { layers?.dispose(); return; } // closed while it was loading
-    if (!layers) { this.say("The scene could not be drawn (check the costume and animation exist)."); await this.closePreview(); return; }
-    this.preview.layers = layers;
+    await this.draw();
+  }
+
+  /** (Re)draw the preview's layers from the panel as it is now. */
+  private async draw(): Promise<void> {
+    const p = this.preview, pak = this.pak(), scene = this.scene();
+    if (!p || !pak || !scene) return;
+    const token = ++p.token;
+    p.layers?.dispose();
+    p.layers = null;
+    const layers = await buildSceneLayers(pak, p.screen, p.view.element, scene);
+    if (this.preview !== p || p.token !== token) { layers?.dispose(); return; } // closed, or a newer drawing took over
+    if (!layers) { this.say("The scene could not be drawn (check the costume and animation exist)."); return; }
+    p.layers = layers;
+  }
+
+  /** An edit redraws the open preview shortly after the last one (a drag fires many). */
+  private scheduleRefresh(): void {
+    if (!this.preview) return;
+    window.clearTimeout(this.refreshTimer);
+    this.refreshTimer = window.setTimeout(() => void this.draw(), 700);
   }
 
   private async closePreview(): Promise<void> {
     const p = this.preview;
     if (!p) return;
     this.preview = null;
+    window.clearTimeout(this.refreshTimer);
+    this.panel?.classList.remove("collapsed"); // the editor comes back with the preview closed
     p.stop();
     p.layers?.dispose();
     await unmountScreen(p.screen);

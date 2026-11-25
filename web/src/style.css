@@ -315,5 +315,13 @@ body[data-screen="game"] .devmenu { bottom: 70px; }
 .viewer input[type=color] { width: 100%; height: 26px; padding: 0; background: #14141c; border: 1px solid var(--edge); }
 .viewer .points { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px 6px; }
 .viewer .points label.pt { margin: 2px 0; font-size: 12px; }
-.screen.preview .previewclose { position: absolute; top: 12px; right: 12px; width: auto; min-width: 0; z-index: 5; font: inherit; color: var(--fg); background: rgba(5, 5, 8, 0.7); border: 1px solid var(--edge); padding: 0.4rem 0.9rem; cursor: pointer; }
-.screen.preview .previewclose:hover, .screen.preview .previewclose:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+/* the preview sits beside the viewer's panel (338 px: its width and margins); "full" (the panel folded away) gives it the whole window */
+.screen.preview { left: 338px; }
+.screen.preview.full { left: 0; }
+.screen.preview .loadpic { width: min(calc(100vw - 338px), 100vh); height: min(calc(100vw - 338px), 100vh); }
+.screen.preview.full .loadpic { width: min(100vw, 100vh); height: min(100vw, 100vh); }
+.screen.viewer.collapsed { display: none; }
+.screen.preview .previewclose, .screen.preview .previewtoggle { position: absolute; top: 12px; z-index: 5; width: auto; min-width: 0; font: inherit; color: var(--fg); background: rgba(5, 5, 8, 0.7); border: 1px solid var(--edge); padding: 0.4rem 0.9rem; cursor: pointer; }
+.screen.preview .previewclose { right: 12px; }
+.screen.preview .previewtoggle { left: 12px; }
+.screen.preview .previewclose:hover, .screen.preview .previewclose:focus-visible, .screen.preview .previewtoggle:hover, .screen.preview .previewtoggle:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
