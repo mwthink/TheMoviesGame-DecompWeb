@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { parseCos } from "../../src/formats/Cos.ts";
+import { decodeDds } from "../../src/formats/Dds.ts";
 import { parseSave } from "../../src/formats/Jad.ts";
 import { ageYears, defaultHeadFor, morphAmounts } from "../../src/sim/character/PersonModel.ts";
 import { loadWorldData } from "../../src/world/WorldData.ts";
@@ -58,4 +59,19 @@ test("world data has a model for every placed person, standing upright with arms
     assert.ok(maxZ > 1.4 && maxZ < 2.3, `${entry.person.name}: height ${maxZ}`);
     assert.ok(maxX < 0.6, `${entry.person.name}: arms out to ${maxX}`);
   }
+});
+
+test("the viewer's builder makes a person from files alone (no save): body, morphed head, hair, textures", { skip: haveGame ? false : "game archives not found (set OTM_PAK_DIR)" }, async () => {
+  const pak = await pakIndex();
+  const { PersonModelBuilder, findTexture } = await import("../../src/world/WorldData.ts");
+  const builder = new PersonModelBuilder(pak, async (name) => {
+    const f = findTexture(pak, name);
+    return f ? decodeDds(await pak.read(f)) : null;
+  });
+  const model = await builder.build({ cos: "m_50s_2.cos", head: "", hair: "hair_20s_m1.msh", ageYears: 60, weightKg: 90 });
+  assert.equal(model.skeleton.length, 30);
+  assert.ok(model.parts.length >= 5); // body, three head primitives, hair
+  assert.ok(model.parts.some((p) => p.cutout));
+  assert.ok(model.parts.every((p) => !p.texture || model.textures.has(p.texture.toLowerCase())));
+  await assert.rejects(builder.build({ cos: "no_such_costume.cos", head: "", hair: "", ageYears: 30, weightKg: 70 }), /no_such_costume/);
 });

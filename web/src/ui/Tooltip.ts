@@ -57,6 +57,7 @@ export class Tooltip {
   /** Text the player dismissed; it stays hidden until something else is hovered. */
   private dismissed: string | null = null;
   private programmatic: string | null = null;
+  private enabled = true;
   private readonly onMove = (e: PointerEvent) => {
     this.pointer = { x: e.clientX, y: e.clientY };
     const el = (e.target as Element | null)?.closest?.("[data-tooltip]");
@@ -113,8 +114,14 @@ export class Tooltip {
     this.render(this.stillness.opacity);
   }
 
+  /** Turn tooltips on or off (the "level of help" setting). */
+  setEnabled(on: boolean): void {
+    this.enabled = on;
+    if (!on) this.render(0);
+  }
+
   private render(opacity: number): void {
-    const text = this.wanted && this.wanted !== this.dismissed ? this.wanted : null;
+    const text = this.enabled && this.wanted && this.wanted !== this.dismissed ? this.wanted : null;
     const el = this.element;
     if (!text || opacity <= 0) { if (!el.hidden) el.hidden = true; return; }
     const p = el.querySelector("p")!;

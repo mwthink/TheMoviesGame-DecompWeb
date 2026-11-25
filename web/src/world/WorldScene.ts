@@ -1,7 +1,5 @@
 import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera";
 import { Constants } from "@babylonjs/core/Engines/constants";
-import { Color3 } from "@babylonjs/core/Maths/math.color";
-import { Material } from "@babylonjs/core/Materials/material";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial";
@@ -16,9 +14,11 @@ import { VertexBuffer } from "@babylonjs/core/Buffers/buffer";
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData";
 import type { Scene } from "@babylonjs/core/scene";
 import type { Rgba } from "../formats/Dds.ts";
-import { AutoAnimator, skinVertices } from "../sim/anim/AutoAnimation.ts";
+import { AutoAnimator } from "../sim/anim/AutoAnimation.ts";
 import { PersonAnimator } from "../sim/anim/PersonAnimation.ts";
 import { registerShaders } from "./shaders.ts";
+import { makeTexture, setTextureAnisotropy } from "./textures.ts";
+import { PersonMeshes } from "./PersonMeshes.ts";
 import type { MeshAsset, PersonInWorld, TerrainData, WorldData } from "./WorldData.ts";
 
 /**
@@ -42,20 +42,6 @@ const TERRAIN = { minX: -192, maxX: 192, minZ: -128, maxZ: 256 };
 
 /** Textures the game uses for reflections, the sky and lightmaps are not drawn as diffuse surfaces yet. */
 const NOT_DIFFUSE = ["refl", "envmap", "gen_", "lm_"];
-
-function makeTexture(scene: Scene, img: Rgba, opts: { mips?: boolean; filter?: number; clamp?: boolean } = {}): RawTexture {
-  const mips = opts.mips ?? true;
-  const t = new RawTexture(
-    img.data, img.width, img.height, Constants.TEXTUREFORMAT_RGBA, scene, mips, false,
-    opts.filter ?? (mips ? Texture.TRILINEAR_SAMPLINGMODE : Texture.BILINEAR_SAMPLINGMODE),
-  );
-  // RawTexture clamps by default; the game's textures tile (ground, and model UVs run well outside 0..1).
-  const mode = opts.clamp ? Texture.CLAMP_ADDRESSMODE : Texture.WRAP_ADDRESSMODE;
-  t.wrapU = mode;
-  t.wrapV = mode;
-  if (mips) t.anisotropicFilteringLevel = 8;
-  return t;
-}
 
 const white: Rgba = { width: 1, height: 1, data: new Uint8Array([255, 255, 255, 255]) };
 
@@ -203,71 +189,19 @@ function buildSources(scene: Scene, m: MeshAsset, caches: Caches, cut = false): 
 function buildPeople(scene: Scene, people: PersonInWorld[]): { nodes: TransformNode[]; step(dtMs: number): void; clips: () => { name: string; clip: string; source: string }[] } {
   const materials = new Map<string, StandardMaterial>();
   const nodes: TransformNode[] = [];
-  const animated: { animator: PersonAnimator; entry: PersonInWorld; meshes: { mesh: Mesh; part: PersonInWorld["bind"][number]; positions: Float32Array; normals: Float32Array; swz: Float32Array; swn: Float32Array }[] }[] = [];
+  const animated: { animator: PersonAnimator; entry: PersonInWorld; meshes: PersonMeshes }[] = [];
   for (const entry of people) {
-    const meshes: (typeof animated)[number]["meshes"] = [];
     const { person } = entry;
-    const node = new TransformNode(`person/${person.id}`, scene);
-    node.position.set(person.position[0], person.position[2], person.position[1]);
-    node.rotation.y = -person.angle;
-    const info = { person: { id: person.id, cls: person.cls, name: person.name } };
-    node.metadata = info;
-    entry.parts.forEach((part, i) => {
-      const n = part.positions.length / 3;
-      const positions = new Float32Array(n * 3);
-      const normals = new Float32Array(n * 3);
-      for (let v = 0; v < n; v++) {
-        positions.set([part.positions[v * 3]!, part.positions[v * 3 + 2]!, part.positions[v * 3 + 1]!], v * 3);
-        normals.set([part.normals[v * 3]!, part.normals[v * 3 + 2]!, part.normals[v * 3 + 1]!], v * 3);
-      }
-      const mesh = new Mesh(`person/${person.id}/${i}`, scene);
-      const data = new VertexData();
-      data.positions = positions;
-      data.normals = normals;
-      data.uvs = part.uv;
-      data.indices = Uint32Array.from(part.indices);
-      data.applyToMesh(mesh, part.skin !== null); // skinned parts get new vertices every frame
-      if (part.skin) meshes.push({ mesh, part: entry.bind[i]!, positions: new Float32Array(part.positions.length), normals: new Float32Array(part.normals.length), swz: new Float32Array(positions.length), swn: new Float32Array(normals.length) });
-      const key = `${part.texture.toLowerCase()}|${part.cutout ? 1 : 0}`;
-      let mat = materials.get(key);
-      if (!mat) {
-        mat = new StandardMaterial(`person|${key}`, scene);
-        const img = entry.textures.get(part.texture.toLowerCase());
-        const tex = makeTexture(scene, img ?? white);
-        mat.diffuseTexture = tex;
-        mat.emissiveTexture = tex; // unlit: the texture is the colour
-        mat.disableLighting = true;
-        mat.specularColor = Color3.Black();
-        mat.backFaceCulling = true;
-        if (part.cutout) {
-          tex.hasAlpha = true;
-          mat.useAlphaFromDiffuseTexture = true;
-          mat.transparencyMode = Material.MATERIAL_ALPHATEST;
-          mat.alphaCutOff = 0.4;
-        }
-        materials.set(key, mat);
-      }
-      mesh.material = mat;
-      mesh.parent = node;
-      mesh.metadata = info;
-      mesh.isPickable = true;
-    });
-    nodes.push(node);
-    if (entry.plan && meshes.length) animated.push({ animator: new PersonAnimator(entry.skeleton, entry.clips, entry.plan), entry, meshes });
+    const meshes = new PersonMeshes(scene, entry, `person/${person.id}`, materials, { person: { id: person.id, cls: person.cls, name: person.name } });
+    meshes.node.position.set(person.position[0], person.position[2], person.position[1]);
+    meshes.node.rotation.y = -person.angle;
+    nodes.push(meshes.node);
+    if (entry.plan && meshes.hasSkin) animated.push({ animator: new PersonAnimator(entry.skeleton, entry.clips, entry.plan), entry, meshes });
   }
   const step = (dtMs: number) => {
     for (const { animator, meshes } of animated) {
       const transforms = animator.step(dtMs);
-      if (!transforms) continue;
-      for (const m of meshes) {
-        skinVertices(transforms, { positions: m.part.positions, normals: m.part.normals, skin: m.part.skin! }, m.positions, m.normals);
-        for (let v = 0; v < m.positions.length; v += 3) { // game (x, y, z) -> Babylon (x, z, y)
-          m.swz[v] = m.positions[v]!; m.swz[v + 1] = m.positions[v + 2]!; m.swz[v + 2] = m.positions[v + 1]!;
-          m.swn[v] = m.normals[v]!; m.swn[v + 1] = m.normals[v + 2]!; m.swn[v + 2] = m.normals[v + 1]!;
-        }
-        m.mesh.updateVerticesData(VertexBuffer.PositionKind, m.swz);
-        m.mesh.updateVerticesData(VertexBuffer.NormalKind, m.swn);
-      }
+      if (transforms) meshes.applyPose(transforms);
     }
   };
   return { nodes, step, clips: () => animated.map((a) => ({ name: a.entry.person.name, clip: a.animator.clipName, source: a.entry.plan!.source })) };
@@ -293,7 +227,8 @@ export interface BuiltWorld {
 }
 
 /** Draw a loaded world into a scene: the ground and every placed model, with an orbit camera framing the lot and its facilities. */
-export function buildWorld(scene: Scene, canvas: HTMLCanvasElement, world: WorldData): BuiltWorld {
+export function buildWorld(scene: Scene, canvas: HTMLCanvasElement, world: WorldData, options: { anisotropy?: number } = {}): BuiltWorld {
+  setTextureAnisotropy(options.anisotropy ?? 8);
   registerShaders();
   if (world.terrain) buildTerrain(scene, world.terrain);
   const caches: Caches = { textures: new Map(), materials: new Map() };

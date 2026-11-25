@@ -1,4 +1,5 @@
-import { Engine } from "@babylonjs/core/Engines/engine";
+import type { Engine } from "@babylonjs/core/Engines/engine";
+import { sharedEngine } from "../world/sharedEngine.ts";
 import { Scene } from "@babylonjs/core/scene";
 import "@babylonjs/core/Culling/ray"; // side effect: adds Scene.pick
 import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera";
@@ -20,6 +21,8 @@ import { MenuBar } from "../ui/MenuBar.ts";
 import { GameToolbar } from "../ui/GameToolbar.ts";
 import { StaffPanel } from "../ui/StaffPanel.ts";
 import { Tooltip } from "../ui/Tooltip.ts";
+import { FxaaPostProcess } from "@babylonjs/core/PostProcesses/fxaaPostProcess";
+import type { Settings, SettingsStore } from "../settings/Settings.ts";
 import { GameClock, SPEED_FACTOR, type GameSpeed } from "../sim/core/GameClock.ts";
 
 interface RoomInfo { name: string; lines: string[]; x: number; y: number; chunk: MshChunk }
@@ -83,16 +86,23 @@ export class GameView implements Screen {
   ready: Promise<void> = Promise.resolve();
   private resolveReady: (() => void) | null = null;
 
-  constructor(private readonly canvas: HTMLCanvasElement, private readonly onExit: () => void) {}
+  private readonly settings: SettingsStore | null;
+  private unsubscribeSettings: (() => void) | null = null;
+  private fxaa: FxaaPostProcess[] = [];
+  private fpsEl: HTMLElement | null = null;
+
+  constructor(private readonly canvas: HTMLCanvasElement, private readonly onExit: () => void, settings: SettingsStore | null = null) {
+    this.settings = settings;
+  }
 
   enter(): void {
     // The engine is created on first entry and reused afterwards: a new WebGL context per visit is wasteful.
-    this.engine ??= new Engine(this.canvas, true, { preserveDrawingBuffer: false, stencil: true });
+    this.engine ??= sharedEngine(this.canvas);
     this.scene = new Scene(this.engine);
     this.scene.clearColor = new Color4(0.04, 0.05, 0.08, 1);
 
     if (this.world) {
-      const built = buildWorld(this.scene, this.canvas, this.world);
+      const built = buildWorld(this.scene, this.canvas, this.world, { anisotropy: this.settings?.get().anisotropy });
       this.orbit = built.camera;
       this.instances = built.instances;
       this.stepAutoAnimations = built.stepAutoAnimations;
@@ -115,6 +125,8 @@ export class GameView implements Screen {
     this.canvas.addEventListener("pointerdown", this.onDown);
     this.canvas.addEventListener("pointerup", this.onUp);
     this.setupHud(this.scene);
+    this.unsubscribeSettings = this.settings?.subscribe((s) => this.applySettings(s)) ?? null;
+    if (this.settings) this.applySettings(this.settings.get());
 
     if (import.meta.env.DEV) {
       // Console helpers for checking the world by hand: __otm.goto(x, y [, distance]) looks at game ground position (x, y); __otm.paths(false) hides the sidewalk layer.
@@ -159,6 +171,11 @@ export class GameView implements Screen {
     this.finishReady();
     window.removeEventListener("resize", this.onResize);
     window.removeEventListener("keydown", this.onKey);
+    this.unsubscribeSettings?.();
+    this.unsubscribeSettings = null;
+    for (const f of this.fxaa) f.dispose();
+    this.fxaa = [];
+    this.engine?.setHardwareScalingLevel(1);
     this.engine?.stopRenderLoop();
     window.removeEventListener("pointermove", this.onHoverMove);
     this.setHovered(null);
@@ -174,7 +191,8 @@ export class GameView implements Screen {
     this.stepAutoAnimations = null;
     this.stepPeople = null;
     this.peopleClips = null;
-    this.hud = this.devMenu = this.menuBar = this.toolbar = this.staffPanel = this.tooltip = this.input = this.gameCamera = this.gameBabylon = this.orbit = null;
+    this.hud = this.devMenu = this.menuBar = this.fpsEl = null;
+    this.toolbar = this.staffPanel = this.tooltip = this.input = this.gameCamera = this.gameBabylon = this.orbit = null;
     this.scene?.dispose();
     this.scene = null;
   }
@@ -210,6 +228,26 @@ export class GameView implements Screen {
     this.tooltip.attach(this.hud);
     this.devMenu = new DevMenu((m) => this.selectCamera(m), this.gameCamera !== null);
     this.devMenu.mount(this.hud);
+  }
+
+  /**
+   * Apply the settings that act on a running game view: render size (Babylon hardware scaling), the FXAA post-process on each camera, the frames-per-second
+   * counter and the tooltips (help level). Texture sharpness is read when the world is built.
+   */
+  private applySettings(s: Readonly<Settings>): void {
+    const engine = this.engine;
+    if (!engine) return;
+    engine.setHardwareScalingLevel(1 / s.renderScale);
+    for (const f of this.fxaa) f.dispose();
+    this.fxaa = [];
+    if (s.smoothEdges) for (const cam of [this.orbit, this.gameBabylon]) if (cam) this.fxaa.push(new FxaaPostProcess("fxaa", 1, cam));
+    if (!this.fpsEl && this.hud) {
+      this.fpsEl = document.createElement("div");
+      this.fpsEl.className = "fps";
+      this.hud.append(this.fpsEl);
+    }
+    if (this.fpsEl) this.fpsEl.hidden = !s.showFps;
+    this.tooltip?.setEnabled(s.helpLevel !== "none");
   }
 
   /** The toolbar's speed buttons: pause, play (1x) or fast. Only the game clock changes; flags and the camera keep running (docs/AUTO_ANIMATION.md). */
@@ -337,7 +375,10 @@ export class GameView implements Screen {
       cam.minZ = gc.near;
       cam.maxZ = FAR_PLANE;
     }
-    if (++this.frame % 6 === 0) this.refreshDevMenu();
+    if (++this.frame % 6 === 0) {
+      this.refreshDevMenu();
+      if (this.fpsEl && !this.fpsEl.hidden) this.fpsEl.textContent = `${engine.getFps().toFixed(0)} fps`;
+    }
   }
 
   private refreshDevMenu(): void {

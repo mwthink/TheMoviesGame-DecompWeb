@@ -4,11 +4,14 @@ import { SplashScreen } from "./screens/SplashScreen.ts";
 import { MainMenuScreen } from "./screens/MainMenuScreen.ts";
 import { GameView } from "./screens/GameView.ts";
 import { LoadingGalleryScreen } from "./screens/LoadingGalleryScreen.ts";
+import { CharacterViewerScreen } from "./screens/CharacterViewerScreen.ts";
+import { OptionsScreen } from "./screens/OptionsScreen.ts";
+import { SettingsStore } from "./settings/Settings.ts";
 import { LoadGameScreen } from "./screens/LoadGameScreen.ts";
 import { LoadingScreen, type LoadTask } from "./screens/LoadingScreen.ts";
 import type { WorldData } from "./world/WorldData.ts";
 
-type ScreenId = "splash" | "menu" | "load" | "loading" | "game" | "gallery";
+type ScreenId = "splash" | "menu" | "load" | "loading" | "game" | "gallery" | "options" | "viewer";
 
 const canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
 const container = document.getElementById("screens") as HTMLElement;
@@ -47,10 +50,13 @@ function loadWorld(task: LoadTask<WorldData>): void {
 }
 
 // Screens are built on demand so each visit starts fresh. GameView keeps its engine between visits.
-const gameView = new GameView(canvas, () => show("menu"));
+const settings = new SettingsStore(typeof localStorage === "undefined" ? null : localStorage);
+const gameView = new GameView(canvas, () => show("menu"), settings);
 const screens: Record<ScreenId, () => Screen> = {
   splash: () => new SplashScreen(container, () => show("menu")),
-  menu: () => new MainMenuScreen(container, () => show("load"), () => show("gallery")),
+  menu: () => new MainMenuScreen(container, () => show("load"), () => show("options"), () => show("gallery"), () => show("viewer")),
+  viewer: () => new CharacterViewerScreen(container, canvas, () => show("menu")),
+  options: () => new OptionsScreen(container, settings, () => show("menu")),
   gallery: () => new LoadingGalleryScreen(container, () => show("menu")),
   load: () => new LoadGameScreen(loadWorld, () => show("menu"), container),
   game: () => gameView,

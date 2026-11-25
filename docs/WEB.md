@@ -61,8 +61,10 @@ splash  --(3 s, click or any key)-->  main menu  --(Load Game)-->  Load Game  --
 | Screen | File | Notes |
 |---|---|---|
 | Splash | `src/screens/SplashScreen.ts` | Title card, fades in. Advances after `SPLASH_MS` (3000 ms) or on click or key. |
-| Main menu | `src/screens/MainMenuScreen.ts` | Eight entries, listed in the `items` array. An entry is enabled only if it has an `action`; only **Load Game** is. |
+| Main menu | `src/screens/MainMenuScreen.ts` | Eight entries, listed in the `items` array. An entry is enabled only if it has an `action`; **Load Game** and **Options** are. |
 | Load Game | `src/screens/LoadGameScreen.ts` | Pick the game folder and a `.jad`, then Load: opens the archives, parses the save, loads the world data, hands it to the game view. Shows progress and errors. |
+| Options | `src/screens/OptionsScreen.ts` | Graphics and Game settings (`OPTIONS.md`), kept in `localStorage` through `src/settings/Settings.ts`. |
+| Character Viewer | `src/screens/CharacterViewerScreen.ts` | A side panel and an orbit view of any costume, head, hair and animation (`CHARACTER_VIEWER.md`). |
 | Loading screens (dev) | `src/screens/LoadingGalleryScreen.ts` | Dev builds only: a menu entry that browses the original's loading pictures (`LOADING_SCREENS.md`). |
 | World view | `src/screens/GameView.ts` | The toolbar (pause, play, fast, date, cash), the staff panel, a Babylon `Engine` and `Scene` on the page canvas, the menu bar and the dev menu. Default camera: drag = orbit, right-drag = pan, wheel = zoom. Game camera (chosen in the dev menu): WASD / arrows scroll, wheel zoom, Ctrl + arrows rotate, middle-drag rotate, Shift = 3x, pointer shoved against the window edge scrolls. Esc returns to the menu. |
 

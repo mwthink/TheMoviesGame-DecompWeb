@@ -64,6 +64,85 @@ export async function loadAutoAnimClips(pak: PakIndex, meshName: string, msh: Ms
   return clips;
 }
 
+/** What makes up one person's model: files by name and the numbers the head morph needs. */
+export interface PersonSpec {
+  /** The costume file, e.g. `m_50s_2.cos`. */
+  cos: string;
+  /** The head file (`head_f_white_jane.hd`); "" takes the default for the costume's sex. */
+  head: string;
+  head2?: string;
+  headMix?: number;
+  /** The hair mesh (`hair_20s_m1.msh`); "" for none. */
+  hair: string;
+  ageYears: number;
+  weightKg: number;
+}
+
+/** A person's model in the bind pose: body, head and hair parts, the skeleton they share and the textures they use. */
+export interface PersonModel {
+  parts: (ModelPart & { cutout: boolean })[];
+  skeleton: MshBone[];
+  textures: Map<string, Rgba>;
+}
+
+/**
+ * Builds people's models from the archives, caching what many people share (meshes, heads, the generic head). Used by the world loader and the character viewer.
+ * `texture` decodes a texture by file name (null when missing).
+ */
+export class PersonModelBuilder {
+  private readonly pak: PakIndex;
+  private readonly texture: (name: string) => Promise<Rgba | null>;
+  private readonly meshes = new Map<string, Promise<Msh | null>>();
+  private readonly heads = new Map<string, Promise<HeadFile | null>>();
+
+  constructor(pak: PakIndex, texture: (name: string) => Promise<Rgba | null>) {
+    this.pak = pak;
+    this.texture = texture;
+  }
+
+  msh(name: string): Promise<Msh | null> {
+    let m = this.meshes.get(name.toLowerCase());
+    if (!m) this.meshes.set(name.toLowerCase(), (m = this.pak.readByName(name).then((b) => (b ? parseMsh(b) : null))));
+    return m;
+  }
+
+  hd(name: string): Promise<HeadFile | null> {
+    let h = this.heads.get(name.toLowerCase());
+    if (!h) this.heads.set(name.toLowerCase(), (h = this.pak.readByName(name).then((b) => (b ? parseHead(b) : null))));
+    return h;
+  }
+
+  /** Throws when the costume or its body mesh is missing; a missing head or hair is reported through `warn` and left out. */
+  async build(spec: PersonSpec, warn: (text: string) => void = () => {}): Promise<PersonModel> {
+    const cosBytes = await this.pak.readByName(spec.cos);
+    if (!cosBytes) throw new Error(`no ${spec.cos}`);
+    const cos = parseCos(cosBytes);
+    const body = await this.msh(cos.body);
+    if (!body) throw new Error(`no body mesh ${cos.body}`);
+    const parts: PersonModel["parts"] = meshParts(body).map((p) => ({ ...p, cutout: false }));
+    const headName = spec.head || defaultHeadFor(spec.cos);
+    const first = await this.hd(headName);
+    const generic = await this.msh("generic_head.msh");
+    if (generic && first) {
+      const second = spec.head2 ? await this.hd(spec.head2) : null;
+      for (const p of morphedHead(generic, first, second, spec.headMix ?? 0, spec.ageYears, spec.weightKg, first.names[0])) parts.push({ ...p, cutout: false });
+    } else warn(`no head ${headName}`);
+    if (spec.hair) {
+      const hair = await this.msh(spec.hair);
+      if (hair) for (const p of meshParts(hair)) parts.push({ ...p, cutout: true });
+      else warn(`no hair ${spec.hair}`);
+    }
+    const textures = new Map<string, Rgba>();
+    for (const part of parts) {
+      const key = part.texture.toLowerCase();
+      if (!key || textures.has(key)) continue;
+      const img = await this.texture(key);
+      if (img) textures.set(key, img);
+    }
+    return { parts, skeleton: body.skeleton, textures };
+  }
+}
+
 /**
  * Everyone the save puts in the world, as drawable models. Placement rule (docs/PEOPLE.md): a saved person's `POSITION` and `MyAngle` are world coordinates
  * (also inside buildings) and the model's origin is at the feet; people at (0, 0) are not in the world (the casting pool) and are skipped, as are people
@@ -74,18 +153,7 @@ async function loadPeople(
   pak: PakIndex, save: Save, texture: (name: string) => Promise<Rgba | null>, warnings: string[], progress: (text: string) => void,
 ): Promise<PersonInWorld[]> {
   const out: PersonInWorld[] = [];
-  const mshCache = new Map<string, Promise<ReturnType<typeof parseMsh> | null>>();
-  const msh = (name: string) => {
-    let m = mshCache.get(name.toLowerCase());
-    if (!m) mshCache.set(name.toLowerCase(), (m = pak.readByName(name).then((b) => (b ? parseMsh(b) : null))));
-    return m;
-  };
-  const hdCache = new Map<string, Promise<HeadFile | null>>();
-  const hd = (name: string) => {
-    let h = hdCache.get(name.toLowerCase());
-    if (!h) hdCache.set(name.toLowerCase(), (h = pak.readByName(name).then((b) => (b ? parseHead(b) : null))));
-    return h;
-  };
+  const builder = new PersonModelBuilder(pak, texture);
   const clipCache = new Map<string, Promise<Anm | null>>();
   const clip = (name: string) => {
     let c = clipCache.get(name.toLowerCase());
@@ -98,7 +166,6 @@ async function loadPeople(
     if (!f) flmCache.set(name, (f = pak.readByName(name, { dir: "data\\scene\\interactions\\" }).then((b) => (b ? parseFlm(b) : null))));
     return f;
   };
-  const generic = await msh("generic_head.msh");
   const today = save.header?.date;
   const poseBytes = await pak.readByName(STANDING_POSE_CLIP);
   const pose: Anm | null = poseBytes ? parseAnm(poseBytes) : null;
@@ -107,30 +174,12 @@ async function loadPeople(
     if (!person.costume?.cos || (person.position[0] === 0 && person.position[1] === 0)) continue;
     try {
       progress(`Person ${person.name || person.id}`);
-      const cosBytes = await pak.readByName(person.costume.cos);
-      if (!cosBytes) throw new Error(`no ${person.costume.cos}`);
-      const cos = parseCos(cosBytes);
-      const body = await msh(cos.body);
-      if (!body) throw new Error(`no body mesh ${cos.body}`);
-      const parts: PersonInWorld["parts"] = meshParts(body).map((p) => ({ ...p, cutout: false }));
-      const headName = person.head || defaultHeadFor(person.costume.cos);
-      const first = await hd(headName);
-      if (generic && first) {
-        const second = person.head2 ? await hd(person.head2) : null;
-        const weight = person.weight > 0 ? person.weight : 70;
-        for (const p of morphedHead(generic, first, second, person.headMix, ageYears(person.birth, today), weight, first.names[0])) parts.push({ ...p, cutout: false });
-      } else warnings.push(`${person.name}: no head ${headName}`);
-      if (person.costume.hair) {
-        const hair = await msh(person.costume.hair);
-        if (hair) for (const p of meshParts(hair)) parts.push({ ...p, cutout: true });
-      }
-      const textures = new Map<string, Rgba>();
-      for (const part of parts) {
-        const key = part.texture.toLowerCase();
-        if (!key || textures.has(key)) continue;
-        const img = await texture(key);
-        if (img) textures.set(key, img);
-      }
+      const model = await builder.build({
+        cos: person.costume.cos, head: person.head, head2: person.head2, headMix: person.headMix, hair: person.costume.hair,
+        ageYears: ageYears(person.birth, today), weightKg: person.weight > 0 ? person.weight : 70,
+      }, (text) => warnings.push(`${person.name}: ${text}`));
+      const { parts, textures } = model;
+      const body = { skeleton: model.skeleton };
       const clips = new Map<string, Anm>();
       const plan = await resolvePlan(pak, person, scene, clip, clips, body.skeleton);
       out.push({

@@ -7,13 +7,17 @@ interface MenuItem {
   action?: () => void;
 }
 
-/** Main menu. Everything is listed, but only Load Game does anything yet. */
+/** Main menu. Everything is listed, but only Load Game and Options do anything yet. */
 export class MainMenuScreen implements Screen {
   private el: HTMLElement | null = null;
 
   private readonly onLoadingScreens: (() => void) | undefined;
+  private readonly onOptions: (() => void) | undefined;
+  private readonly onViewer: (() => void) | undefined;
 
-  constructor(private readonly container: HTMLElement, private readonly onLoadGame: () => void, onLoadingScreens?: () => void) {
+  constructor(private readonly container: HTMLElement, private readonly onLoadGame: () => void, onOptions?: () => void, onLoadingScreens?: () => void, onViewer?: () => void) {
+    this.onViewer = onViewer;
+    this.onOptions = onOptions;
     this.onLoadingScreens = onLoadingScreens;
   }
 
@@ -24,7 +28,8 @@ export class MainMenuScreen implements Screen {
       { label: "Load Game", action: this.onLoadGame },
       { label: "Tutorial" },
       { label: "Sandbox" },
-      { label: "Options" },
+      { label: "Options", action: this.onOptions },
+      { label: "Character Viewer", action: this.onViewer },
       { label: "Credits" },
       { label: "Quit" },
     ];

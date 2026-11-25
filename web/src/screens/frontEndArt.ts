@@ -20,7 +20,8 @@ export function setGameArchives(paks: ByteSource[]): void {
   logo = null;
 }
 
-async function findArchives(): Promise<ByteSource[]> {
+/** The game's archives from wherever they can be found without asking (chosen on the Load Game screen, the dev server's local files, a remembered folder). */
+export async function findGameArchives(): Promise<ByteSource[]> {
   if (chosen.length) return chosen;
   const local = await localDevSources();
   if (local?.paks.length) return local.paks;
@@ -59,7 +60,7 @@ const LOADING_DIR = "data\\textures\\ui\\loadingscreens\\";
  */
 export async function loadingPictures(): Promise<LoadingPicture[]> {
   try {
-    const paks = await findArchives();
+    const paks = await findGameArchives();
     if (!paks.length) return [];
     const pak = await PakIndex.open(paks);
     return pak.list(LOADING_DIR).map((f) => ({
@@ -74,7 +75,7 @@ export async function loadingPictures(): Promise<LoadingPicture[]> {
 
 async function loadLogo(): Promise<Rgba | null> {
   try {
-    const paks = await findArchives();
+    const paks = await findGameArchives();
     if (!paks.length) return null;
     const pak = await PakIndex.open(paks);
     const bytes = await pak.readByName(LOGO.name, { dir: LOGO.dir });
