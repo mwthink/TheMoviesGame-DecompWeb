@@ -17,7 +17,7 @@ Evidence labels as in `CLAUDE.md`.
 - **People at (0, 0) with no costume are not in the world** (the casting pool: wannabes not yet shown). Of 83 `CStaff`/`CStar`/`CWannabe` objects in a Quick Start
   save 44 are placed.
 - **Idle:** `TMCharacter_ResetToIdlePose` (`0059A230`) plays animation id `0x29` (`TMCharacter_PlayAnimationById`, `00598F30`); the id -> name table
-  (`AnimId_GetName`, `00447AA0`, table at `DAT_00F87FC0`) is built at run time and not read yet. `TMCharacter_LoadIdleAnimation` (`00599DD0`) loads a named idle clip
+  (`AnimId_LoadClip`, `00447AA0`, table at `DAT_00F87FC0`) is filled from `data\gait.ini` by `AnimIdTable_InitFromGaitIni` (`MOVEMENT.md`). `TMCharacter_LoadIdleAnimation` (`00599DD0`) loads a named idle clip
   (name at `+0x61C`) and records its length in frames (every third frame when the clip's flag bit 1 is set, as for `Anm`).
 
 ## Animation
@@ -58,7 +58,7 @@ Body, head and hair. Before the animation starts (and in tests) they are in the 
 
 ## Next
 
-Movement: the scenes' `MoveToBox` walks and path nodes, the pathfinder, the animation id table (`AnimId_GetName`), blending, and the game loop's per-tick character update
+Movement: the scenes' `MoveToBox` walks and path nodes, the pathfinder, the animation id table (`AnimId_LoadClip`), blending, and the game loop's per-tick character update
 (`TMMobile_*`, `TMCharacter_*`).
 
 Movement (walking, gaits, routes) is in `MOVEMENT.md`.
