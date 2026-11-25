@@ -1,7 +1,15 @@
 // The "new loading screens" (docs/LOADING_SCREENS.md, "New loading scenes"): a scene is plain data, a character and a backdrop colour, drawn behind the text box.
 // No engine types here, so Node tests can run it.
 
+import { decodeCharacter, type CharacterLook } from "../sim/character/CharacterCode.ts";
 import { DEFAULT_CHARACTER, type CharacterSettings } from "./LoadingCharacterFraming.ts";
+
+/** A whole look from a character code (`OTMCHAR1:...`, made by the character viewer's "Copy character to clipboard"), for scenes written as code; throws when it is not one. */
+export function lookFromCode(code: string): CharacterLook {
+  const look = decodeCharacter(code);
+  if (!look) throw new Error("not a character code");
+  return look;
+}
 
 /**
  * A film set drawn big and blurred behind the character (`LoadingBackdrop.ts`). Positions are in the game's coordinates (x, y, z up; the saloon spans about x -12..11,

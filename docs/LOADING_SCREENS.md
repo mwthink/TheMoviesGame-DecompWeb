@@ -86,6 +86,18 @@ nudge, turn, and `frame`) and a flat backdrop colour. The same `LoadingCharacter
 - **Not done:** more scenes and a way to capture one from the character viewer, a real backdrop (picture, gradient, blurred set) in place of the flat colour, the logo, looping scenes' effect on load time (unmeasured), and
   loading the character before the first load (the very first screen of a session can be before the archives are linked).
 
+## The scene editor (character viewer)
+
+The character viewer has a **Loading scene** section (`LoadingSceneEditor.ts`, wired in `CharacterViewerScreen.ts`). The person on the viewer's screen, their animation and the frame showing now become the scene's
+character, so a scene is made by posing someone in the viewer as usual. The section sets the rest:
+
+- **Name**, **Start from** (fills the fields from a scene already in `LOADING_SCENES`), **Side**, **Size**, **Nudge across / up**, **Turn**, **Hold the frame shown now** (off: the clip loops), **Backdrop colour**.
+- **A film set behind:** the set (every `set_*.msh` in the archives), the camera (`eye` and `look`, x y z in the game's coordinates) and the field of view, blur and brightness.
+- **Preview** shows the real loading layers (`buildSceneLayers`, the same code as the loading screen) over the whole window, with a sample tip and a moving bar; Escape or the button closes it. The camera is
+  set by typing numbers; there is no dragging it round the set yet.
+- **Copy scene as code** puts the TypeScript for the scene on the clipboard (`sceneToCode`, `loadingSceneCode.ts`, test `web/tests/loadingSceneCode.test.ts`): paste it into `LOADING_SCENES` in `loadingScenes.ts`. A
+  whole look is written as `lookFromCode("OTMCHAR1:...")`, the same string the viewer's Copy character button makes. Nothing else is saved: the repository holds the scenes.
+
 ## Ideas for our own loading screens
 
 The original's design is "one random cinematic picture plus a thin bar". Directions that fit a movie-making game and the app's data (the loader already

@@ -1,6 +1,5 @@
 import { gamePak, gameStrings, randomLoadingPicture } from "./frontEndArt.ts";
-import { LoadingBackdrop } from "./LoadingBackdrop.ts";
-import { LoadingCharacter } from "./LoadingCharacter.ts";
+import { buildSceneLayers, type SceneLayers } from "./LoadingSceneLayers.ts";
 import { pickScene } from "./loadingScenes.ts";
 import { DEFAULT_LOADING_LAYOUT, LoadingView } from "./LoadingView.ts";
 import { pickTip } from "./loadingTips.ts";
@@ -30,8 +29,7 @@ export class LoadingScreen<T> implements Screen {
   private cancelled = false;
   private readonly view = new LoadingView();
   private dressed = false;
-  private character: LoadingCharacter | null = null;
-  private backdrop: LoadingBackdrop | null = null;
+  private layers: SceneLayers | null = null;
   /** The error the task failed with, handed to `onError` when the player presses Back. */
   private failure = "";
   /** The last progress report, kept so the dressed view can start where the plain one is. */
@@ -66,10 +64,8 @@ export class LoadingScreen<T> implements Screen {
 
   exit(): void {
     this.cancelled = true;
-    this.character?.dispose();
-    this.character = null;
-    this.backdrop?.dispose();
-    this.backdrop = null;
+    this.layers?.dispose();
+    this.layers = null;
     if (this.el) { void unmountScreen(this.el); this.el = null; }
   }
 
@@ -88,41 +84,18 @@ export class LoadingScreen<T> implements Screen {
     this.dressed = true;
   }
 
-  /** Build the new scene's character behind the box; false when it cannot be made (no archives, a missing costume), so the picture is used instead. */
+  /** Draw the new scene's layers behind the box; false when they cannot be made (no archives, a missing costume), so the picture is used instead. */
   private async dressScene(): Promise<boolean> {
     const pak = await gamePak();
     if (!pak || this.cancelled) return false;
     const scene = pickScene(Math.random, new URLSearchParams(window.location.search).get("loadingScene")); // ?loadingScene=right shows only the scenes named so
-    const el = this.el!;
-    el.classList.add("scene"); // first: its canvases take their size from the CSS this class gives them
-    // the character and the colour fill the whole window (the box keeps the square layout of the original, centred), so the canvas goes in the screen, behind the view
-    const character = new LoadingCharacter(pak, el, this.view.element);
-    try {
-      await character.set(scene.character);
-      if (this.cancelled || !character.ready) throw new Error("the character did not load");
-    } catch (e) {
-      console.warn("new loading scene unavailable, using a picture:", e);
-      character.dispose();
-      el.classList.remove("scene");
-      return false;
-    }
-    this.character = character;
-    if (scene.backdrop) {
-      // the set goes behind the character; if it cannot be drawn the flat colour stays
-      const backdrop = new LoadingBackdrop(pak, el, character.canvas);
-      try {
-        await backdrop.set(scene.backdrop);
-        this.backdrop = backdrop;
-      } catch (e) {
-        console.warn("loading backdrop unavailable, using the colour:", e);
-        backdrop.dispose();
-      }
-    }
-    if (this.cancelled) return false;
+    const layers = await buildSceneLayers(pak, this.el!, this.view.element, scene);
+    if (!layers) return false;
+    if (this.cancelled) { layers.dispose(); return false; }
+    this.layers = layers;
     this.view.setLayout({ ...DEFAULT_LOADING_LAYOUT, background: "dark" });
     this.view.setBackdrop("transparent");
     this.view.setLegacyPanel(true);
-    el.style.background = scene.background;
     return true;
   }
 

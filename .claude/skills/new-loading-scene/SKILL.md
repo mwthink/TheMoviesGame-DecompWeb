@@ -9,6 +9,12 @@ A loading scene is plain data in `web/src/screens/loadingScenes.ts` (`LoadingSce
 pick one at random. How it is drawn is in `docs/LOADING_SCREENS.md`, "New loading scenes"; read that section and the file first. A scene is: a name, a `CharacterSettings`
 (`LoadingCharacterFraming.ts`), a flat `background` colour (the fallback), and an optional `backdrop` (`BackdropSettings`: a set model and a camera inside it).
 
+## The editor (use it when the person can run the app)
+
+The character viewer's **Loading scene** section makes a scene without hand-writing numbers: pose a person in the viewer, set the side, size, turn, set and camera, press **Preview**, then
+**Copy scene as code** and paste the result into `LOADING_SCENES` (docs/LOADING_SCREENS.md, "The scene editor"). If the person gives you that code, check it with the steps below
+(typecheck, the scenes test), add it, and document it. The steps below are for writing or adjusting a scene by hand.
+
 ## Steps
 
 1. **Ask what is not given.** The look the person wants (genre, mood, which set), the side the character stands on, and whether the pose should hold or loop. Do not invent a story; choose

@@ -11,12 +11,13 @@ import { anmDurationMs, anmFramePosition, parseAnm, type Anm } from "../formats/
 import { parseSave, type SavedPerson } from "../formats/Jad.ts";
 import { STANDING_POSE_CLIP } from "../sim/character/PersonModel.ts";
 import { clipFits, poseBones, skinTransforms } from "../sim/anim/AutoAnimation.ts";
-import { decodeCharacter, encodeCharacter } from "../sim/character/CharacterCode.ts";
+import { decodeCharacter, encodeCharacter, type CharacterLook } from "../sim/character/CharacterCode.ts";
 import { ageYears } from "../sim/character/PersonModel.ts";
 import { findTexture, PersonModelBuilder, type CostumeLook, type CostumeOptions, type PersonModel } from "../world/WorldData.ts";
 import { PersonMeshes } from "../world/PersonMeshes.ts";
 import { sharedEngine } from "../world/sharedEngine.ts";
 import { findGameArchives } from "./frontEndArt.ts";
+import { LoadingSceneEditor, type SceneSource } from "./LoadingSceneEditor.ts";
 import { mountScreen, unmountScreen, type Screen } from "./Screen.ts";
 
 const DIR = { costumes: "data\\costume\\datas\\", heads: "data\\heads\\", meshes: "data\\meshes\\", clips: "data\\animations\\high\\" };
@@ -80,6 +81,7 @@ export class CharacterViewerScreen implements Screen {
   private orbit = false;
   /** Set by Random: the next costume's layers and accessories are picked at random once its options are read. */
   private randomLook = false;
+  private sceneEditor: LoadingSceneEditor | null = null;
   private readonly onKey = (e: KeyboardEvent) => this.key(e);
   private readonly onCanvasDown = () => { const a = document.activeElement as HTMLElement | null; if (a && a !== document.body) a.blur(); };
 
@@ -112,6 +114,7 @@ export class CharacterViewerScreen implements Screen {
         <label class="check"><input type="checkbox" data-f="double"> Show back faces</label>
         <label class="check"><input type="checkbox" data-f="orbit"> Auto-orbit</label>
         <div class="actions"><button type="button" data-home title="C">Reset camera</button></div>
+        <details data-scene><summary>Loading scene</summary><div data-scene-body></div></details>
         <p class="info" data-info></p>
         <p class="info" data-frame></p>
         <details data-keys><summary>Keys</summary><dl class="keys">${KEYS.map(([k, what]) => `<dt>${k}</dt><dd>${what}</dd>`).join("")}</dl></details>
@@ -146,6 +149,8 @@ export class CharacterViewerScreen implements Screen {
   }
 
   exit(): void {
+    this.sceneEditor?.dispose();
+    this.sceneEditor = null;
     window.removeEventListener("resize", this.onResize);
     window.removeEventListener("keydown", this.onKey);
     this.canvas.removeEventListener("pointerdown", this.onCanvasDown);
@@ -195,6 +200,11 @@ export class CharacterViewerScreen implements Screen {
     note.textContent = `${this.f<HTMLSelectElement>("cos").options.length} costumes, ${this.f<HTMLSelectElement>("head").options.length - 2} heads. Drag to orbit, wheel to zoom.`;
     el.querySelector<HTMLElement>(".controls")!.hidden = false;
     this.wire();
+    const editor = new LoadingSceneEditor(this.container, () => this.pak, () => this.sceneSource(), (t) => this.say(t));
+    const body = el.querySelector<HTMLElement>("[data-scene-body]")!;
+    body.innerHTML = editor.html();
+    editor.wire(body);
+    this.sceneEditor = editor;
     await this.rebuild();
   }
 
@@ -514,13 +524,24 @@ export class CharacterViewerScreen implements Screen {
     if (info) info.textContent = text;
   }
 
-  private async copyTo(): Promise<void> {
+  /** The person on screen as a character look (what the character code holds). */
+  private currentLook(): CharacterLook {
     const head = this.f<HTMLSelectElement>("head").value, hair = this.f<HTMLSelectElement>("hair").value;
-    const text = encodeCharacter({
+    return {
       cos: this.f<HTMLSelectElement>("cos").value, head: head.startsWith("(") ? "" : head, hair: hair.startsWith("(") ? "" : hair,
       ageYears: Number(this.f<HTMLInputElement>("age").value), weightKg: Number(this.f<HTMLInputElement>("weight").value),
       layers: this.look.layers ?? {}, accessories: this.look.accessories ?? {},
-    });
+    };
+  }
+
+  /** What the loading-scene editor takes from the viewer: the person, their clip and the frame showing now; null before a person is built. */
+  private sceneSource(): SceneSource | null {
+    if (!this.model || !this.clip || !this.clipName) return null;
+    return { look: this.currentLook(), clip: this.clipName, frame: Math.round(anmFramePosition(this.clip, this.timeMs)) };
+  }
+
+  private async copyTo(): Promise<void> {
+    const text = encodeCharacter(this.currentLook());
     try { await navigator.clipboard.writeText(text); this.say("Character copied to the clipboard."); } catch { this.say("The browser did not allow writing to the clipboard."); }
   }
 

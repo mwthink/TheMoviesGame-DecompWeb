@@ -61,7 +61,7 @@ the details and its open questions.
 | Dragging people | `DRAGGING.md`, `CLASS_NOTES.md` | click vs hold, the carry target, bob, the return motion | yes (carry anywhere on the ground; no rooms, sound or held clip) | by eye only |
 | Sky | `SKY.md` | `Sky_box.msh`, its three time-of-day variants and the hour rule | yes (walls, cap, sand plane, variant from the dev menu) | by eye only |
 | Dev tools | `DEV_TOOLS.md`, `LIGHTING.md` | - | debug views, shadow map viewer and frustum, performance rows, time scale and step, hover outline | no |
-| Loading screens | `LOADING_SCREENS.md` | one random picture of 17 per load with a baked-in text box; a random `FRONTEND_SPLASHSCREEN_<n>` tip in it | yes (picture + tip box + our progress bar; gallery in dev; an Options switch for our own scenes: a held-frame 3D character on a flat colour, one prototype scene) | by eye only |
+| Loading screens | `LOADING_SCREENS.md` | one random picture of 17 per load with a baked-in text box; a random `FRONTEND_SPLASHSCREEN_<n>` tip in it | yes (picture + tip box + our progress bar; gallery in dev; an Options switch for our own scenes: a held-frame 3D character on a flat colour, one prototype scene; a scene editor in the character viewer with preview and copy-as-code) | by eye only |
 | Camera | `CAMERA.md` | the normal (in-lot) state | yes, in the web app | eye placement against eight saves |
 | Saved games | `SAVE_FORMAT.md`, `CHARACTERS.md` | container, terrain, placement, many classes | the web app reads placement, landscape and camera | against the Python tools |
 | Models, textures, animation | `MSH_FORMAT.md`, `ANM_FORMAT.md`, `PAK_FORMAT.md` | static models, DDS, `.anm`, skinning | the web app draws static models | by eye against the game |
