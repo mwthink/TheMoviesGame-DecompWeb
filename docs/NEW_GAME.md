@@ -1,7 +1,7 @@
 # Starting a new game: how the starting world is built
 
 Status: read from the decompile, the disassembly and the game's own data files. The call chain and the file format are solid; what is *not* known is listed in section 7. Evidence is marked
-**[read]** (in the code), **[data]** (in the game files) or **[inferred]**. Ported, with tests: `web/src/sim/sandbox/StartingLayout.ts`.
+**[read]** (in the code), **[data]** (in the game files) or **[inferred]**. Ported, with tests: `web/src/sim/sandbox/StartingLayout.ts`; the web app's New Game is section 9.
 
 ## 1. The short version
 
@@ -135,6 +135,15 @@ So the starter studio grows by about one or two facilities a decade, and 1960's 
 - Where each applicant-type sub-facility gets its parameters (`this+0x47/0x48`, supported staff), and the curve of supply against rating.
 - `data/sandbox/moviesdefault.csv` (7,788 bytes): the sandbox's starting film library, probably; its loader was not found.
 - The remaining singleton constructors in section 3 beyond the ones named; the worker thread procedure at 0x4ADE00 (a wait loop on a handle; not read further).
-- The `.lnd` terrain format, and the lot size tier table.
+- The 768 bytes after the path bitmap in the `.lnd` files, and the lot size tier table. (The terrain itself is the save's terrain blob without its leading length word: `parseLandscapeFile`.)
 - How the game clock's start date follows the start year (`GameClock_Constructor`), and which file `Weather_LoadRuleTable` reads.
 - The asymmetry that a sandbox defaults to `_clean` (empty lot), while the front-end text for the option ("a basic setup") reads as if the built lot were the normal case.
+
+## 9. The web app's New Game
+
+New Game opens a profile screen (studio name, owner name; Start stays off until both are filled in, as the original refuses a start with no name), then runs the loading screen with
+`loadNewGameWorld` (`web/src/world/NewGameWorld.ts`). That reads `global.ini` **[data]** for the start year (`[time] start = 1920,20`) and money (`[studio] startfunds = 150000`), loads
+`data\savedefaults\<year>.ini` and `.lnd`, and builds a `Save` (`newGameSave`, `web/src/sim/sandbox/NewGame.ts`) that `loadWorldData` draws like a loaded game: the lot, the billboard and the gatehouse,
+then the layout's placements, on the layout's terrain, dated 1 January of the start year (day count `year * 365`), nobody in the world. Always the default year and always the Basics gate skipped.
+The 1920 layout has no placements, so the result is the blank lot, as in the fresh-studio save: same placed objects, date and cash, and 7 of 65,536 terrain vertices differ from that save **[measured]**.
+Not done: the studio and owner names are kept on the loaded world (`profile`) but nothing shows them, the start options (`newGameOptions`) are not stored anywhere, the studio icon, other start years.

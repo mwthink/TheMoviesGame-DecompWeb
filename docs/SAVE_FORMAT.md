@@ -394,7 +394,7 @@ Reading how the terrain is drawn (`FUN_009e3ff0` chunk refresh, `FUN_009e16b0` m
 * **The tail after the bitmap.** `FUN_009e4a30` is the writer of this blob: version 2, the texture count, the 32-byte names, the cells (3 bytes x 65,793), the path bitmap (8,192), then the **transient bitmap**
   (`DAT_0105f8dc`, 8,192, what the player's path tool is painting; the loader zeroes it for version 2). That accounts for the first 8,192 bytes of the "~17 KB"; the other ~9 KB (and a further 768 bytes in the
   shipped `.lnd` files) are not decoded.
-* **Start data.** `data\savedefaults\<year>.lnd` (214,763 bytes, the same format) is the terrain of a new game. The 1920 file is **identical** in terrain and path bits to the saved 1920 studio (8,897 bits each), so
+* **Start data.** `data\savedefaults\<year>.lnd` (214,763 bytes, the same format) is the terrain of a new game. The 1920 file has the same path bits as the saved 1920 studio (8,897 bits each) and differs from its terrain paint in 7 of 65,536 vertices (a studio saved after the tutorial has been played on), so
   a fresh game's terrain is the file as shipped. The pristine files already contain path bits well outside the lot (`1960_clean.lnd`: 3,782 bits left of x = -166, 904 right of x = 150), so those are the game's own
   data, not something our decoding adds. Playing adds more: the Quick Start save has 1,828 bits that `1960_clean.lnd` lacks, including 409 outside the lot (lines at x = 192 and the like, next to the city boundary
   objects of `outsidelot_high.rob`), probably stamped by those objects' pavement tags.

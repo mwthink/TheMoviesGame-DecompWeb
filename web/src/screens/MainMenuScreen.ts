@@ -15,7 +15,7 @@ export class MainMenuScreen implements Screen {
   private readonly onOptions: (() => void) | undefined;
   private readonly onViewer: (() => void) | undefined;
 
-  constructor(private readonly container: HTMLElement, private readonly onLoadGame: () => void, onOptions?: () => void, onLoadingScreens?: () => void, onViewer?: () => void) {
+  constructor(private readonly container: HTMLElement, private readonly onLoadGame: () => void, private readonly onNewGame: () => void, onOptions?: () => void, onLoadingScreens?: () => void, onViewer?: () => void) {
     this.onViewer = onViewer;
     this.onOptions = onOptions;
     this.onLoadingScreens = onLoadingScreens;
@@ -24,7 +24,7 @@ export class MainMenuScreen implements Screen {
   enter(): void {
     const items: MenuItem[] = [
       { label: "Continue" },
-      { label: "New Game" },
+      { label: "New Game", action: this.onNewGame },
       { label: "Load Game", action: this.onLoadGame },
       { label: "Tutorial" },
       { label: "Sandbox" },

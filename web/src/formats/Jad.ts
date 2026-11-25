@@ -285,8 +285,15 @@ function readCamera(first: Map<string, Uint8Array>): SavedCamera | null {
   return { eye: eye as [number, number, number], focus: focus as [number, number, number], angle: rot[0]!, zoom: zoom[0]! };
 }
 
+/** A `data\\savedefaults\\<name>.lnd` file: the same blob as a save's terrain without its leading length word (docs/SAVE_FORMAT.md, "Start data"). */
+export function parseLandscapeFile(lnd: Uint8Array): Landscape | null {
+  const blob = new Uint8Array(lnd.length + 4);
+  blob.set(lnd, 4);
+  return parseLandscape(blob);
+}
+
 /** TMLandscape_ReadTerrainBlob: u32 length, u32 version, u32 texture count, 32-byte names, 65,793 cells x 3 bytes, then the 8 KB path bitmap. */
-function parseLandscape(blob: Uint8Array): Landscape | null {
+export function parseLandscape(blob: Uint8Array): Landscape | null {
   if (blob.length < 245) return null;
   const v = new DataView(blob.buffer, blob.byteOffset, blob.byteLength);
   const n = v.getUint32(8, true);

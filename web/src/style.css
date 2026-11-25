@@ -48,6 +48,7 @@ body[data-screen="game"] #game-canvas, body[data-screen="viewer"] #game-canvas {
 .load .loadbox { width: min(44rem, 92vw); display: flex; flex-direction: column; gap: 0.9rem; }
 .load .note { color: var(--muted); font-size: 0.9rem; margin: 0 0 0.5rem; }
 .load .row { display: flex; align-items: center; gap: 1rem; border: 1px solid #25252f; padding: 0.75rem 1rem; }
+.load .row input { flex: 1; font: inherit; color: var(--fg); background: #14141c; border: 1px solid #3a3a48; padding: 0.4rem 0.6rem; }
 .load .row span { width: 8rem; letter-spacing: 0.08em; }
 .load .row em { flex: 1; color: var(--muted); font-style: normal; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .load .row button { width: auto; padding: 0.5rem 1rem; font-size: 0.9rem; }

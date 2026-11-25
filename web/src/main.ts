@@ -7,13 +7,14 @@ import { LoadingGalleryScreen } from "./screens/LoadingGalleryScreen.ts";
 import { CharacterViewerScreen } from "./screens/CharacterViewerScreen.ts";
 import { OptionsScreen } from "./screens/OptionsScreen.ts";
 import { SettingsStore } from "./settings/Settings.ts";
+import { ProfileScreen } from "./screens/ProfileScreen.ts";
 import { LoadGameScreen } from "./screens/LoadGameScreen.ts";
 import { LoadingScreen, type LoadTask } from "./screens/LoadingScreen.ts";
 import type { WorldData } from "./world/WorldData.ts";
 import { AudioManager } from "./audio/AudioManager.ts";
 import { calendarDate } from "./sim/core/GameClock.ts";
 
-type ScreenId = "splash" | "menu" | "load" | "loading" | "game" | "gallery" | "options" | "viewer";
+type ScreenId = "splash" | "menu" | "load" | "profile" | "loading" | "game" | "gallery" | "options" | "viewer";
 
 const canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
 const container = document.getElementById("screens") as HTMLElement;
@@ -72,7 +73,7 @@ const AUDIO_FOR: Record<ScreenId, ReadonlyArray<readonly [number, string]>> = {
   // Deviation: the original stops the splash music (state 6) when the splash ends and plays the front end's own soundtrack (state 4, a WMA video track a browser
   // cannot play, docs/AUDIO.md). Here the same pair stays held through the menu screens, so the intro music carries on and loops until a game starts loading.
   splash: [[6, "intro"]],
-  menu: [[6, "intro"]], load: [[6, "intro"]], options: [[6, "intro"]], gallery: [[6, "intro"]], viewer: [[6, "intro"]],
+  menu: [[6, "intro"]], load: [[6, "intro"]], profile: [[6, "intro"]], options: [[6, "intro"]], gallery: [[6, "intro"]], viewer: [[6, "intro"]],
   loading: [[2, "game"], [1, "loading"]],
   game: [[2, "game"]],
 };
@@ -97,10 +98,11 @@ function showOptionsOverGame(done: () => void): void {
 const gameView = new GameView(canvas, () => { overlayOptions?.exit(); overlayOptions = null; show("menu"); }, settings, showOptionsOverGame);
 const screens: Record<ScreenId, () => Screen> = {
   splash: () => new SplashScreen(container, () => show("menu")),
-  menu: () => new MainMenuScreen(container, () => show("load"), () => show("options"), () => show("gallery"), () => show("viewer")),
+  menu: () => new MainMenuScreen(container, () => show("load"), () => show("profile"), () => show("options"), () => show("gallery"), () => show("viewer")),
   viewer: () => new CharacterViewerScreen(container, canvas, () => show("menu")),
   options: () => new OptionsScreen(container, settings, () => show("menu")),
   gallery: () => new LoadingGalleryScreen(container, () => show("menu")),
+  profile: () => new ProfileScreen(container, loadWorld, () => show("menu")),
   load: () => new LoadGameScreen(loadWorld, () => show("menu"), container),
   game: () => gameView,
   loading: () => { throw new Error("the loading screen is started by loadWorld"); },
