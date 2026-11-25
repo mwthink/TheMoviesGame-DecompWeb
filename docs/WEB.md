@@ -139,6 +139,12 @@ Things worth knowing before extending it:
   centre land on the ground. `GameView` runs it every frame and copies its eye, focus, horizontal field of view and near plane (far is 300) into a Babylon `FreeCamera` (game (x, y, z) -> Babylon (x, z, y)).
   Not ported: the other camera states (plan, follow, ...), pivot compensation while rotating, ground-grab dragging, the cutaway; see `docs/CAMERA.md`. Pointer limits in a browser:
   the original reads relative device motion, a page cannot, so an edge "shove" is the pointer's motion on arriving at the window edge (`CameraInput`).
+- **Hover cutaway and room labels.** Pointing at a building that has named rooms (`room_*` mesh parts whose name has a key in the string database) swaps it for a cutaway copy that drops everything above 2.5 units
+  (`CUT_HEIGHT`, the value `jad_dump.py --cutaway` uses; the game's own is not read) and writes each room's text on its floor (`GameView`: DOM labels projected each frame). Each such model is built twice
+  (`WorldScene.buildSources(..., cut)`: its own materials with a `cutHeight` uniform), the cutaway instances start disabled, and hover (a throttled pick, 100 ms) swaps the enabled sets. The text comes from
+  `Data/text/<language>/stringdatabase.lhts` (+ the add-on's), read by `src/formats/Lhts.ts` (a port of `tools/lhts.py`) from the game folder the player picked (or the dev server's `/__local/text/`); without it rooms have no labels.
+  Fire rooms show their three possible texts joined ("Fire/Can It/Reject"); the game picks one at run time (`SAVE_FORMAT.md`). Labels are plain white text at each floor polygon's area-weighted centre. Shader gotcha: Babylon splits shader text at
+  semicolons, so a `//` comment containing one breaks the line and the shader fails to compile.
 - **Dev menu and menu bar.** `DevMenu` (bottom right, collapsible) holds the camera selector and read-only state: fps, the camera in use, and for the game camera its eye, focus, zoom,
   angle, fov, near/far, scroll velocities, edge-scroll state, the lot clamp's push and the lot rectangle. New controls and state rows go there (`DevMenu.show()` takes sections of
   name -> text). `MenuBar` is the 32 px bar fixed to the top of the game view; the toolbar will go into its `toolbar` element. Both are plain DOM in a `.hud` layer, shown only on the game screen.

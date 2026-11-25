@@ -11,6 +11,7 @@ import { defaultSave, PAK_DIR, SAVE_DIR } from "./localPaths.ts";
 function localGameFiles(): Plugin {
   const pakDir = PAK_DIR ?? "";
   const savePath = defaultSave() ?? "";
+  const textDir = join(dirname(pakDir), "text", "EN-UK");
   const saveDir = savePath ? dirname(savePath) : SAVE_DIR;
   return {
     name: "otm-local-game-files",
@@ -22,13 +23,19 @@ function localGameFiles(): Plugin {
           const paks = existsSync(pakDir) ? readdirSync(pakDir).filter((n) => n.toLowerCase().endsWith(".pak")) : [];
           res.setHeader("content-type", "application/json");
           const saves = existsSync(saveDir) ? readdirSync(saveDir).filter((n) => n.toLowerCase().endsWith(".jad")).sort() : [];
-          res.end(JSON.stringify({ paks, save: existsSync(savePath) ? savePath.split("/").pop() : null, saves }));
+          // the string database (Data/text/EN-UK/stringdatabase*.lhts), for the room labels
+          const text = ["stringdatabase.lhts", "stringdatabase_addon1.lhts"].filter((n) => existsSync(join(textDir, n)));
+          res.end(JSON.stringify({ paks, text, save: existsSync(savePath) ? savePath.split("/").pop() : null, saves }));
           return;
         }
         if (url.pathname === "/save") file = savePath;
         else if (url.pathname.startsWith("/save/")) {
           const name = decodeURIComponent(url.pathname.slice(6));
           if (!name.includes("/") && !name.includes("..") && name.toLowerCase().endsWith(".jad")) file = join(saveDir, name);
+        }
+        else if (url.pathname.startsWith("/text/")) {
+          const name = decodeURIComponent(url.pathname.slice(6));
+          if (!name.includes("/") && !name.includes("..") && name.toLowerCase().endsWith(".lhts")) file = join(textDir, name);
         }
         else if (url.pathname.startsWith("/pak/")) {
           const name = decodeURIComponent(url.pathname.slice(5));

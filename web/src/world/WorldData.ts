@@ -2,7 +2,8 @@ import type { PakIndex } from "../assets/Pak.ts";
 import { decodeDds, type Rgba } from "../formats/Dds.ts";
 import { Ini } from "../formats/Ini.ts";
 import type { Landscape, PlacedAsset, Save } from "../formats/Jad.ts";
-import { parseMsh, type Msh } from "../formats/Msh.ts";
+import { parseMsh, type Msh, type MshChunk } from "../formats/Msh.ts";
+import { roomLines, type Strings } from "../formats/Lhts.ts";
 import { parseRob } from "../formats/Rob.ts";
 import { lotBounds, lotSize, perimeterPieces, type LotBounds } from "./Perimeter.ts";
 import { parseCameraIni, type CameraConfig } from "../camera/GameCamera.ts";
@@ -27,6 +28,26 @@ export interface MeshAsset {
   msh: Msh;
   /** Decoded textures by lower-case file name (diffuse and lightmap textures the model uses). Shared between meshes. */
   textures: Map<string, Rgba>;
+  /** Named rooms that have text on their floor (docs/SAVE_FORMAT.md): the text lines and the middle of the floor, in the model's own coordinates. Empty without the string database. */
+  rooms: { name: string; lines: string[]; x: number; y: number }[];
+}
+
+/** The middle of a room floor polygon: the triangle centroids weighted by area. */
+export function chunkCentre(c: MshChunk): { x: number; y: number } {
+  let ax = 0, ay = 0, area = 0;
+  for (let t = 0; t < c.tris.length; t += 3) {
+    const a = c.tris[t]! * 3, b = c.tris[t + 1]! * 3, d = c.tris[t + 2]! * 3;
+    const x1 = c.verts[a]!, y1 = c.verts[a + 1]!, x2 = c.verts[b]!, y2 = c.verts[b + 1]!, x3 = c.verts[d]!, y3 = c.verts[d + 1]!;
+    const w = Math.abs((x2 - x1) * (y3 - y1) - (x3 - x1) * (y2 - y1)) / 2;
+    ax += w * (x1 + x2 + x3) / 3;
+    ay += w * (y1 + y2 + y3) / 3;
+    area += w;
+  }
+  if (area > 0) return { x: ax / area, y: ay / area };
+  const n = c.verts.length / 3;
+  let sx = 0, sy = 0;
+  for (let i = 0; i < n; i++) { sx += c.verts[i * 3]!; sy += c.verts[i * 3 + 1]!; }
+  return { x: n ? sx / n : 0, y: n ? sy / n : 0 };
 }
 
 /** One placed object, pointing at its model. */
@@ -97,7 +118,11 @@ export function computeSplat(land: Landscape): { weightsA: Uint8Array; weightsB:
 }
 
 /** Load a saved game's world from the game archives: ground textures, and the model and textures of every placed asset that has one. */
-export async function loadWorldData(pak: PakIndex, save: Save, progress: (text: string) => void = () => {}): Promise<WorldData> {
+export async function loadWorldData(
+  pak: PakIndex, save: Save, progress: (text: string) => void = () => {},
+  /** The game's string database (stringdatabase.lhts, then the add-on's), for the room labels; without it rooms have no text. */
+  strings: Strings | null = null,
+): Promise<WorldData> {
   const warnings: string[] = [];
   let terrain: TerrainData | null = null;
   let lot: WorldData["lot"] = null;
@@ -169,7 +194,14 @@ export async function loadWorldData(pak: PakIndex, save: Save, progress: (text: 
           if (img) textures.set(name, img);
           else warnings.push(`${meshName}: texture ${name} not found`);
         }
-        return { name: meshName, msh, textures };
+        const rooms: MeshAsset["rooms"] = [];
+        if (strings) {
+          for (const part of msh.parts) {
+            const lines = roomLines(strings, part.name);
+            if (lines.length) rooms.push({ name: part.name, lines, ...chunkCentre(part.chunk) });
+          }
+        }
+        return { name: meshName, msh, textures, rooms };
       })();
       meshCache.set(meshName, m);
     }

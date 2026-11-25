@@ -36,7 +36,8 @@ async function devAutoload(): Promise<void> {
   const { loadWorldData } = await import("./world/WorldData.ts");
   const local = await localDevSources(new URLSearchParams(location.search).get("autoload") || undefined); // /?autoload=quick picks a save by name
   if (!local?.save) throw new Error("autoload: the dev server has no local game files");
-  const world = await loadWorldData(await PakIndex.open(local.paks), parseSave(await local.save.read(0, local.save.size)));
+  const { readStrings } = await import("./assets/sources.ts");
+  const world = await loadWorldData(await PakIndex.open(local.paks), parseSave(await local.save.read(0, local.save.size)), undefined, await readStrings(local.text));
   for (const w of world.warnings) console.warn(w);
   gameView.world = world;
   show("game");

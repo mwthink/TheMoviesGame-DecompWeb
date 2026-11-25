@@ -53,10 +53,12 @@ export function registerShaders(): void {
     uniform mat4 viewProjection;
     varying vec2 vUV;
     varying vec2 vUV2;
+    varying float vY;
     void main() {
       #include<instancesVertex>
       vUV = uv;
       vUV2 = uv2;
+      vY = (finalWorld * vec4(position, 1.0)).y;
       gl_Position = viewProjection * finalWorld * vec4(position, 1.0);
     }`;
   Effect.ShadersStore["otmStaticVertexShader"] = staticVertex;
@@ -65,10 +67,13 @@ export function registerShaders(): void {
     precision highp float;
     varying vec2 vUV;
     varying vec2 vUV2;
+    varying float vY;
+    uniform float cutHeight;
     uniform sampler2D diffuse;
     uniform sampler2D lightmap;
     uniform float useLightmap;
     void main() {
+      if (vY > cutHeight) discard;
       vec4 d = texture2D(diffuse, vUV);
       if (d.a < 0.5) discard;
       vec3 c = d.rgb;
@@ -80,10 +85,12 @@ export function registerShaders(): void {
     precision highp float;
     varying vec2 vUV;
     varying vec2 vUV2;
+    varying float vY;
+    uniform float cutHeight;
     uniform sampler2D base;
     uniform sampler2D decal;
     void main() {
-      // The cloth uses the second UV set (0..1); the logo the first, which runs past 0..1 (the flag's runs -0.43..1.43) so that the logo is drawn once with margin: nothing outside 0..1.
+      if (vY > cutHeight) discard;
       vec4 b = texture2D(base, vUV2);
       vec4 d = texture2D(decal, vUV);
       if (vUV.x < 0.0 || vUV.x > 1.0 || vUV.y < 0.0 || vUV.y > 1.0) d.a = 0.0;
