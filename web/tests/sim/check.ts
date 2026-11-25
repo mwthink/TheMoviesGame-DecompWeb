@@ -12,3 +12,14 @@ export function near(what: string, got: number, want: number, tol: number): void
 export function nearD(what: string, got: number, want: number, tol: number): void {
   assert.ok(Math.abs(got - want) <= tol, `${what}: got ${got}, want ${want} (+-${tol})`);
 }
+
+/** Every number (and number array) in `defaults` equals the same field of `loaded` within 1e-6: the defaults were copied from the docs and must be
+ * what the installed game ships. */
+export function expectSame(what: string, loaded: object, defaults: object): void {
+  const close = (a: number, b: number) => Math.abs(a - b) <= 1e-6;
+  for (const [k, v] of Object.entries(defaults)) {
+    const got = (loaded as Record<string, unknown>)[k];
+    if (Array.isArray(v)) v.forEach((x: number, i) => assert.ok(close((got as number[])[i]!, x), `${what}.${k}[${i}]: ${(got as number[])[i]} in the game files, ${x} in the defaults`));
+    else if (typeof v === "number") assert.ok(close(got as number, v), `${what}.${k}: ${got} in the game files, ${v} in the defaults`);
+  }
+}

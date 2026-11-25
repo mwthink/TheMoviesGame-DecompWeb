@@ -9,17 +9,9 @@ import { defaultQualityTuning } from "../../src/sim/movie/MovieQuality.ts";
 import { defaultSuccessTuning, genreTrend } from "../../src/sim/movie/MovieSuccess.ts";
 import { buildMovieTuning, defaultAwardBonusTuning, emptySources, loadMovieTuning } from "../../src/sim/movie/TuningLoader.ts";
 import { haveGame, pakIndex } from "../helpers.ts";
+import { expectSame } from "./check.ts";
 
 const close = (a: number, b: number) => Math.abs(a - b) < 1e-6;
-
-/** Every number in loaded equals the default (the defaults were copied from the docs; they must be what the installed game ships). */
-export function expectSame(what: string, loaded: object, defaults: object): void {
-  for (const [k, v] of Object.entries(defaults)) {
-    const got = (loaded as Record<string, unknown>)[k];
-    if (Array.isArray(v)) v.forEach((x, i) => assert.ok(close((got as number[])[i]!, x), `${what}.${k}[${i}]: ${(got as number[])[i]} in the game files, ${x} in the defaults`));
-    else if (typeof v === "number") assert.ok(close(got as number, v), `${what}.${k}: ${got} in the game files, ${v} in the defaults`);
-  }
-}
 
 test("inline sources", () => {
   const s = emptySources();
