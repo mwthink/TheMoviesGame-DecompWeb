@@ -2,6 +2,8 @@
  * The developer menu: a panel fixed to the bottom-right of the game view for testing controls and read-only state. It is plain DOM, outside the
  * engine. Rows are added once and their text is refreshed a few times a second.
  */
+import { DEFAULT_SUN, normalizeSun, type SunSettings } from "../world/Sun.ts";
+
 export type CameraMode = "default" | "game";
 
 export interface DevMenuState {
@@ -15,7 +17,7 @@ export class DevMenu {
   private readonly radios = new Map<CameraMode, HTMLInputElement>();
   private collapsed = false;
 
-  constructor(private readonly onCamera: (mode: CameraMode) => void, gameCameraAvailable: boolean, onRevealAlways: (on: boolean) => void = () => {}) {
+  constructor(private readonly onCamera: (mode: CameraMode) => void, gameCameraAvailable: boolean, onRevealAlways: (on: boolean) => void = () => {}, onSun: (s: SunSettings) => void = () => {}) {
     const el = document.createElement("aside");
     el.className = "devmenu";
     el.innerHTML = `<header><span>Dev menu</span><button type="button" title="Collapse">–</button></header><div class="body"></div>`;
@@ -59,6 +61,52 @@ export class DevMenu {
     l.append(box, " Show rooms on hover at once (ignore the reveal rules)");
     rooms.append(l);
     this.body.append(rooms);
+
+    // The sun: a first experiment with dynamic light on the baked world (docs/LIGHTING.md). Off = the game's own look.
+    const sunSec = document.createElement("section");
+    sunSec.innerHTML = `<h4>Sun</h4>`;
+    let sun: SunSettings = { ...DEFAULT_SUN };
+    const emit = () => { sun = normalizeSun(sun); onSun(sun); };
+    const onBox = document.createElement("input");
+    onBox.type = "checkbox";
+    onBox.addEventListener("change", () => { sun.enabled = onBox.checked; emit(); });
+    const onLabel = document.createElement("label");
+    onLabel.append(onBox, " Sun lighting");
+    sunSec.append(onLabel);
+    const slider = (label: string, key: "azimuth" | "elevation" | "intensity" | "ambient" | "baked", min: number, max: number, step: number, unit = "") => {
+      const l = document.createElement("label");
+      l.className = "slider";
+      const out = document.createElement("output");
+      const input = document.createElement("input");
+      input.type = "range";
+      input.min = String(min); input.max = String(max); input.step = String(step);
+      input.value = String(sun[key]);
+      const show = () => { out.textContent = `${Number(input.value).toFixed(step < 1 ? 2 : 0)}${unit}`; };
+      show();
+      input.addEventListener("input", () => { sun[key] = Number(input.value); show(); emit(); });
+      l.append(`${label} `, out, input);
+      sunSec.append(l);
+    };
+    slider("Direction", "azimuth", 0, 360, 1, "°");
+    slider("Height", "elevation", 2, 90, 1, "°");
+    slider("Sun strength", "intensity", 0, 3, 0.05);
+    slider("Ambient", "ambient", 0, 1.5, 0.05);
+    slider("Baked light", "baked", 0, 2, 0.05);
+    this.body.append(sunSec);
+    for (const sec of this.body.querySelectorAll<HTMLElement>("section")) this.makeCollapsible(sec);
+  }
+
+  /** Click a section's heading to fold it away (the heading stays). */
+  private makeCollapsible(sec: HTMLElement): void {
+    const h = sec.querySelector("h4");
+    if (!h || h.dataset.collapsible) return;
+    h.dataset.collapsible = "1";
+    h.tabIndex = 0;
+    h.setAttribute("role", "button");
+    const toggle = () => { const closed = sec.classList.toggle("closed"); h.setAttribute("aria-expanded", String(!closed)); };
+    h.setAttribute("aria-expanded", "true");
+    h.addEventListener("click", toggle);
+    h.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
   }
 
   /** Reflect a camera switch made elsewhere. */
@@ -79,6 +127,7 @@ export class DevMenu {
             sec.dataset.s = section;
             sec.innerHTML = `<h4>${section}</h4>`;
             this.body.append(sec);
+            this.makeCollapsible(sec);
           }
           row = document.createElement("div");
           row.className = "row";

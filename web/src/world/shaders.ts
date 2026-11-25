@@ -28,6 +28,9 @@ export function registerShaders(): void {
     uniform float tileSize;
     uniform float pathTileSize;
     uniform float pathOn;                 // 0 hides the sidewalk layer (debugging: __otm.paths(false))
+    uniform float sunOn;
+    uniform vec3 sunDir;
+    uniform vec3 sunParams;
     void main() {
       vec2 cell = (vXZ + 256.0) * 0.5;      // vertex units: vertex i is at world 2i - 256
       vec2 suv = (cell + 0.5) / 256.0;
@@ -41,7 +44,9 @@ export function registerShaders(): void {
       // A path cell (x, y) covers vertex x to x + 1 (FUN_009e16b0 / FUN_00a797d0 draw it between those terrain vertices), not the 2 units centred on vertex x.
       float path = texture2D(pathMask, (floor(cell) + 0.5) / 256.0).r * pathOn;
       vec3 paved = texture2D(sidewalk, vXZ / pathTileSize).rgb;
-      gl_FragColor = vec4(mix(c, paved, path), 1.0);
+      vec3 col = mix(c, paved, path);
+      if (sunOn > 0.5) col *= sunParams.z + sunParams.y + sunParams.x * max(sunDir.y, 0.0); 
+      gl_FragColor = vec4(min(col, vec3(1.0)), 1.0);
     }`;
 
   // Static models (drawn as hardware instances: one draw call per model and material, however often the save places it): diffuse texture, optionally multiplied by a lightmap on the second UV set, doubled (lightmaps are dark: 0.5 is neutral).
@@ -49,13 +54,16 @@ export function registerShaders(): void {
     attribute vec3 position;
     attribute vec2 uv;
     attribute vec2 uv2;
+    attribute vec3 normal;
     #include<instancesDeclaration>
     uniform mat4 viewProjection;
     varying vec2 vUV;
     varying vec2 vUV2;
     varying float vY;
+    varying vec3 vNormal;
     void main() {
       #include<instancesVertex>
+      vNormal = mat3(finalWorld) * normal;
       vUV = uv;
       vUV2 = uv2;
       vY = (finalWorld * vec4(position, 1.0)).y;
@@ -68,16 +76,24 @@ export function registerShaders(): void {
     varying vec2 vUV;
     varying vec2 vUV2;
     varying float vY;
+    varying vec3 vNormal;
     uniform float cutHeight;
     uniform sampler2D diffuse;
     uniform sampler2D lightmap;
     uniform float useLightmap;
+    uniform float sunOn;
+    uniform vec3 sunDir;
+    uniform vec3 sunParams;
     void main() {
       if (vY > cutHeight) discard;
       vec4 d = texture2D(diffuse, vUV);
       if (d.a < 0.5) discard;
       vec3 c = d.rgb;
-      if (useLightmap > 0.5) c *= texture2D(lightmap, vUV2).rgb * (255.0 / 127.0);
+      if (sunOn > 0.5) {
+        vec3 lm = useLightmap > 0.5 ? texture2D(lightmap, vUV2).rgb * (255.0 / 127.0) : vec3(1.0);
+        float ndl = max(dot(normalize(vNormal), sunDir), 0.0);
+        c *= sunParams.z * lm + sunParams.y + sunParams.x * ndl;
+      } else if (useLightmap > 0.5) c *= texture2D(lightmap, vUV2).rgb * (255.0 / 127.0);
       gl_FragColor = vec4(min(c, vec3(1.0)), 1.0);
     }`;
   // Two-layer material (the gate's flag): a base texture (the cloth) with a second texture (the studio logo) laid over it by its alpha. The cloth uses the second UV set, the logo the first (clamped).
@@ -118,7 +134,7 @@ export function registerShaders(): void {
     void main() {
       if (useTex > 0.5) {
         vec4 c = texture2D(tex, vUV);
-        if (c.a < 0.05) discard; // transparent texels (the room text's background) draw nothing
+        if (c.a < 0.05) discard; // transparent texels (the background of the room text) draw nothing
         gl_FragColor = c;
       } else {
         gl_FragColor = tint;

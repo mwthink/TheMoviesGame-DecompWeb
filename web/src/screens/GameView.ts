@@ -22,6 +22,8 @@ import { MenuBar } from "../ui/MenuBar.ts";
 import { GameToolbar } from "../ui/GameToolbar.ts";
 import { StaffPanel } from "../ui/StaffPanel.ts";
 import { Tooltip } from "../ui/Tooltip.ts";
+import { applySun, createSunLights, type SunLights } from "../world/SunLight.ts";
+import { DEFAULT_SUN, type SunSettings } from "../world/Sun.ts";
 import { FxaaPostProcess } from "@babylonjs/core/PostProcesses/fxaaPostProcess";
 import type { Settings, SettingsStore } from "../settings/Settings.ts";
 import { GameClock, SPEED_FACTOR, type GameSpeed } from "../sim/core/GameClock.ts";
@@ -71,6 +73,9 @@ export class GameView implements Screen {
   private revealMs = 0;
   /** Dev menu: show a floor plan as soon as the pointer is over the building, whatever the game's rules say. */
   private revealAlways = false;
+  /** The dev menu's sun (docs/LIGHTING.md) and the lights that light the people. */
+  private sun: SunSettings = { ...DEFAULT_SUN };
+  private sunLights: SunLights | null = null;
   private readonly onHoverMove = (e: PointerEvent) => {
     this.hoverAt = e.target === this.canvas && e.buttons === 0 ? { x: e.clientX, y: e.clientY } : null;
     this.hoverDirty = true;
@@ -140,7 +145,10 @@ export class GameView implements Screen {
     this.lastClick = { object: "no click yet" };
     this.canvas.addEventListener("pointerdown", this.onDown);
     this.canvas.addEventListener("pointerup", this.onUp);
+    this.sun = { ...DEFAULT_SUN };
+    this.sunLights = createSunLights(this.scene);
     this.setupHud(this.scene);
+    applySun(this.scene, this.sunLights, this.sun);
     this.unsubscribeSettings = this.settings?.subscribe((s) => this.applySettings(s)) ?? null;
     if (this.settings) this.applySettings(this.settings.get());
 
@@ -243,7 +251,7 @@ export class GameView implements Screen {
     this.staffPanel.mount(this.hud);
     this.tooltip = new Tooltip();
     this.tooltip.attach(this.hud);
-    this.devMenu = new DevMenu((m) => this.selectCamera(m), this.gameCamera !== null, (on) => { this.revealAlways = on; });
+    this.devMenu = new DevMenu((m) => this.selectCamera(m), this.gameCamera !== null, (on) => { this.revealAlways = on; }, (s) => { this.sun = s; if (this.scene && this.sunLights) applySun(this.scene, this.sunLights, s); });
     this.devMenu.mount(this.hud);
   }
 

@@ -19,6 +19,7 @@ import { PersonAnimator } from "../sim/anim/PersonAnimation.ts";
 import { registerShaders } from "./shaders.ts";
 import { makeTexture, setTextureAnisotropy } from "./textures.ts";
 import { PersonMeshes } from "./PersonMeshes.ts";
+import { SUN_LIT } from "./SunLight.ts";
 import type { MeshAsset, PersonInWorld, TerrainData, WorldData } from "./WorldData.ts";
 
 /**
@@ -51,7 +52,7 @@ function buildTerrain(scene: Scene, t: TerrainData): Mesh {
   ground.bakeCurrentTransformIntoVertices(); // the shader reads world x, z from the vertex positions
   const mat = new ShaderMaterial("terrain", scene, "otmTerrain", {
     attributes: ["position"],
-    uniforms: ["worldViewProjection", "tileSize", "pathTileSize", "pathOn"],
+    uniforms: ["worldViewProjection", "tileSize", "pathTileSize", "pathOn", "sunOn", "sunDir", "sunParams"],
     samplers: ["ground0", "ground1", "ground2", "ground3", "ground4", "ground5", "ground6", "ground7", "weightsA", "weightsB", "pathMask", "sidewalk"],
   });
   for (let i = 0; i < 8; i++) mat.setTexture(`ground${i}`, makeTexture(scene, t.groundTextures[i] ?? white));
@@ -73,6 +74,7 @@ function buildTerrain(scene: Scene, t: TerrainData): Mesh {
   mat.setFloat("pathOn", 1);
   // Models have ground patches lying exactly at height 0 (the gatehouse's, the gate's base): the same depth as the terrain, which flickers
   // as the camera moves. Push the terrain slightly back in depth so anything lying on it always wins.
+  mat.metadata = SUN_LIT;
   mat.zOffset = 2;
   mat.zOffsetUnits = 2;
   ground.material = mat;
@@ -120,7 +122,7 @@ function buildSources(scene: Scene, m: MeshAsset, caches: Caches, cut = false): 
       const base = tex(slot2), decal = tex(diffuseName);
       let dm: ShaderMaterial | null = null;
       if (base && decal) {
-        dm = new ShaderMaterial(dkey, scene, "otmDecal", { attributes: ["position", "uv", "uv2"], uniforms: ["world", "viewProjection", "cutHeight"], samplers: ["base", "decal"] });
+        dm = new ShaderMaterial(dkey, scene, "otmDecal", { attributes: ["position", "uv", "uv2", "normal"], uniforms: ["world", "viewProjection", "cutHeight"], samplers: ["base", "decal"] });
         dm.setTexture("base", base);
         dm.setTexture("decal", decal);
         dm.setFloat("cutHeight", cut ? CUT_HEIGHT : NO_CUT);
@@ -137,12 +139,13 @@ function buildSources(scene: Scene, m: MeshAsset, caches: Caches, cut = false): 
     const lightmap = lmName ? tex(lmName) : null;
     if (diffuse) {
       result = new ShaderMaterial(key, scene, "otmStatic", {
-        attributes: ["position", "uv", "uv2"],
-        uniforms: ["world", "viewProjection", "useLightmap", "cutHeight"],
+        attributes: ["position", "uv", "uv2", "normal"],
+        uniforms: ["world", "viewProjection", "useLightmap", "cutHeight", "sunOn", "sunDir", "sunParams"],
         samplers: ["diffuse", "lightmap"],
       });
       result.setTexture("diffuse", diffuse);
       result.setTexture("lightmap", lightmap ?? diffuse);
+      result.metadata = SUN_LIT;
       result.setFloat("useLightmap", lightmap ? 1 : 0);
       result.setFloat("cutHeight", cut ? CUT_HEIGHT : NO_CUT);
     }
