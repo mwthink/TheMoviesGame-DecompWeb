@@ -2,7 +2,7 @@
  * The developer menu: a panel fixed to the bottom-right of the game view for testing controls and read-only state. It is plain DOM, outside the
  * engine. Rows are added once and their text is refreshed a few times a second.
  */
-import { DEFAULT_SUN, normalizeSun, type SunSettings } from "../world/Sun.ts";
+import { DEFAULT_SHADOWS, DEFAULT_SUN, normalizeShadows, normalizeSun, type ShadowSettings, type SunSettings } from "../world/Sun.ts";
 
 export type CameraMode = "default" | "game";
 
@@ -17,7 +17,7 @@ export class DevMenu {
   private readonly radios = new Map<CameraMode, HTMLInputElement>();
   private collapsed = false;
 
-  constructor(private readonly onCamera: (mode: CameraMode) => void, gameCameraAvailable: boolean, onRevealAlways: (on: boolean) => void = () => {}, onSun: (s: SunSettings) => void = () => {}) {
+  constructor(private readonly onCamera: (mode: CameraMode) => void, gameCameraAvailable: boolean, onRevealAlways: (on: boolean) => void = () => {}, onSun: (s: SunSettings) => void = () => {}, onShadows: (s: ShadowSettings) => void = () => {}) {
     const el = document.createElement("aside");
     el.className = "devmenu";
     el.innerHTML = `<header><span>Dev menu</span><button type="button" title="Collapse">–</button></header><div class="body"></div>`;
@@ -93,6 +93,41 @@ export class DevMenu {
     slider("Ambient", "ambient", 0, 1.5, 0.05);
     slider("Baked light", "baked", 0, 2, 0.05);
     this.body.append(sunSec);
+
+    // Shadows from the sun (docs/LIGHTING.md): they show only while Sun lighting is on.
+    const shSec = document.createElement("section");
+    shSec.innerHTML = `<h4>Shadows</h4>`;
+    let shadows: ShadowSettings = { ...DEFAULT_SHADOWS };
+    const emitShadows = () => { shadows = normalizeShadows(shadows); onShadows(shadows); };
+    const shBox = document.createElement("input");
+    shBox.type = "checkbox";
+    shBox.addEventListener("change", () => { shadows.enabled = shBox.checked; emitShadows(); });
+    const shLabel = document.createElement("label");
+    shLabel.append(shBox, " Sun shadows (needs Sun lighting)");
+    shSec.append(shLabel);
+    const lowBox = document.createElement("input");
+    lowBox.type = "checkbox";
+    lowBox.addEventListener("change", () => { shadows.size = lowBox.checked ? 2048 : 4096; emitShadows(); });
+    const lowLabel = document.createElement("label");
+    lowLabel.append(lowBox, " Smaller map (2048, faster, blurrier)");
+    shSec.append(lowLabel);
+    const shSlider = (label: string, key: "darkness" | "bias", min: number, max: number, step: number) => {
+      const l = document.createElement("label");
+      l.className = "slider";
+      const out = document.createElement("output");
+      const input = document.createElement("input");
+      input.type = "range";
+      input.min = String(min); input.max = String(max); input.step = String(step);
+      input.value = String(shadows[key]);
+      const show = () => { out.textContent = Number(input.value).toFixed(2); };
+      show();
+      input.addEventListener("input", () => { shadows[key] = Number(input.value); show(); emitShadows(); });
+      l.append(`${label} `, out, input);
+      shSec.append(l);
+    };
+    shSlider("Darkness", "darkness", 0, 1, 0.05);
+    shSlider("Bias (units)", "bias", 0, 3, 0.05);
+    this.body.append(shSec);
     for (const sec of this.body.querySelectorAll<HTMLElement>("section")) this.makeCollapsible(sec);
   }
 

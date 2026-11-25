@@ -29,3 +29,39 @@ test("settings are clamped and the azimuth wraps", () => {
   assert.equal(s.baked, 2);
   assert.deepEqual(normalizeSun({}), DEFAULT_SUN);
 });
+
+import { DEFAULT_SHADOWS, normalizeShadows, shadowMatrix } from "../../src/world/Sun.ts";
+
+/** p * M for a row-vector matrix in Babylon's layout. */
+const apply = (m: number[], p: { x: number; y: number; z: number }) => ({
+  x: p.x * m[0]! + p.y * m[4]! + p.z * m[8]! + m[12]!,
+  y: p.x * m[1]! + p.y * m[5]! + p.z * m[9]! + m[13]!,
+  z: p.x * m[2]! + p.y * m[6]! + p.z * m[10]! + m[14]!,
+});
+
+test("the shadow matrix puts the whole lot inside the unit cube, with depth growing away from the sun", () => {
+  const box = { min: { x: -192, y: 0, z: -128 }, max: { x: 192, y: 45, z: 256 } };
+  const toSun = sunDirection(135, 50);
+  const { m, depthRange } = shadowMatrix(toSun, box);
+  for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
+    const p = apply(m, { x, y, z });
+    for (const v of [p.x, p.y, p.z]) assert.ok(v > -1e-9 && v < 1 + 1e-9, `corner ${x},${y},${z} -> ${p.x},${p.y},${p.z}`);
+  }
+  const low = { x: 0, y: 0, z: 0 };
+  const towardSun = { x: low.x + toSun.x * 10, y: low.y + toSun.y * 10, z: low.z + toSun.z * 10 };
+  assert.ok(apply(m, towardSun).z < apply(m, low).z); // closer to the sun = smaller depth
+  assert.ok(depthRange > 100);
+});
+
+test("a sun straight overhead still gives a usable frame", () => {
+  const { m } = shadowMatrix(sunDirection(0, 90), { min: { x: -10, y: 0, z: -10 }, max: { x: 10, y: 10, z: 10 } });
+  assert.ok(m.every((v) => Number.isFinite(v)));
+});
+
+test("shadow settings are clamped", () => {
+  assert.equal(normalizeShadows({ darkness: 7, bias: -1, size: 1000 as 2048 }).darkness, 1);
+  assert.equal(normalizeShadows({ bias: -1 }).bias, 0);
+  assert.equal(normalizeShadows({ size: 2048 }).size, 2048);
+  assert.equal(normalizeShadows({ size: 1000 as 2048 }).size, 4096);
+  assert.deepEqual(normalizeShadows({}), DEFAULT_SHADOWS);
+});

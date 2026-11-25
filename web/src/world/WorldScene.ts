@@ -18,6 +18,8 @@ import { AutoAnimator } from "../sim/anim/AutoAnimation.ts";
 import { PersonAnimator } from "../sim/anim/PersonAnimation.ts";
 import { registerShaders } from "./shaders.ts";
 import { makeTexture, setTextureAnisotropy } from "./textures.ts";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
+import type { Material } from "@babylonjs/core/Materials/material";
 import { PersonMeshes } from "./PersonMeshes.ts";
 import { SUN_LIT } from "./SunLight.ts";
 import type { MeshAsset, PersonInWorld, TerrainData, WorldData } from "./WorldData.ts";
@@ -52,8 +54,8 @@ function buildTerrain(scene: Scene, t: TerrainData): Mesh {
   ground.bakeCurrentTransformIntoVertices(); // the shader reads world x, z from the vertex positions
   const mat = new ShaderMaterial("terrain", scene, "otmTerrain", {
     attributes: ["position"],
-    uniforms: ["worldViewProjection", "tileSize", "pathTileSize", "pathOn", "sunOn", "sunDir", "sunParams"],
-    samplers: ["ground0", "ground1", "ground2", "ground3", "ground4", "ground5", "ground6", "ground7", "weightsA", "weightsB", "pathMask", "sidewalk"],
+    uniforms: ["worldViewProjection", "tileSize", "pathTileSize", "pathOn", "sunOn", "sunDir", "sunParams", "shadowMatrix", "shadowOn", "shadowParams"],
+    samplers: ["ground0", "ground1", "ground2", "ground3", "ground4", "ground5", "ground6", "ground7", "weightsA", "weightsB", "pathMask", "sidewalk", "shadowMap"],
   });
   for (let i = 0; i < 8; i++) mat.setTexture(`ground${i}`, makeTexture(scene, t.groundTextures[i] ?? white));
   const grid = (data: Uint8Array, format: number, filter: number) =>
@@ -140,12 +142,12 @@ function buildSources(scene: Scene, m: MeshAsset, caches: Caches, cut = false): 
     if (diffuse) {
       result = new ShaderMaterial(key, scene, "otmStatic", {
         attributes: ["position", "uv", "uv2", "normal"],
-        uniforms: ["world", "viewProjection", "useLightmap", "cutHeight", "sunOn", "sunDir", "sunParams"],
-        samplers: ["diffuse", "lightmap"],
+        uniforms: ["world", "viewProjection", "useLightmap", "cutHeight", "sunOn", "sunDir", "sunParams", "shadowMatrix", "shadowOn", "shadowParams"],
+        samplers: ["diffuse", "lightmap", "shadowMap"],
       });
       result.setTexture("diffuse", diffuse);
       result.setTexture("lightmap", lightmap ?? diffuse);
-      result.metadata = SUN_LIT;
+      result.metadata = { ...SUN_LIT, diffuse, cutHeight: cut ? CUT_HEIGHT : NO_CUT };
       result.setFloat("useLightmap", lightmap ? 1 : 0);
       result.setFloat("cutHeight", cut ? CUT_HEIGHT : NO_CUT);
     }
@@ -210,6 +212,9 @@ function buildPeople(scene: Scene, people: PersonInWorld[]): { nodes: TransformN
   return { nodes, step, clips: () => animated.map((a) => ({ name: a.entry.person.name, clip: a.animator.clipName, source: a.entry.plan!.source })) };
 }
 
+/** A model or person that casts shadows, with the material it is drawn with (`SunShadows.addCaster`). */
+export interface ShadowCaster { mesh: AbstractMesh; material: Material | null; }
+
 export interface BuiltWorld {
   camera: ArcRotateCamera;
   /** The buildings that have rooms, by `<source>#<id>`: the normal instances (enabled) and the cutaway ones (disabled until the building is hovered). */
@@ -219,6 +224,8 @@ export interface BuiltWorld {
    * it is deliberately independent of the game clock, as in the original (`AutoAnimation.ts`).
    */
   stepAutoAnimations(dtMs: number): void;
+  /** Every placed model instance and every part of every person: what casts the sun's shadow. */
+  shadowCasters: ShadowCaster[];
   /** One node per person drawn. */
   people: TransformNode[];
   /** Move every person's animation on by `dtMs` of game time (0 = paused: nothing moves). */
@@ -242,6 +249,7 @@ export function buildWorld(scene: Scene, canvas: HTMLCanvasElement, world: World
   const cutSources = new Map<MeshAsset, Mesh[]>();
   for (const mesh of world.meshes) if (mesh.rooms.some((r) => r.lines.length)) cutSources.set(mesh, buildSources(scene, mesh, caches, true));
   const instances = new Map<string, { full: InstancedMesh[]; cut: InstancedMesh[] }>();
+  const shadowCasters: ShadowCaster[] = [];
   const framed: [number, number][] = [];
   for (const { asset, mesh, scale } of world.placements) {
     const [x, y, z] = asset.position;
@@ -256,6 +264,7 @@ export function buildWorld(scene: Scene, canvas: HTMLCanvasElement, world: World
       inst.metadata = { cls: asset.cls, id: asset.id, source: asset.source, model: mesh.name, position: asset.position, angle: asset.angle, key, rooms: mesh.rooms };
       inst.freezeWorldMatrix(); // placed objects do not move
       if (cutaway) inst.setEnabled(false); // shown while the building is hovered
+      shadowCasters.push({ mesh: inst, material: source.material });
       return inst;
     };
     const full = sources.get(mesh)!.map((source, i) => place(source, `${key}/${i}`, false));
@@ -312,5 +321,6 @@ export function buildWorld(scene: Scene, canvas: HTMLCanvasElement, world: World
   camera.panningSensibility = 60;
   camera.attachControl(canvas, true);
   const built = buildPeople(scene, world.people);
-  return { camera, instances, stepAutoAnimations, autoAnimated, people: built.nodes, stepPeople: built.step, peopleClips: built.clips };
+  for (const node of built.nodes) for (const part of node.getChildMeshes()) shadowCasters.push({ mesh: part, material: null });
+  return { camera, instances, shadowCasters, stepAutoAnimations, autoAnimated, people: built.nodes, stepPeople: built.step, peopleClips: built.clips };
 }

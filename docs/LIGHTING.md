@@ -19,3 +19,24 @@ unchanged. People switch from unlit to Babylon lighting (a directional sun and a
 - The baked lightmaps already contain the sun's direction and shadows, so with the sun on there are two sets of shading; lowering **Baked light** hides the baked one.
 - No shadows (casters, receivers and cascades are the next stage), the flag cloth and room floors are not sun-lit, and alpha-cut leaves have flat normals as the models give them.
 - The shading is a guess at a pleasant model, not the game's.
+
+## Shadows (dev menu, "Shadows")
+
+With **Sun lighting** on, **Sun shadows** adds a shadow map (`web/src/world/SunShadows.ts`, the frustum maths in `Sun.ts`):
+
+- **One orthographic map around the whole lot** (4096 texels, or 2048 with "Smaller map"), seen along the sun; it is redrawn every other frame because people and flags move. The lot
+  is about 400 x 400 units, so a texel is about a tenth of a unit and a person's shadow is a few texels wide. Cascades (a close-up map near the camera) are the next step if that is
+  too soft.
+- **Casters:** every placed model instance and every part of every person. Each caster's material gets a depth twin (`otmDepth`) with the same diffuse texture, so leaves and hair are
+  alpha-tested and a cutaway model drops its roof. The depth is packed into the four bytes of an ordinary RGBA texture (no float texture needed).
+- **Receivers:** the terrain and the static models (`shadowFactor` in `shaders.ts`: a 3 x 3 filtered compare). **People do not receive shadows yet** (they are lit by Babylon lights, not our shaders).
+- **How it shades:** `colour = diffuse * ((baked * lightmap + ambient) * (1 - darkness * (1 - shadow)) + strength * normal.sun * shadow)`: a shadowed surface loses the sun's
+  part and a share (`Darkness`) of the ambient and baked light, so shadows show even with the baked lightmaps on. **Bias (units)** stops surfaces shadowing themselves.
+- **Checked:** the render path was tested end to end in a browser with a ground quad and a slab: the shadow fell where the sun direction says and nothing else changed; the full lot has
+  not been timed.
+
+### Known limits
+
+- The baked shadows in the lightmaps are still there, so a building has its baked shadow and the live one; lower **Baked light** to see only the live one.
+- Slanted surfaces can show acne or peter-panning at the wrong bias; one bias for the whole lot is a compromise.
+- Cost: the lot is drawn a second time from the sun every other frame. If that is too slow, use the smaller map, or limit casters to people and buildings.

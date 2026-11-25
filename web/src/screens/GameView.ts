@@ -23,7 +23,8 @@ import { GameToolbar } from "../ui/GameToolbar.ts";
 import { StaffPanel } from "../ui/StaffPanel.ts";
 import { Tooltip } from "../ui/Tooltip.ts";
 import { applySun, createSunLights, type SunLights } from "../world/SunLight.ts";
-import { DEFAULT_SUN, type SunSettings } from "../world/Sun.ts";
+import { DEFAULT_SHADOWS, DEFAULT_SUN, type ShadowSettings, type SunSettings } from "../world/Sun.ts";
+import { SunShadows } from "../world/SunShadows.ts";
 import { FxaaPostProcess } from "@babylonjs/core/PostProcesses/fxaaPostProcess";
 import type { Settings, SettingsStore } from "../settings/Settings.ts";
 import { GameClock, SPEED_FACTOR, type GameSpeed } from "../sim/core/GameClock.ts";
@@ -76,6 +77,8 @@ export class GameView implements Screen {
   /** The dev menu's sun (docs/LIGHTING.md) and the lights that light the people. */
   private sun: SunSettings = { ...DEFAULT_SUN };
   private sunLights: SunLights | null = null;
+  private shadowSettings: ShadowSettings = { ...DEFAULT_SHADOWS };
+  private shadows: SunShadows | null = null;
   private readonly onHoverMove = (e: PointerEvent) => {
     this.hoverAt = e.target === this.canvas && e.buttons === 0 ? { x: e.clientX, y: e.clientY } : null;
     this.hoverDirty = true;
@@ -125,11 +128,14 @@ export class GameView implements Screen {
           footprint: p.mesh.msh.chunks.b15_02 ?? null,
         }));
       this.stepAutoAnimations = built.stepAutoAnimations;
+      this.shadows = new SunShadows(this.scene, { min: { x: -192, y: 0, z: -128 }, max: { x: 192, y: 45, z: 256 } }, this.shadowSettings.size);
+      for (const c of built.shadowCasters) this.shadows.addCaster(c.mesh, c.material);
       this.stepPeople = built.stepPeople;
       this.peopleClips = built.peopleClips;
       this.autoAnimated = built.autoAnimated;
     } else {
       this.stepAutoAnimations = null;
+      this.shadows = null;
       this.stepPeople = null;
       this.peopleClips = null;
       this.autoAnimated = [];
@@ -146,6 +152,7 @@ export class GameView implements Screen {
     this.canvas.addEventListener("pointerdown", this.onDown);
     this.canvas.addEventListener("pointerup", this.onUp);
     this.sun = { ...DEFAULT_SUN };
+    this.shadowSettings = { ...DEFAULT_SHADOWS };
     this.sunLights = createSunLights(this.scene);
     this.setupHud(this.scene);
     applySun(this.scene, this.sunLights, this.sun);
@@ -214,6 +221,7 @@ export class GameView implements Screen {
     this.tooltip?.dispose();
     this.hud?.remove();
     this.stepAutoAnimations = null;
+    this.shadows = null;
     this.stepPeople = null;
     this.peopleClips = null;
     this.hud = this.devMenu = this.menuBar = this.fpsEl = null;
@@ -251,7 +259,7 @@ export class GameView implements Screen {
     this.staffPanel.mount(this.hud);
     this.tooltip = new Tooltip();
     this.tooltip.attach(this.hud);
-    this.devMenu = new DevMenu((m) => this.selectCamera(m), this.gameCamera !== null, (on) => { this.revealAlways = on; }, (s) => { this.sun = s; if (this.scene && this.sunLights) applySun(this.scene, this.sunLights, s); });
+    this.devMenu = new DevMenu((m) => this.selectCamera(m), this.gameCamera !== null, (on) => { this.revealAlways = on; }, (s) => { this.sun = s; if (this.scene && this.sunLights) applySun(this.scene, this.sunLights, s); this.shadows?.update(this.sun, this.shadowSettings); }, (s) => { this.shadowSettings = s; this.shadows?.update(this.sun, s); });
     this.devMenu.mount(this.hud);
   }
 

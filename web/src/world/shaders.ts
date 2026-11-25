@@ -6,6 +6,24 @@ import "@babylonjs/core/Shaders/ShadersInclude/instancesVertex";
  * The game's materials are fixed-function Direct3D 9 texture stages, so these are small unlit shaders that do the same arithmetic
  * (no engine lighting): lighting is baked into lightmaps and vertex-blended ground.
  */
+/** Shadow lookup shared by the shaders that receive the sun's shadows (docs/LIGHTING.md). The map holds depth packed into four bytes. */
+const SHADOW_FUNCTIONS = `
+    uniform sampler2D shadowMap;
+    uniform float shadowOn;
+    uniform vec3 shadowParams;
+    float unpackDepth(vec4 c) { return dot(c, vec4(1.0, 1.0 / 255.0, 1.0 / 65025.0, 1.0 / 16581375.0)); }
+    float shadowFactor(vec3 s) {
+      if (shadowOn < 0.5 || s.x < 0.0 || s.x > 1.0 || s.y < 0.0 || s.y > 1.0 || s.z > 1.0) return 1.0;
+      float sum = 0.0;
+      for (int i = -1; i <= 1; i++) {
+        for (int j = -1; j <= 1; j++) {
+          float stored = unpackDepth(texture2D(shadowMap, s.xy + vec2(float(i), float(j)) * shadowParams.z));
+          sum += (s.z - shadowParams.x <= stored) ? 1.0 : 0.0;
+        }
+      }
+      return sum / 9.0;
+    }`;
+
 export function registerShaders(): void {
   if (Effect.ShadersStore["otmTerrainVertexShader"]) return;
 
@@ -14,14 +32,19 @@ export function registerShaders(): void {
   Effect.ShadersStore["otmTerrainVertexShader"] = `
     attribute vec3 position;
     uniform mat4 worldViewProjection;
+    uniform mat4 shadowMatrix;
     varying vec2 vXZ;
+    varying vec3 vShadow;
     void main() {
       vXZ = position.xz;
+      vShadow = (shadowMatrix * vec4(position, 1.0)).xyz;
       gl_Position = worldViewProjection * vec4(position, 1.0);
     }`;
   Effect.ShadersStore["otmTerrainFragmentShader"] = `
     precision highp float;
     varying vec2 vXZ;
+    varying vec3 vShadow;
+    ${SHADOW_FUNCTIONS}
     uniform sampler2D ground0; uniform sampler2D ground1; uniform sampler2D ground2; uniform sampler2D ground3;
     uniform sampler2D ground4; uniform sampler2D ground5; uniform sampler2D ground6; uniform sampler2D ground7;
     uniform sampler2D weightsA; uniform sampler2D weightsB; uniform sampler2D pathMask; uniform sampler2D sidewalk;
@@ -45,7 +68,10 @@ export function registerShaders(): void {
       float path = texture2D(pathMask, (floor(cell) + 0.5) / 256.0).r * pathOn;
       vec3 paved = texture2D(sidewalk, vXZ / pathTileSize).rgb;
       vec3 col = mix(c, paved, path);
-      if (sunOn > 0.5) col *= sunParams.z + sunParams.y + sunParams.x * max(sunDir.y, 0.0); 
+      if (sunOn > 0.5) {
+        float sh = shadowFactor(vShadow);
+        col *= (sunParams.z + sunParams.y) * (1.0 - shadowParams.y * (1.0 - sh)) + sunParams.x * max(sunDir.y, 0.0) * sh;
+      }
       gl_FragColor = vec4(min(col, vec3(1.0)), 1.0);
     }`;
 
@@ -57,13 +83,16 @@ export function registerShaders(): void {
     attribute vec3 normal;
     #include<instancesDeclaration>
     uniform mat4 viewProjection;
+    uniform mat4 shadowMatrix;
     varying vec2 vUV;
     varying vec2 vUV2;
     varying float vY;
     varying vec3 vNormal;
+    varying vec3 vShadow;
     void main() {
       #include<instancesVertex>
       vNormal = mat3(finalWorld) * normal;
+      vShadow = (shadowMatrix * finalWorld * vec4(position, 1.0)).xyz;
       vUV = uv;
       vUV2 = uv2;
       vY = (finalWorld * vec4(position, 1.0)).y;
@@ -77,6 +106,8 @@ export function registerShaders(): void {
     varying vec2 vUV2;
     varying float vY;
     varying vec3 vNormal;
+    varying vec3 vShadow;
+    ${SHADOW_FUNCTIONS}
     uniform float cutHeight;
     uniform sampler2D diffuse;
     uniform sampler2D lightmap;
@@ -92,9 +123,47 @@ export function registerShaders(): void {
       if (sunOn > 0.5) {
         vec3 lm = useLightmap > 0.5 ? texture2D(lightmap, vUV2).rgb * (255.0 / 127.0) : vec3(1.0);
         float ndl = max(dot(normalize(vNormal), sunDir), 0.0);
-        c *= sunParams.z * lm + sunParams.y + sunParams.x * ndl;
+        float sh = shadowFactor(vShadow);
+        c *= (sunParams.z * lm + sunParams.y) * (1.0 - shadowParams.y * (1.0 - sh)) + sunParams.x * ndl * sh;
       } else if (useLightmap > 0.5) c *= texture2D(lightmap, vUV2).rgb * (255.0 / 127.0);
       gl_FragColor = vec4(min(c, vec3(1.0)), 1.0);
+    }`;
+  // Shadow map pass: the depth of each caster as seen from the sun, packed into four bytes. A caster with a diffuse texture is alpha tested like the main pass,
+  // and a cut model drops what is above its cut height.
+  Effect.ShadersStore["otmDepthVertexShader"] = `
+    attribute vec3 position;
+    attribute vec2 uv;
+    #include<instancesDeclaration>
+    uniform mat4 shadowMatrix;
+    varying vec2 vUV;
+    varying float vY;
+    varying float vDepth;
+    void main() {
+      #include<instancesVertex>
+      vec4 wp = finalWorld * vec4(position, 1.0);
+      vec3 s = (shadowMatrix * wp).xyz;
+      vUV = uv;
+      vY = wp.y;
+      vDepth = s.z;
+      gl_Position = vec4(s.xy * 2.0 - 1.0, s.z * 2.0 - 1.0, 1.0);
+    }`;
+  Effect.ShadersStore["otmDepthFragmentShader"] = `
+    precision highp float;
+    varying vec2 vUV;
+    varying float vY;
+    varying float vDepth;
+    uniform sampler2D diffuse;
+    uniform float cutHeight;
+    uniform float alphaTest;
+    vec4 packDepth(float d) {
+      vec4 enc = fract(d * vec4(1.0, 255.0, 65025.0, 16581375.0));
+      enc -= enc.yzww * vec4(1.0 / 255.0, 1.0 / 255.0, 1.0 / 255.0, 0.0);
+      return enc;
+    }
+    void main() {
+      if (vY > cutHeight) discard;
+      if (alphaTest > 0.5 && texture2D(diffuse, vUV).a < 0.5) discard;
+      gl_FragColor = packDepth(clamp(vDepth, 0.0, 0.999999));
     }`;
   // Two-layer material (the gate's flag): a base texture (the cloth) with a second texture (the studio logo) laid over it by its alpha. The cloth uses the second UV set, the logo the first (clamped).
   Effect.ShadersStore["otmDecalFragmentShader"] = `
