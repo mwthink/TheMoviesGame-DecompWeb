@@ -220,6 +220,28 @@ match calls `FUN_007a3110` on the event's icon.
 `Timeline_InterpolateGenreColumnsAtDate` (`00a1db90`) loads a per-genre `.sm` data file next to the timeline entry and builds display values from it
 (`field[0x2d]*47+18`, `(1-field[5])*0.5*40+60`, and about 20 more fields). What the fields mean is not known.
 
+### Timeline icons: where they come from and where they sit
+
+**Source [read].** Every icon is made from a `CNodule` kept in one global list (`DAT_0104e7c4`). `Timeline_CreateNoduleIcons` (`0079dc00`) and
+`Timeline_UpdateNoduleIcons` (`007a14a0`) walk the list and make one icon per nodule by its class: `CNoduleEvent` gives `WTimelineEventIcon` (a world event),
+`CNoduleMovie` the movie icon, `CNoduleResearchPack`, `CNodulePress`, `CNoduleQuit` and `CNoduleRetire` their own icons. The world events are the only ones
+read from a file: `FUN_0078f5b0` loads `data/rule/timeline.csv`, and `FUN_0078f400` keeps the rows whose name starts `timeline_`, the date being the second
+column. The other kinds are made by the game as things happen (releases, award dates, a star quitting or retiring, research packs). `CNoduleEvent_GetName`
+(`0078f190`) upper-cases the row name into the `TIMELINE_<NAME>` bank tag.
+
+**Position [read].** An icon's x depends only on its date, not on the order of the events. `CNoduleEvent_SpawnOrUpdateIcon` (`0079ef30`) sets it each update to
+`FUN_00793f50(date) - 16`. With `y` the event date minus the current game time in years (`Time_ToYears` of `Time_Minus` against the global clock at
+`DAT_00e4fa4c`, written when a game starts or loads and by the clock update), `x0 = 128 + L` (`L` the timeline window's left anchor value, `+0xC0`; the right
+anchor value is `R`, `+0x108`; `CLASS_NOTES.md`):
+
+- `y >= 0` (future): `f = (1 - (y+1)^-0.5) / (1 - 21^-0.5)` and `x = x0 + (R - x0) * f`.
+- `y < 0` (past): `f = (1 - (1-y)^-0.5) / (1 - 2^-0.5)` and `x = x0 - (x0 - L) * f`.
+- `f > 1` (more than 20 years ahead or 1 year back): no position; the function returns -1 and the icon is put at x = -32. The result is rounded to a whole pixel.
+
+So "now" sits 128 px in from the left edge, the bar shows 1 year back and 20 years ahead, and the scale is not linear: the share of the future span used is 13.5%
+at 0.25 years, 23.5% at 0.5, 37.5% at 1, 54% at 2, 64% at 3, 89% at 10. The news windows above (1.5 to 2 years ahead) fall at about 47% to 54% of the span.
+**[inferred]** that the constants are years because the function is `Time_ToYears`; they were not logged from the running game.
+
 ## Not known
 
 - How the radio picks tracks exactly (genre weights, random mode), what makes the `_INTRO` flag (`+0x24C`) set, and what the front end plays in state 4 (the `frontend_loop.wmv` soundtrack is the likely source).
