@@ -71,6 +71,19 @@ A real-time character drawn on a transparent canvas **between the background and
 Not done: the real loading screen does not use the 3D character yet (only the lab does), it does not load the character in the background while the world loads, and hair, makeup and costume layers are
 as simple as in the viewer.
 
+## New loading scenes (option)
+
+**Options > Game > "New loading screens"** (`newLoadingScreens`, off by default: the original's pictures are the parity behaviour). When on, `LoadingScreen` replaces the picture with a
+*scene* (`web/src/screens/loadingScenes.ts`, plain data, test `web/tests/loadingScenes.test.ts`): a `LoadingScene` is a name, a `CharacterSettings` (costume, optional pasted `look`, clip, side, size,
+nudge, turn, and `frame`) and a flat backdrop colour. The same `LoadingCharacter` as the lab draws the person on a transparent canvas behind the same text box, tip and bar (`LoadingView`).
+
+- **Full window:** the colour and the character's canvas fill the whole window (the picture's 4:3 shape was only the original's hard-coded image); the character stands at a quarter or three quarters of the window's width and is sized by the window's height, while the tip box keeps the picture's square layout, centred.
+- **`frame`** holds the clip at one frame (a stored frame number; fractions blend two) and skins the character once; left out, the clip loops. The scenes ("standing, left" and "standing, right", turn 45 on the left, which faces the camera, and 75 on the right, to face the middle) hold `idle_male.anm` at frame 0.
+- **Choosing one while tuning:** add `?loadingScene=right` (any part of a scene name) to the page address to see only the scenes named so.
+- **Fallback:** the scene needs the game's archives and its costume and clip; if the character cannot be built, the original random picture is used, as it is while nothing is linked.
+- **Not done:** more scenes and a way to capture one from the character viewer, a real backdrop (picture, gradient, blurred set) in place of the flat colour, the logo, looping scenes' effect on load time (unmeasured), and
+  loading the character before the first load (the very first screen of a session can be before the archives are linked).
+
 ## Ideas for our own loading screens
 
 The original's design is "one random cinematic picture plus a thin bar". Directions that fit a movie-making game and the app's data (the loader already

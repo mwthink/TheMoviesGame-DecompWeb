@@ -18,6 +18,8 @@ export interface CharacterSettings {
   /** The costume file (`m_50s_2.cos`) and the animation clip (`idle_male.anm`). */
   costume: string;
   clip: string;
+  /** The animation frame to hold the character at (a stored frame number of the clip, fractions blend two frames); left out, the clip loops. */
+  frame?: number;
   /** A whole look pasted from a character string (head, hair, age, weight, costume variants); when set its costume is the one drawn. */
   look?: CharacterLook;
 }

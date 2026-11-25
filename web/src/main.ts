@@ -55,7 +55,7 @@ function loadWorld(task: LoadTask<WorldData>, back: (message: string) => void = 
     audio.newGameLoaded();
     // the loading music runs until the loading screen is gone, then the radio (already holding its place under it) comes back
     void gameView.ready.then(() => { loading.exit(); syncAudio("game"); });
-  }, back);
+  }, back, settings.get().newLoadingScreens);
   present("loading", loading);
 }
 

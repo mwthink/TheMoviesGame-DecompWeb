@@ -33,6 +33,7 @@ Reached from the main menu and, over the running game, from the pause menu (`Pau
 | Graphics | Show frames per second | a small counter below the menu bar | - |
 | Graphics | Full screen | the browser's Fullscreen API (not stored: the browser decides) | `Fullscreen` |
 | Game | Level of help | "no extra assistance" turns tooltips off (`Tooltip.setEnabled`); the other levels are the same for now | level of help |
+| Game | New loading screens | a 3D character on a flat colour behind the tip box instead of the original's picture (`LOADING_SCREENS.md`, "New loading scenes"); not the original's | new loading screens |
 
 Not offered, because there is nothing behind them yet: speaker set-up, PA and radio options, autosave (no saving), colour depth (a browser has one),
 screen size in pixels (the window is the size).

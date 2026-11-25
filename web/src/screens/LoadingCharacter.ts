@@ -28,13 +28,15 @@ export class LoadingCharacter {
   private model: PersonModel | null = null;
   private clip: Anm | null = null;
   private timeMs = 0;
+  /** True once the held frame (`settings.frame`) has been posed, so a still character is skinned once rather than every tick. */
+  private posed = false;
   private settings: CharacterSettings = { ...DEFAULT_CHARACTER };
   private token = 0;
   private readonly builder: PersonModelBuilder;
   private readonly textures = new Map<string, Promise<Rgba | null>>();
   private readonly observer: ResizeObserver;
 
-  /** `before` is the element the canvas goes in front of (the text box), so the character is drawn behind the text. */
+  /** `before` is the element the canvas goes in front of (the text box), so the character is drawn behind the text. `parent` is the picture's square in the lab, or the whole window in a scene. */
   constructor(private readonly pak: PakIndex, parent: HTMLElement, before: Element | null = null) {
     this.canvas = document.createElement("canvas");
     this.canvas.className = "char3d";
@@ -92,8 +94,10 @@ export class LoadingCharacter {
     this.camera.orthoBottom = -f.halfHeight;
     this.camera.orthoLeft = -f.halfHeight * aspect;
     this.camera.orthoRight = f.halfHeight * aspect;
-    this.camera.position.set(f.lookX, f.lookY, -10);
-    this.camera.setTarget(new Vector3(f.lookX, f.lookY, 0));
+    // the framing's sideways position is a share of the width of a square picture; on a wider canvas the same share is `aspect` times as far
+    const lookX = f.lookX * aspect;
+    this.camera.position.set(lookX, f.lookY, -10);
+    this.camera.setTarget(new Vector3(lookX, f.lookY, 0));
   }
 
   /** Apply settings. A new costume or clip is loaded; the rest takes effect at once. */
@@ -106,6 +110,8 @@ export class LoadingCharacter {
     if (!s.enabled) return;
     if (!this.model || s.costume !== old.costume || s.look !== old.look) await this.build();
     if (!this.clip || s.clip !== old.clip) await this.loadClip();
+    this.posed = false;
+    this.tick(0); // pose it now, so a screen that shows it on the next line never sees the unposed model
   }
 
   private async build(): Promise<void> {
@@ -136,15 +142,26 @@ export class LoadingCharacter {
     if (this.model && !clipFits(this.model.skeleton, clip)) return;
     this.clip = clip;
     this.timeMs = 0;
+    this.posed = false;
   }
 
   /** Advance the clip and re-skin. */
   private tick(dtMs: number): void {
     if (!this.model || !this.meshes || !this.clip || !this.settings.enabled) return;
-    this.timeMs = (this.timeMs + dtMs) % anmDurationMs(this.clip);
     const sk = this.model.skeleton;
+    const held = this.settings.frame;
+    if (held !== undefined) {
+      if (this.posed) return;
+      this.posed = true;
+      this.meshes.applyPose(skinTransforms(sk, poseBones(sk, this.clip, Math.min(Math.max(0, held), this.clip.nFrames - 1), "absolute")));
+      return;
+    }
+    this.timeMs = (this.timeMs + dtMs) % anmDurationMs(this.clip);
     this.meshes.applyPose(skinTransforms(sk, poseBones(sk, this.clip, anmFramePosition(this.clip, this.timeMs), "absolute")));
   }
+
+  /** True once a person is built and posed, so a screen can wait for it before showing the scene. */
+  get ready(): boolean { return this.model !== null && this.clip !== null && (this.settings.frame === undefined || this.posed); }
 
   dispose(): void {
     this.token++;

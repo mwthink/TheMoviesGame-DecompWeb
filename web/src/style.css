@@ -284,6 +284,9 @@ body[data-screen="game"] .devmenu { bottom: 70px; }
 .loadpic.bg-dark { background: radial-gradient(ellipse at 50% 40%, #1d1d2a 0%, #07070b 75%); }
 .loadpic.bg-dark .picture { visibility: hidden; }
 .loadpic { overflow: hidden; }
+/* new loading scenes: the character's canvas is a layer of the whole screen, behind the centred box layout */
+.loading.scene > .char3d { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.loading.scene > .loadpic { position: relative; }
 
 /* Dev menu: the shadow map viewer. */
 .devmenu canvas.shadowview { width: 100%; image-rendering: pixelated; background: #000; margin-top: 4px; }

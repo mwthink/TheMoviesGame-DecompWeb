@@ -116,6 +116,11 @@ export class LoadingView {
     button.focus();
   }
 
+  /** A flat backdrop colour (CSS) in place of the picture, for the new loading scenes; null returns to the layout's background. */
+  setBackdrop(colour: string | null): void {
+    this.element.style.background = colour ?? "";
+  }
+
   /** The element layers go in front of: the text box. Things put before it are drawn behind the text. */
   get boxElement(): HTMLElement { return this.box; }
 

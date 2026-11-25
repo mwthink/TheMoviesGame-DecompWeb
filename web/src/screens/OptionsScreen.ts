@@ -57,6 +57,7 @@ export class OptionsScreen implements Screen {
           <legend>Game</legend>
           <label>Level of help <select data-key="helpLevel">${HELP_LEVELS.map((v) => option(v, HELP_LABELS[v], v === s.helpLevel)).join("")}</select></label>
           <p class="hint">With no extra assistance the tooltips are turned off.</p>
+          <label class="check"><input type="checkbox" data-key="newLoadingScreens"${s.newLoadingScreens ? " checked" : ""}> New loading screens (a 3D character, not the original's pictures)</label>
         </fieldset>
       </div>
       <div class="actions"><button type="button" data-reset>Defaults</button><button type="button" data-back>Back</button></div>`;

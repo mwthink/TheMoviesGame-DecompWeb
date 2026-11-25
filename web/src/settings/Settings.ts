@@ -30,9 +30,11 @@ export interface Settings {
   musicVolume: number;
   /** Sound-effects level, same steps: mixer channel 2 (`Volume 2`, default 1). */
   soundVolume: number;
+  /** Loading screens built from a 3D character in front of a plain colour (`loadingScenes.ts`) instead of the original's pictures. Not what the original does. */
+  newLoadingScreens: boolean;
 }
 
-export const DEFAULT_SETTINGS: Readonly<Settings> = { renderScale: 1, anisotropy: 4, smoothEdges: true, multisampling: false, smoothAnimation: false, showFps: false, helpLevel: "max", musicVolume: 1, soundVolume: 1 };
+export const DEFAULT_SETTINGS: Readonly<Settings> = { renderScale: 1, anisotropy: 4, smoothEdges: true, multisampling: false, smoothAnimation: false, showFps: false, helpLevel: "max", musicVolume: 1, soundVolume: 1, newLoadingScreens: false };
 
 export const ANISOTROPY_CHOICES = [1, 2, 4, 8, 16] as const;
 /** The volume steps the original's buttons make (`ExternMusicVolUp` and friends: +-0.1). */
@@ -62,6 +64,7 @@ export function normalizeSettings(raw: unknown): Settings {
     helpLevel: HELP_LEVELS.includes(o.helpLevel as HelpLevel) ? (o.helpLevel as HelpLevel) : d.helpLevel,
     musicVolume: volume(num(o.musicVolume, d.musicVolume)),
     soundVolume: volume(num(o.soundVolume, d.soundVolume)),
+    newLoadingScreens: typeof o.newLoadingScreens === "boolean" ? o.newLoadingScreens : d.newLoadingScreens,
   };
 }
 
