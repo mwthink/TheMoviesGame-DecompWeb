@@ -28,7 +28,7 @@ first, bugs included, then improve on it.
 web/        the game: TypeScript, Babylon.js, Vite (docs/WEB.md); web/src/sim/ is the simulation (docs/REIMPLEMENTATION.md)
 docs/       the documents above; docs/generated/ is local only
 tools/      Python analysis and extraction tools (docs/SETUP.md lists them by task); tools/winbox/ drives the Windows test box; tools/wine/ patches the exe for CrossOver
-ghidra/     Ghidra scripts: apply names, export, fingerprints, targeted decompiles (the Ghidra projects themselves are local)
+ghidra/     Ghidra scripts: apply names, export, fingerprints, targeted decompiles (the Ghidra projects themselves are local, in `data/ghidra/`)
 debugger/   TheMoviesDebugger: an injected DLL and injector (MSVC x86) that hooks, logs and traces the running original
 viewer/     a three.js character viewer (viewer/data is generated, local only)
 renames.csv, tools/ghidra_names.csv     function names and their evidence: the record of the naming work

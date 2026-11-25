@@ -38,15 +38,36 @@ tests find those by what they are: an all-default male star and one with nine fa
 
 | What | Where | Rebuilt by |
 |---|---|---|
-| Ghidra project for `MoviesSE.exe` | outside the repo | import the exe, auto-analyse, then `ApplyNames.java` with `tools/ghidra_names.csv` (`ANALYSIS_TOOLS.md`) |
-| Ghidra project for `StarMaker.exe` | outside the repo | the same with `tools/starmaker_names.csv` (`STARMAKER.md` section 2) |
+| Ghidra project for `MoviesSE.exe` | `data/ghidra/MoviesSE/` (project `TheMovies`) | "Rebuilding the Ghidra projects" below |
+| Ghidra project for `StarMaker.exe` | `data/ghidra/StarMaker/` (project `StarMaker`) | the same, with `tools/starmaker_names.csv` |
 | Decompiler export | `data/ExportDecompiled/`, `data/ExportDecompiledStarMaker/` | `ghidra/scripts/ExportDecompiled.java` |
 | Extracted game files | `data/game_data/` | `tools/pak_extract.py`, `tools/fetch_assets.py` |
 | Runtime logs (traces, `decade_log.csv`, screenshots) | `data/runtime/<run>/` | a run on the box or under Wine (`tools/winbox/mac/pull_logs.sh`) |
 | Generated reports | `docs/generated/` | the tools in `ANALYSIS_TOOLS.md` (`rtti_dump.py`, `attribute_classes.py`, `progress.py`, ...) |
 | Character viewer data | `viewer/data/` | `tools/export_person.py`, `tools/export_character.py` (`ANM_FORMAT.md`) |
 
-`tools/ghidra_names.csv` and `renames.csv` are the record of the naming work: keep them current, and back up a Ghidra project (`cp -R`) before applying names to it.
+`tools/ghidra_names.csv` and `renames.csv` are the record of the naming work: keep them current, and back up an existing Ghidra project (`cp -R`) before applying names to it.
+
+## Rebuilding the Ghidra projects
+
+From the repository root, with `<ghidra>` the Ghidra 12.x install folder and `<game>` the folder holding the executables. Each project is rebuilt from the
+binary plus the names CSV; nothing else is needed. The first command of each pair imports and auto-analyses (about 18 minutes for `MoviesSE.exe`, 3 for
+`StarMaker.exe`; headless Ghidra prints nothing while it works and the project stays small until it saves at the end).
+
+```
+mkdir -p data/ghidra/MoviesSE data/ghidra/StarMaker
+<ghidra>/support/analyzeHeadless data/ghidra/MoviesSE TheMovies -import "<game>/MoviesSE.exe"
+<ghidra>/support/analyzeHeadless data/ghidra/MoviesSE TheMovies -process MoviesSE.exe -noanalysis -scriptPath ghidra/scripts \
+    -postScript ApplyNames.java "$PWD/tools/ghidra_names.csv" create
+
+<ghidra>/support/analyzeHeadless data/ghidra/StarMaker StarMaker -import "<game>/StarMaker.exe"
+<ghidra>/support/analyzeHeadless data/ghidra/StarMaker StarMaker -process StarMaker.exe -noanalysis -scriptPath ghidra/scripts \
+    -postScript ApplyNames.java "$PWD/tools/starmaker_names.csv"
+```
+
+Check each with the same `ApplyNames.java` command plus `dry` appended: it should report `renamed(would)=0`. For `MoviesSE.exe` that is about 30,300 names
+already correct and one address (`CStar_GetMoodAnimationName`, 0x58F540) with no function; for `StarMaker.exe` 1,317 of 1,317. The two `Invalid PNG data`
+errors in the `MoviesSE.exe` import log are harmless. `ApplyNames.java` and the `create` option are described in `ANALYSIS_TOOLS.md`.
 
 ## Tools by task
 

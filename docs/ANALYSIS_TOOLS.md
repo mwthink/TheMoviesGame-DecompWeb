@@ -10,8 +10,10 @@ the game). Regenerate rather than copy.
 an agent chose. A Ghidra project can be rebuilt from the binary plus these two files, so they, not the project, are what must not be lost.
 
 - **Apply names to a project**: `ghidra/scripts/ApplyNames.java` (headless:
-  `analyzeHeadless <projectDir> TheMovies -process MoviesSE.exe -noanalysis -scriptPath ghidra/scripts -postScript ApplyNames.java <abs path to tools/ghidra_names.csv> [dry]`).
-  Copy the project first (`cp -R`), dry-run, apply, and check that a second dry run reports 0 changes.
+  `analyzeHeadless data/ghidra/MoviesSE TheMovies -process MoviesSE.exe -noanalysis -scriptPath ghidra/scripts -postScript ApplyNames.java <abs path to tools/ghidra_names.csv> [dry] [create]`).
+  Copy an existing project first (`cp -R`), dry-run, apply, and check that a second dry run reports 0 changes. On a freshly analysed project add `create`: about
+  1,280 named addresses have no function after auto-analysis, and `create` makes them (a dry run never creates, so it still lists them). One address
+  (`CStar_GetMoodAnimationName`, 0x58F540) stays without a function after that.
 - **Refresh the CSV from a project**: export the function list (`name at address` lines) and convert it to `tools/ghidra_names.csv`, then run
   `tools/rename_priority.py`.
 - **Export the decompiled C** for grep: `ghidra/scripts/ExportDecompiled.java` writes `data/ExportDecompiled/` (`index.csv` plus `decomp_NNNN.c`). Re-export after

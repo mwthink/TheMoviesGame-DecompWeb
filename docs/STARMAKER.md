@@ -30,12 +30,12 @@ Items are marked **[read]** (read in the decompiled code or disassembly), **[dat
 
 ## 2. How the analysis was done (reproducible)
 
-Ghidra 12.1.2 headless, with StarMaker in a Ghidra project of its own (outside the repo, `<starmaker project>` below), so the main project is not touched. Scripts in `ghidra/scripts/`:
+Ghidra 12.1.2 headless, with StarMaker in a Ghidra project of its own (`data/ghidra/StarMaker`, project name `StarMaker`; `SETUP.md` builds it), so the main project is not touched. Scripts in `ghidra/scripts/`:
 
 ```
-analyzeHeadless <starmaker project> StarMaker -import "<game>/StarMaker.exe" -scriptPath ghidra/scripts -postScript FunctionHashes.java <out.tsv>
-analyzeHeadless <main project dir> TheMovies -process MoviesSE.exe -noanalysis -readOnly -scriptPath ghidra/scripts -postScript FunctionHashes.java <main.tsv>   # use a copy of the project
-analyzeHeadless <starmaker project> StarMaker -process StarMaker.exe -noanalysis -readOnly -scriptPath ghidra/scripts \
+analyzeHeadless data/ghidra/StarMaker StarMaker -import "<game>/StarMaker.exe" -scriptPath ghidra/scripts -postScript FunctionHashes.java <out.tsv>
+analyzeHeadless data/ghidra/MoviesSE TheMovies -process MoviesSE.exe -noanalysis -readOnly -scriptPath ghidra/scripts -postScript FunctionHashes.java <main.tsv>   # use a copy of the project
+analyzeHeadless data/ghidra/StarMaker StarMaker -process StarMaker.exe -noanalysis -readOnly -scriptPath ghidra/scripts \
     -postScript DecompileAddrs.java <out.txt> <addr> [<addr>...] [--callers] [--asm]
 ```
 
@@ -78,7 +78,7 @@ No confident match for: the `.hd` loader (`0xa18e50`), `Anim_LoadByName` (`0x988
 ## 5. The StarMaker decompile and names
 
 * `data/ExportDecompiledStarMaker/` (local only, about 9 MB, `index.csv` plus `decomp_NNNN.c`): 7,962 functions exported, 3,145 skipped as noise (thunks,
-  `Catch@`/`Unwind@`), 1 failed (`0x47f2b0`, unreadable bytes). Command: `analyzeHeadless <starmaker project> StarMaker -process StarMaker.exe -noanalysis -readOnly
+  `Catch@`/`Unwind@`), 1 failed (`0x47f2b0`, unreadable bytes). Command: `analyzeHeadless data/ghidra/StarMaker StarMaker -process StarMaker.exe -noanalysis -readOnly
   -scriptPath ghidra/scripts -postScript ExportDecompiled.java <abs out dir>`; run it after names are applied so the export carries them.
 * `tools/starmaker_names.csv`: the 1:1 exact matches whose main-binary name is a real name (ambiguous and mnemonic-only matches left out), applied to the StarMaker
   project with `ApplyNames.java`. Regenerate it after new main-binary names with the two `FunctionHashes.java` runs and `match_binaries.py --out`.
