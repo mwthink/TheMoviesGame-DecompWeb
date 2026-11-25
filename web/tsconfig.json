@@ -26,6 +26,7 @@
     "src",
     "tests",
     "vite.config.ts",
-    "localPaths.ts"
+    "localPaths.ts",
+    "tools"
   ]
 }
