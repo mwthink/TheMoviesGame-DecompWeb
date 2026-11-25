@@ -1,9 +1,15 @@
 # Contributing
 
-## Firewall: no game-derived material
-Never commit game binaries, assets, Ghidra databases, or raw decompiler dumps
-(`FUN_xxxxxxxx` bodies). Run `python tools/audit_firewall.py` before every commit.
+## Firewall: what may be committed
+Never commit game binaries, assets or anything else extracted from the game's files,
+Ghidra databases, decompiler output (function bodies, listings), or logs and saves
+from the running game. Run `python tools/audit_firewall.py` before every commit.
 The `.gitignore` is a safety net, not a substitute for checking.
+
+Facts about the binary (addresses, sizes), identifiers (function, class and
+config-key names, recovered or made up), numbers and formulas in our own words,
+and short strings quoted as evidence for a name may be committed. Another project's
+output goes in only if its license allows it, and the file names its source.
 
 ## Evidence for names and types
 Every function name, struct, field or enum added must have recorded evidence

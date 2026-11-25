@@ -5,8 +5,12 @@ has the rules for ported code (`orig:` tags, `verified`, `quirk:`, `Math.fround`
 
 ## Always
 
-- Run `python3 tools/audit_firewall.py` before every commit. No game files, extracted assets, decompiler output or game-derived names go into git;
-  they live under `data/`, `docs/generated/`, `viewer/data/` (gitignored).
+- Run `python3 tools/audit_firewall.py` before every commit.
+- **Stays out of git** (it lives under `data/`, `docs/generated/`, `viewer/data/`, all gitignored): game files and anything extracted from them
+  (assets, ini files, text), decompiler output (function bodies, listings), logs and saves from the running game.
+- **Goes into git:** addresses, sizes and other facts about the binary; identifiers (function, class and config-key names, whether recovered from
+  the binary or made up here); numbers and formulas, written in our own words and code; short strings quoted as evidence for a name.
+- Another project's output (such as the Fable decomp's labels) goes in only if its license allows it, and the file names its source.
 - Commit only when the user asks.
 - Stay on current branch unless user says otherwise.
 - Avoid taking screenshots when reasonably possible because screenshots require lots of processing power (tokens). Prefer asking the user if you need visual analysis of something being rendered on the screen.
