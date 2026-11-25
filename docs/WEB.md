@@ -3,7 +3,8 @@
 Status: loads a saved game and draws its ground and buildings. A splash screen, a main menu, a Load Game screen, and a world view: the textured terrain
 with its road and sidewalk, the lot's front gate (arch, pillars, flag, walls), the gatehouse and every other placed facility and prop. Shown on the fresh
 1920 studio (3 placed assets) and on a Quick Start 1960 studio (285 placements, 53 distinct models). Nothing simulates yet: the world is a still picture you
-can orbit.
+can look around with the default orbit camera or the **game camera** (a port of the original's in-lot camera, `docs/CAMERA.md`), with a menu bar along the top
+and a dev menu at the bottom right.
 
 ## Goal and approach
 
@@ -61,7 +62,7 @@ splash  --(3 s, click or any key)-->  main menu  --(Load Game)-->  Load Game  --
 | Splash | `src/screens/SplashScreen.ts` | Title card, fades in. Advances after `SPLASH_MS` (3000 ms) or on click or key. |
 | Main menu | `src/screens/MainMenuScreen.ts` | Eight entries, listed in the `items` array. An entry is enabled only if it has an `action`; only **Load Game** is. |
 | Load Game | `src/screens/LoadGameScreen.ts` | Pick the game folder and a `.jad`, then Load: opens the archives, parses the save, loads the world data, hands it to the game view. Shows progress and errors. |
-| World view | `src/screens/GameView.ts` | A Babylon `Engine` and `Scene` on the page canvas. Drag = orbit, right-drag = pan, wheel = zoom. Esc returns to the menu. |
+| World view | `src/screens/GameView.ts` | A Babylon `Engine` and `Scene` on the page canvas, the menu bar and the dev menu. Default camera: drag = orbit, right-drag = pan, wheel = zoom. Game camera (chosen in the dev menu): WASD / arrows scroll, wheel zoom, Ctrl + arrows rotate, middle-drag rotate, Shift = 3x, pointer shoved against the window edge scrolls. Esc returns to the menu. |
 
 ## Code layout
 
@@ -75,6 +76,8 @@ web/
   src/assets/           ByteSource (File, HTTP range), Pak (archives + index), inflate (fflate), hash, sources (folder pickers), remembered (IndexedDB)
   src/formats/          Ini, Dds (DXT1/3/5 decode), Msh (static models), Jad (saved game: placed assets, landscape)
   src/world/            WorldData (loads and prepares everything; no engine types), WorldScene (builds the Babylon scene), shaders
+  src/camera/           GameCamera (the game's gameplay camera, no engine or DOM types: port of src/game/camera, docs/CAMERA.md), CameraInput (DOM events -> its per-frame input)
+  src/ui/               DOM overlays above the canvas: MenuBar (fixed to the top; `toolbar` is the empty slot for the game's toolbar), DevMenu (fixed bottom right)
   tests/                node:test files and helpers; they read the real game files
 ```
 
@@ -129,11 +132,20 @@ Things worth knowing before extending it:
 - **Textures** are found under `data\textures\` (`WorldData.findTexture`): the main folder plus subfolders such as `lightmap\`, `props\`, `backdrops\` and `ui\logos\`;
   same-named thumbnails under `thumbs\` are never picked. DDS images are decoded on the CPU to RGBA and
   uploaded with generated mipmaps, so S3TC support in the GPU or browser is not needed. (Memory: 4 bytes per pixel instead of 0.5 to 1. Fine at this size.)
-- **Camera.** A plain orbit camera placed south of the lot looking north. The game's own camera (limits, edge scrolling, zoom, cutaway) has not been read.
+- **Cameras.** Two, switched in the dev menu (the default is the first). The **default** is a plain Babylon orbit camera placed south of the lot looking north. The **game camera**
+  is `src/camera/GameCamera.ts`, a port of the original's normal-state camera (`docs/CAMERA.md`; the C++ twin with the tests is `src/game/camera/`): it starts where the save had
+  the camera (`SL_CamFoc` / `SL_CamRot` / `SL_CamZoo`, read in `Jad.ts`; the eye it computes matches the saved `SL_CamPos`), scrolls with acceleration, maximum velocity and damping
+  from `data\ui\camera.ini`, zooms along the game's curve, rotates, and is kept inside the lot rectangle (`lotBounds` in `Perimeter.ts`) by testing where the screen's corners and top
+  centre land on the ground. `GameView` runs it every frame and copies its eye, focus, horizontal field of view and near plane (far is 300) into a Babylon `FreeCamera` (game (x, y, z) -> Babylon (x, z, y)).
+  Not ported: the other camera states (plan, follow, ...), pivot compensation while rotating, ground-grab dragging, the cutaway; see `docs/CAMERA.md`. Pointer limits in a browser:
+  the original reads relative device motion, a page cannot, so an edge "shove" is the pointer's motion on arriving at the window edge (`CameraInput`).
+- **Dev menu and menu bar.** `DevMenu` (bottom right, collapsible) holds the camera selector and read-only state: fps, the camera in use, and for the game camera its eye, focus, zoom,
+  angle, fov, near/far, scroll velocities, edge-scroll state, the lot clamp's push and the lot rectangle. New controls and state rows go there (`DevMenu.show()` takes sections of
+  name -> text). `MenuBar` is the 32 px bar fixed to the top of the game view; the toolbar will go into its `toolbar` element. Both are plain DOM in a `.hud` layer, shown only on the game screen.
 
 ## Checked
 
-- `npm test` (12 tests): the case-folding hash; the ini reader; the pak index (the patched `facility_gatehouse.ini` comes from the Addon archive, thumbnails are
+- `npm test` (19 tests; the camera tests are `tests/camera.test.ts`): the case-folding hash; the ini reader; the pak index (the patched `facility_gatehouse.ini` comes from the Addon archive, thumbnails are
   not picked for textures); DDS decoding of DXT1, DXT3 against `tools/dds.py` (sums over every pixel); the gatehouse mesh against `tools/msh_dump.py` (31
   textures, 30 materials, 22,773 vertices, 10,997 triangles, the collision chunks and room parts, vertex sums); the save (the three placed assets, the
   landscape's texture names, 8,897 path cells, layer sums); the world loader (every ground texture found, blend weights sum to 255, no warnings).
@@ -161,7 +173,8 @@ Things worth knowing before extending it:
 
 1. Compare with the original: run the same save in the game under Wine, have the debugger DLL log the camera matrix, and diff screenshots from that viewpoint.
 2. Draw the rest of the lot: `lot_road_mark.msh` (how the game uses it is not read), then check the other facilities and ornaments against the original.
-3. The game camera, once its code is read.
+3. The rest of the game camera (`docs/CAMERA.md`, "Not ported"): the plan, follow and move-asset states, pivot compensation, ground-grab dragging, and the cutaway; confirm the mouse button
+   mapping, the wheel unit and the rotation sign against the running game (the dev menu shows angle and zoom to compare).
 4. Decide where the simulation lives (`HANDOVER.md` item 9): the C++ in `src/` compiled to WASM, or a TypeScript port (which needs `Math.fround` to stay
    comparable with the original's 32-bit floats). Either way it should run headless at the original's 10 Hz tick (`MAIN_LOOP.md`).
 5. UI: rebuild the Flash menus as DOM using the decoded movies as the spec (`FRONTEND.md`), or try Ruffle on the `.mfl` files first.

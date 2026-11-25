@@ -82,3 +82,16 @@ export function perimeterPieces(width: number, depth: number, a = GATE_LEFT, b =
   out.push({ kind: "gate", x: 0, y: 0, angle: 0 });
   return out;
 }
+
+/**
+ * The rectangle the gameplay camera is kept inside, `CLot_ComputeWorldBoundsFromTier` (0x467260, from its disassembly):
+ * minX = lot.x + A.x - trunc(n / 2) * 20 with n = trunc((width - (B.x - A.x) + 0.5) * 0.05) (the fence's front-wall segments), maxX = minX + width,
+ * minY = lot.y + 2.0, maxY = minY + depth. For the tier 2 lot at the origin: x -164.6 .. 148.75, y 2 .. 222.
+ */
+export interface LotBounds { minX: number; minY: number; maxX: number; maxY: number }
+export function lotBounds(width: number, depth: number, origin: [number, number] = [0, 0], a = GATE_LEFT, b = GATE_RIGHT): LotBounds {
+  const n = Math.trunc(f(f(f(width - f(b.x - a.x)) + 0.5) * 0.05));
+  const minX = f(f(origin[0] + a.x) - f(Math.trunc(n / 2) * WALL_LENGTH));
+  const minY = f(origin[1] + 2);
+  return { minX, minY, maxX: f(minX + width), maxY: f(minY + depth) };
+}

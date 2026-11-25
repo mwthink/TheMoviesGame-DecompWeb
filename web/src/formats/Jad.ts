@@ -21,9 +21,19 @@ export interface Landscape {
   path: Uint8Array;
 }
 
+/** The camera the game stored in the lot object: SL_CamPos (eye), SL_CamFoc (focus), SL_CamRot (angle, radians) and SL_CamZoo (zoom, 0 far .. 0.8 close). */
+export interface SavedCamera {
+  eye: [number, number, number];
+  focus: [number, number, number];
+  angle: number;
+  zoom: number;
+}
+
 export interface Save {
   placed: PlacedAsset[];
   landscape: Landscape | null;
+  /** From the CLot object; null if the save has none. */
+  lotCamera: SavedCamera | null;
 }
 
 const enc = (s: string) => Uint8Array.from(s, (c) => c.charCodeAt(0));
@@ -74,6 +84,7 @@ export function parseSave(d: Uint8Array): Save {
   const tAng = tagOf("MyAngle");
   const placed: PlacedAsset[] = [];
   let landscapeBlob: Uint8Array | null = null;
+  let lotCamera: SavedCamera | null = null;
 
   const open = enc("[OBJ]\n");
   const close = enc("\n[/OBJ]");
@@ -99,6 +110,7 @@ export function parseSave(d: Uint8Array): Save {
     }
     const first = new Map<string, Uint8Array>();
     for (const f of fields) if (!first.has(f.tag)) first.set(f.tag, f.value);
+    if (cls === "CLot" && !lotCamera) lotCamera = readCamera(first);
     const src = first.get(tSrc);
     const pos = first.get(tPos);
     if (!src || !pos || pos.length < 12) continue;
@@ -119,7 +131,19 @@ export function parseSave(d: Uint8Array): Save {
       angle: ang && ang.length >= 4 ? new DataView(ang.buffer, ang.byteOffset, 4).getFloat32(0, true) : 0,
     });
   }
-  return { placed, landscape: landscapeBlob ? parseLandscape(landscapeBlob) : null };
+  return { placed, landscape: landscapeBlob ? parseLandscape(landscapeBlob) : null, lotCamera };
+}
+
+function readCamera(first: Map<string, Uint8Array>): SavedCamera | null {
+  const f32 = (name: string, n: number): number[] | null => {
+    const b = first.get(tagOf(name));
+    if (!b || b.length < 4 * n) return null;
+    const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+    return Array.from({ length: n }, (_, i) => dv.getFloat32(4 * i, true));
+  };
+  const eye = f32("SL_CamPos", 3), focus = f32("SL_CamFoc", 3), rot = f32("SL_CamRot", 1), zoom = f32("SL_CamZoo", 1);
+  if (!eye || !focus || !rot || !zoom) return null;
+  return { eye: eye as [number, number, number], focus: focus as [number, number, number], angle: rot[0]!, zoom: zoom[0]! };
 }
 
 /** TMLandscape_ReadTerrainBlob: u32 length, u32 version, u32 texture count, 32-byte names, 65,793 cells x 3 bytes, then the 8 KB path bitmap. */

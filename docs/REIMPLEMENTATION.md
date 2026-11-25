@@ -91,6 +91,10 @@ Status (all under `game/movie/`, each with a test in `src/tests/`):
   vertex for vertex (457 of 457 vertices move, RMS error 0.05 mm on 4.2 mm of signal, maximum 0.23 mm), the all-default star from
   `head_m_white_joe.hd` to 1.2 mm, and `info.sm` is rebuilt byte for byte. Not `verified` in the game sense (no run of the game's own functions);
   the expression blend (linear towards the bind pose) is the port's choice, not read from the game.
+- `game/camera/GameCamera` (new): the in-lot gameplay camera (the manager's *normal* state), from `Camera_Tick` and the functions it calls (`docs/CAMERA.md`): `camera.ini` settings, keyboard / edge / drag /
+  wheel input, pan, zoom, rotation, eye placement, the near plane and the lot clamp. Pure state and arithmetic: the caller passes in the observed input and the lot rectangle. Tested in
+  `tests/CameraTest.cpp`; **checked against the game's own numbers** in that the eye it derives from a save's `SL_CamFoc` / `SL_CamRot` / `SL_CamZoo` equals the saved `SL_CamPos` (eight saves),
+  not `verified` as a whole (the input handling and the clamp have not been compared with a run of the game). The web app uses the TypeScript twin (`web/src/camera/`).
 - `game/movie/MovieEstimate` and the command line tool `otm_movie_calc` chain quality, success and revenue from plain inputs and compare
   marketing levels. It reproduces the marketing table of `docs/MOVIE_SUCCESS.md` 3w exactly (with the symmetric imbalance reading, see there):
 

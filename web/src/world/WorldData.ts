@@ -4,7 +4,9 @@ import { Ini } from "../formats/Ini.ts";
 import type { Landscape, PlacedAsset, Save } from "../formats/Jad.ts";
 import { parseMsh, type Msh } from "../formats/Msh.ts";
 import { parseRob } from "../formats/Rob.ts";
-import { lotSize, perimeterPieces } from "./Perimeter.ts";
+import { lotBounds, lotSize, perimeterPieces, type LotBounds } from "./Perimeter.ts";
+import { parseCameraIni, type CameraConfig } from "../camera/GameCamera.ts";
+import type { SavedCamera } from "../formats/Jad.ts";
 
 /** Everything needed to draw the ground, as plain arrays (no engine types, so it can be tested in Node). */
 export interface TerrainData {
@@ -36,6 +38,10 @@ export interface Placement {
 }
 
 export interface WorldData {
+  /** The gameplay camera's settings (`data\\ui\\camera.ini`); null if the archives have none. */
+  camera: CameraConfig | null;
+  /** The lot rectangle the gameplay camera stays inside, and the camera the save stored. Null when the save has no lot. */
+  lot: { bounds: LotBounds; savedCamera: SavedCamera | null } | null;
   terrain: TerrainData | null;
   meshes: MeshAsset[];
   placements: Placement[];
@@ -94,6 +100,17 @@ export function computeSplat(land: Landscape): { weightsA: Uint8Array; weightsB:
 export async function loadWorldData(pak: PakIndex, save: Save, progress: (text: string) => void = () => {}): Promise<WorldData> {
   const warnings: string[] = [];
   let terrain: TerrainData | null = null;
+  let lot: WorldData["lot"] = null;
+
+  let camera: CameraConfig | null = null;
+  const cameraIni = pak.find("camera.ini", { dir: "data\\ui\\" });
+  if (cameraIni) {
+    const parsed = parseCameraIni(new TextDecoder().decode(await pak.read(cameraIni)));
+    camera = parsed.config;
+    warnings.push(...parsed.problems);
+  } else {
+    warnings.push("data\\ui\\camera.ini not found: no game camera");
+  }
 
   if (save.landscape) {
     progress("Ground textures");
@@ -179,6 +196,12 @@ export async function loadWorldData(pak: PakIndex, save: Save, progress: (text: 
     try {
       let meshName: string | undefined;
       if (asset.cls === "CLot") {
+        // The camera's lot rectangle needs lot.ini's tier size whichever way the surroundings are drawn.
+        const lotIni = pak.find("lot.ini", { dir: "data\\" });
+        const size = (lotIni && Ini.parse(new TextDecoder().decode(await pak.read(lotIni))).get("size/2")) || "300,224";
+        const [w, d] = size.split(",").map((v) => Number(v.trim()));
+        const lot_ = lotSize(w!, d!);
+        lot = { bounds: lotBounds(lot_.width, lot_.depth, [asset.position[0], asset.position[1]]), savedCamera: save.lotCamera };
         // lot.ini names no mesh. What surrounds the lot (fence, gate, road markings, the city) is the scenery list outsidelot_high.rob; if the archives
         // lack it, fall back to the fence the game's collision code builds (Perimeter.ts) from the gate, wall and corner meshes.
         const rob = await pak.readByName("outsidelot_high.rob");
@@ -202,13 +225,9 @@ export async function loadWorldData(pak: PakIndex, save: Save, progress: (text: 
           placements.push(...here);
           continue;
         }
-        const lotIni = pak.find("lot.ini", { dir: "data\\" });
-        const size = (lotIni && Ini.parse(new TextDecoder().decode(await pak.read(lotIni))).get("size/2")) || "300,224";
-        const [w, d] = size.split(",").map((v) => Number(v.trim()));
         const meshes = { wall: await loadMesh("lot_wall_concrete.msh"), corner: await loadMesh("lot_wallcorner.msh"), gate: await loadMesh("lot_gate.msh") };
         for (const [kind, m] of Object.entries(meshes)) if (!m) warnings.push(`lot: mesh for the ${kind} not found`);
-        const lot = lotSize(w!, d!);
-        for (const piece of perimeterPieces(lot.width, lot.depth)) {
+        for (const piece of perimeterPieces(lot_.width, lot_.depth)) {
           const mesh = meshes[piece.kind];
           if (!mesh) continue;
           const [ox, oy] = asset.position;
@@ -234,5 +253,5 @@ export async function loadWorldData(pak: PakIndex, save: Save, progress: (text: 
     }
   }
   const meshes = [...new Set(placements.map((p) => p.mesh))];
-  return { terrain, meshes, placements, warnings };
+  return { camera, lot, terrain, meshes, placements, warnings };
 }

@@ -34,6 +34,7 @@ add_library(otm_game
     game/character/FaceRig.cpp
     game/character/StarFile.cpp
     game/character/Appearance.cpp
+    game/camera/GameCamera.cpp
 )
 target_include_directories(otm_game PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -120,3 +121,11 @@ add_test(NAME sandbox_options COMMAND sandbox_options_test)
 add_executable(starting_layout_test tests/StartingLayoutTest.cpp)
 target_link_libraries(starting_layout_test PRIVATE otm_game)
 add_test(NAME starting_layout COMMAND starting_layout_test)
+
+# The in-lot gameplay camera (docs/CAMERA.md). Reads data/ui/camera.ini when the game files are extracted.
+add_executable(camera_test tests/CameraTest.cpp)
+target_link_libraries(camera_test PRIVATE otm_game)
+add_test(NAME camera COMMAND camera_test)
+set_tests_properties(camera PROPERTIES
+    ENVIRONMENT "OTM_GAME_DATA=${CMAKE_CURRENT_SOURCE_DIR}/../data/game_data"
+    SKIP_RETURN_CODE 77)
