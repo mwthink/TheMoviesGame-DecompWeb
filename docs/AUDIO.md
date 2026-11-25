@@ -242,6 +242,8 @@ So "now" sits 128 px in from the left edge, the bar shows 1 year back and 20 yea
 at 0.25 years, 23.5% at 0.5, 37.5% at 1, 54% at 2, 64% at 3, 89% at 10. The news windows above (1.5 to 2 years ahead) fall at about 47% to 54% of the span.
 **[inferred]** that the constants are years because the function is `Time_ToYears`; they were not logged from the running game.
 
+The web port draws the strip on the game toolbar (`ui/GameToolbar.ts`, the curve in `sim/ui/TimelineScale.ts`): the `timeline.csv` world events only, as dots with the event name as a tooltip. The other icon kinds, the original's bubbles and sparkle, and the news highlight are not done.
+
 ## Not known
 
 - How the radio picks tracks exactly (genre weights, random mode), what makes the `_INTRO` flag (`+0x24C`) set, and what the front end plays in state 4 (the `frontend_loop.wmv` soundtrack is the likely source).

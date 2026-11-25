@@ -331,6 +331,7 @@ export class GameView implements Screen {
     this.toolbar = new GameToolbar((speed) => this.setSpeed(speed));
     this.toolbar.mount(this.menuBar.toolbar);
     this.toolbar.setSpeed(this.clock.speed);
+    this.toolbar.setTimelineEvents(w?.timelineEvents ?? []);
     this.toolbar.setStatus(this.clock.date, w?.header?.cash ?? null);
     this.staffPanel = new StaffPanel(w?.staff ?? []);
     this.staffPanel.mount(this.hud);

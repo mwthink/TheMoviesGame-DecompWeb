@@ -102,6 +102,12 @@ body[data-screen="game"] .hud { display: block; }
 .gametoolbar .speedbtn.active { border-color: var(--accent); color: var(--accent); background: rgba(224, 165, 38, 0.1); }
 .gametoolbar .date { min-width: 8ch; font-variant-numeric: tabular-nums; }
 .gametoolbar .money { color: #8fd18f; font-variant-numeric: tabular-nums; }
+.gametoolbar { flex: 1; min-width: 0; }
+/* The timeline strip: events sit at the x of their date (sim/ui/TimelineScale.ts); the line marks "now", 128 px in. */
+.gametoolbar .timeline { position: relative; flex: 1; min-width: 200px; height: 22px; border-left: 1px solid #3a3a48; border-right: 1px solid #3a3a48; }
+.gametoolbar .timeline .now { position: absolute; left: 128px; top: 2px; bottom: 2px; width: 1px; background: var(--accent); }
+.gametoolbar .timeline .tlevent { position: absolute; top: 5px; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: #6fa8dc; }
+.gametoolbar .timeline .tlevent:hover { background: var(--accent); }
 
 /* Staff viewer: left side, under the menu bar. */
 .staffpanel {
