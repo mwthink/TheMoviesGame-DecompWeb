@@ -4,6 +4,7 @@ import { Ini } from "../formats/Ini.ts";
 import type { Landscape, PlacedAsset, Save, SaveHeader, SavedPerson, SavedStaff } from "../formats/Jad.ts";
 import { parseCos } from "../formats/Cos.ts";
 import { firstAnimation, parseFlm } from "../formats/Flm.ts";
+import { parseFloorplanRevealing, type RevealRules } from "../sim/ui/FloorplanReveal.ts";
 import { parseSeq } from "../formats/Seq.ts";
 import { FALLBACK_CLIP, type AnimationPlan } from "../sim/anim/PersonAnimation.ts";
 import type { MshBone } from "../formats/Msh.ts";
@@ -287,6 +288,8 @@ export interface PersonInWorld {
 }
 
 export interface WorldData {
+  /** When each building's floor plan is revealed (`data\\floorplans\\floorplanrevealing.csv`); null if the archives lack it. */
+  floorplanRules: RevealRules | null;
   /** The people who are in the world (a position and a costume), at their saved positions. */
   people: PersonInWorld[];
   /** The gameplay camera's settings (`data\\ui\\camera.ini`); null if the archives have none. */
@@ -520,5 +523,7 @@ export async function loadWorldData(
   }
   const meshes = [...new Set(placements.map((p) => p.mesh))];
   const people = await loadPeople(pak, save, texture, warnings, progress);
-  return { people, camera, lot, terrain, meshes, placements, header: save.header, staff: save.staff, warnings };
+  const rulesBytes = await pak.readByName("floorplanrevealing.csv", { dir: "data\\floorplans\\" });
+  const floorplanRules = rulesBytes ? parseFloorplanRevealing(new TextDecoder("latin1").decode(rulesBytes)) : null;
+  return { floorplanRules, people, camera, lot, terrain, meshes, placements, header: save.header, staff: save.staff, warnings };
 }

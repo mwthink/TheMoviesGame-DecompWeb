@@ -15,7 +15,7 @@ export class DevMenu {
   private readonly radios = new Map<CameraMode, HTMLInputElement>();
   private collapsed = false;
 
-  constructor(private readonly onCamera: (mode: CameraMode) => void, gameCameraAvailable: boolean) {
+  constructor(private readonly onCamera: (mode: CameraMode) => void, gameCameraAvailable: boolean, onRevealAlways: (on: boolean) => void = () => {}) {
     const el = document.createElement("aside");
     el.className = "devmenu";
     el.innerHTML = `<header><span>Dev menu</span><button type="button" title="Collapse">–</button></header><div class="body"></div>`;
@@ -48,6 +48,17 @@ export class DevMenu {
       this.radios.set(mode, r);
     }
     this.body.append(sec);
+
+    // Floor plans: the game reveals a building's rooms by its own rules (docs/ROOM_DISPLAY.md); this shows them as soon as the pointer is over the building.
+    const rooms = document.createElement("section");
+    rooms.innerHTML = `<h4>Rooms</h4>`;
+    const l = document.createElement("label");
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.addEventListener("change", () => onRevealAlways(box.checked));
+    l.append(box, " Show rooms on hover at once (ignore the reveal rules)");
+    rooms.append(l);
+    this.body.append(rooms);
   }
 
   /** Reflect a camera switch made elsewhere. */

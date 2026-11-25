@@ -6,11 +6,12 @@ import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera";
 import { Camera } from "@babylonjs/core/Cameras/camera";
 import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";
 import { Color4 } from "@babylonjs/core/Maths/math.color";
-import { Vector3 } from "@babylonjs/core/Maths/math.vector";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial";
 import type { Screen } from "./Screen.ts";
 import { buildWorld } from "../world/WorldScene.ts";
-import { buildRoomFloors } from "../world/RoomFloors.ts";
+import { buildRoomFloors, type RoomFloors } from "../world/RoomFloors.ts";
+import { ALWAYS_RULE, distanceToPolygon, RevealTracker, revealRule, type RevealCandidate } from "../sim/ui/FloorplanReveal.ts";
 import type { MshChunk } from "../formats/Msh.ts";
 import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh";
 import type { WorldData } from "../world/WorldData.ts";
@@ -63,7 +64,13 @@ export class GameView implements Screen {
   private hoverDirty = false;
   private hoverMs = 0;
   private hovered: { key: string; source: string; rooms: RoomInfo[] } | null = null;
-  private floors: { dispose(): void } | null = null;
+  private floors: RoomFloors | null = null;
+  /** Buildings with rooms, and which one's floor plan is showing (`FloorplanReveal.ts`). */
+  private buildings: { meta: Meta; facility: string; footprint: { verts: Float32Array; tris: Uint16Array } | null }[] = [];
+  private readonly reveal = new RevealTracker();
+  private revealMs = 0;
+  /** Dev menu: show a floor plan as soon as the pointer is over the building, whatever the game's rules say. */
+  private revealAlways = false;
   private readonly onHoverMove = (e: PointerEvent) => {
     this.hoverAt = e.target === this.canvas && e.buttons === 0 ? { x: e.clientX, y: e.clientY } : null;
     this.hoverDirty = true;
@@ -105,6 +112,13 @@ export class GameView implements Screen {
       const built = buildWorld(this.scene, this.canvas, this.world, { anisotropy: this.settings?.get().anisotropy });
       this.orbit = built.camera;
       this.instances = built.instances;
+      this.buildings = this.world.placements
+        .filter((p) => p.mesh.rooms.some((r) => r.lines.length))
+        .map((p) => ({
+          meta: { key: `${p.asset.source}#${p.asset.id}`, source: p.asset.source, position: p.asset.position, angle: p.asset.angle, rooms: p.mesh.rooms },
+          facility: p.asset.source.slice(p.asset.source.lastIndexOf("/") + 1),
+          footprint: p.mesh.msh.chunks.b15_02 ?? null,
+        }));
       this.stepAutoAnimations = built.stepAutoAnimations;
       this.stepPeople = built.stepPeople;
       this.peopleClips = built.peopleClips;
@@ -120,6 +134,8 @@ export class GameView implements Screen {
     this.clock = new GameClock(this.world?.header?.date ?? 1920 * 365); // a fresh studio starts on 1 January 1920
     this.mode = "default";
     this.hovered = null;
+    this.reveal.revealed = null;
+    this.revealMs = performance.now();
     window.addEventListener("pointermove", this.onHoverMove);
     this.lastClick = { object: "no click yet" };
     this.canvas.addEventListener("pointerdown", this.onDown);
@@ -150,6 +166,7 @@ export class GameView implements Screen {
       this.tickGame();
       this.tickCamera();
       this.updateHover();
+      this.faceFloors();
       this.scene?.render();
       // Shaders compile in the background: count a frame as ready only once the scene reports ready and has drawn one.
       if (++frames >= 2 && scene.isReady()) this.finishReady();
@@ -226,7 +243,7 @@ export class GameView implements Screen {
     this.staffPanel.mount(this.hud);
     this.tooltip = new Tooltip();
     this.tooltip.attach(this.hud);
-    this.devMenu = new DevMenu((m) => this.selectCamera(m), this.gameCamera !== null);
+    this.devMenu = new DevMenu((m) => this.selectCamera(m), this.gameCamera !== null, (on) => { this.revealAlways = on; });
     this.devMenu.mount(this.hud);
   }
 
@@ -296,23 +313,69 @@ export class GameView implements Screen {
     this.refreshDevMenu();
   }
 
-  /** Throttled: find the building under the pointer. */
+  /**
+   * Every 100 ms: name a person under the pointer in the tooltip, and decide which building's floor plan shows. The decision is the game's (`FloorplanReveal.ts`, from
+   * `floorplanrevealing.csv`): each building has a distance the pointer must be within, a time it must stay there and a distance at which the walls come back; with an empty
+   * cursor most buildings reveal after 2 s over them. A building under the pointer counts as distance 0; the others are measured on the ground from the pointer to their footprint.
+   */
   private updateHover(): void {
-    if (!this.hoverDirty || !this.scene || !this.engine) return;
+    if (!this.scene || !this.engine) return;
     const now = performance.now();
     if (now - this.hoverMs < 100) return;
     this.hoverMs = now;
-    this.hoverDirty = false;
+    const dt = Math.min((now - this.revealMs) / 1000, 1);
+    this.revealMs = now;
     const at = this.hoverAt;
-    if (!at) { this.tooltip?.show(null); this.setHovered(null); return; }
     const k = this.engine.getRenderWidth() / window.innerWidth;
-    // a person under the pointer: their name goes to the tooltip
-    const who = this.scene.pick(at.x * k, at.y * k, (m) => m.isPickable && m.isEnabled() && !!(m.metadata as { person?: unknown } | null)?.person);
-    const person = who?.hit ? (who.pickedMesh?.metadata as { person: { name: string; cls: string } }).person : null;
-    this.tooltip?.show(person ? `${person.name || "Someone"}${person.cls === "CStar" ? " (star)" : person.cls === "CWannabe" ? " (wannabe)" : ""}` : null);
-    const hit = this.scene.pick(at.x * k, at.y * k, (m) => m.isPickable && m.isEnabled() && ((m.metadata as Meta | null)?.rooms?.some((r) => r.lines.length) ?? false));
-    const md = hit?.hit ? (hit.pickedMesh?.metadata as Meta | null) : null;
-    this.setHovered(md?.rooms?.some((r) => r.lines.length) ? md : null);
+    let underPointer: string | null = null;
+    const ground = at ? this.groundPoint(at.x * k, at.y * k) : null;
+    if (this.hoverDirty) {
+      this.hoverDirty = false;
+      if (!at) this.tooltip?.show(null);
+      else {
+        // a person under the pointer: their name goes to the tooltip
+        const who = this.scene.pick(at.x * k, at.y * k, (m) => m.isPickable && m.isEnabled() && !!(m.metadata as { person?: unknown } | null)?.person);
+        const person = who?.hit ? (who.pickedMesh?.metadata as { person: { name: string; cls: string } }).person : null;
+        this.tooltip?.show(person ? `${person.name || "Someone"}${person.cls === "CStar" ? " (star)" : person.cls === "CWannabe" ? " (wannabe)" : ""}` : null);
+      }
+    }
+    if (at) {
+      const hit = this.scene.pick(at.x * k, at.y * k, (m) => m.isPickable && m.isEnabled() && ((m.metadata as Meta | null)?.rooms?.some((r) => r.lines.length) ?? false));
+      underPointer = hit?.hit ? ((hit.pickedMesh?.metadata as Meta | null)?.key ?? null) : null;
+    }
+    const candidates: RevealCandidate[] = this.buildings.map((b) => {
+      let distance = Infinity;
+      if (b.meta.key === underPointer) distance = 0;
+      else if (ground && b.footprint) {
+        // the ground point in the building's own coordinates: undo its position and its counter-clockwise turn (scene x, z = game x, y)
+        const dx = ground.x - b.meta.position[0]!, dy = ground.z - b.meta.position[1]!;
+        const c = Math.cos(b.meta.angle), s = Math.sin(b.meta.angle);
+        distance = distanceToPolygon(b.footprint, dx * c + dy * s, -dx * s + dy * c);
+      }
+      return { key: b.meta.key, rule: this.revealAlways ? ALWAYS_RULE : revealRule(this.world?.floorplanRules ?? null, b.facility), distance };
+    });
+    const shown = this.reveal.update(dt, candidates);
+    this.setHovered(shown ? this.buildings.find((b) => b.meta.key === shown)?.meta ?? null : null);
+  }
+
+  /** Where the ray through a canvas pixel meets the ground (scene y = 0), or null when it points at the sky. */
+  private groundPoint(px: number, py: number): { x: number; z: number } | null {
+    const cam = this.scene?.activeCamera;
+    if (!this.scene || !cam) return null;
+    const ray = this.scene.createPickingRay(px, py, Matrix.Identity(), cam);
+    if (ray.direction.y >= -1e-4) return null;
+    const t = -ray.origin.y / ray.direction.y;
+    return { x: ray.origin.x + ray.direction.x * t, z: ray.origin.z + ray.direction.z * t };
+  }
+
+  /** Turn the room text of the showing floor plan to read upright from the camera (the game flips it by the camera angle each frame). */
+  private faceFloors(): void {
+    const cam = this.scene?.activeCamera;
+    if (!this.floors || !cam) return;
+    const f = cam.getForwardRay().direction;
+    const len = Math.hypot(f.x, f.z) || 1;
+    const forward = { x: f.x / len, z: f.z / len };
+    this.floors.faceCamera({ x: forward.z, z: -forward.x }, forward); // screen-right in the scene's left-handed ground plane
   }
 
   /** Cut the shell of the hovered building away (or put it back) and draw (or remove) its room floors. */

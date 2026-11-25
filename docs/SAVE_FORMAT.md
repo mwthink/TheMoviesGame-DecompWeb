@@ -343,7 +343,7 @@ the behaviour class (`CHireRoom`, `CFireRoom`, ...) from the part name, and the 
 (the 19 facilities and sets in the Quick Start save, plus ones not in it: cosmetic surgery (`nip_tuck`, `implants`, `liposuctio`), hospital (`hosp_hosp`), post-production, publicity office (`publicity_pr`),
 stunt school (`stuntschool_create`, `_fire`), the 4-star script office, trailers 1-5, ~70 more sets).
 
-**The text on the floor is a string-table lookup** (`RoomPart_Draw` draws a room part; `Localize(key)` reads `Data/text/<lang>/stringdatabase.lhts`, read by `tools/lhts.py`):
+**The text on the floor is a string-table lookup** (placement, size and flipping: `ROOM_DISPLAY.md`) (`RoomPart_Draw` draws a room part; `Localize(key)` reads `Data/text/<lang>/stringdatabase.lhts`, read by `tools/lhts.py`):
 * the key is the part name, upper-case: `room_ss_actors` -> `ROOM_SS_ACTORS` ("Create"), and if `ROOM_SS_ACTORS_2` exists it is a second line ("Actor"): the "Create / Actor" of the in-game floor;
 * parts without a key are drawn with no text: the hallways (`*_hall`), windows (`room_window`, `*_windows`), the unnamed whole-floor `room_`, the set floors (`room_1_carpet`, ...), and a few with no entry
   (`room_hosp_hosp`, `room_stuntschool_create`);

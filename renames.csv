@@ -2502,3 +2502,5 @@ address,old_name,new_name,evidence
 005e6af0,FUN_005e6af0,SplashTip_Refresh,"calls SplashTip_BuildHtml then the layout routine FUN_005e64f0; called from the loading code (decomp 0002 line 8091, 0007 line 7539)"
 0087eb30,FUN_0087eb30,Screens_RegisterLoadAndMoviePlayer,registers two named screens in the screen registry (FUN_0087d600): LoadScreen (factory FUN_0087def0) and MoviePlayerScreen (factory FUN_0087dfc0)
 0087def0,FUN_0087def0,LoadScreen_Factory,creates the LoadScreen window for the screen registry
+00a151a0,FUN_00a151a0,RoomPart_DrawTextLine,"(text, flip, matrix, colour): measures the text at the font size, scales it to height part+0x80 (1.5); if wider than the strip part+0x7c it shrinks to the strip and centres across, else centres along; rotates by part+0x84 about the anchor part+0x70..0x78; flip (param_2) turns it half way round (rotate pi, offset by its size) so it reads upright from the camera"
+009e6d20,FUN_009e6d20,RoomPart_GetPolygonBounds,"(&min, &max): the bounding box of the room part's polygon; used by RoomPart_InitDrawingData"

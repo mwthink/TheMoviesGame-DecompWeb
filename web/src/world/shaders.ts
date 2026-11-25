@@ -116,6 +116,12 @@ export function registerShaders(): void {
     uniform vec4 tint;
     uniform float useTex;
     void main() {
-      gl_FragColor = useTex > 0.5 ? texture2D(tex, vUV) : tint;
+      if (useTex > 0.5) {
+        vec4 c = texture2D(tex, vUV);
+        if (c.a < 0.05) discard; // transparent texels (the room text's background) draw nothing
+        gl_FragColor = c;
+      } else {
+        gl_FragColor = tint;
+      }
     }`;
 }
