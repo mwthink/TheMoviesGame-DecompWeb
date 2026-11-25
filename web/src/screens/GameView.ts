@@ -29,8 +29,7 @@ import { DEFAULT_SHADOWS, DEFAULT_SUN, type ShadowSettings, type SunSettings } f
 import { SunShadows } from "../world/SunShadows.ts";
 import { FrustumLines, HoverHighlight, PerfStats, ShadowMapViewer } from "../world/DevViews.ts";
 import { setDebugMode } from "../world/SunLight.ts";
-import { skyVariantForHour } from "../world/Sky.ts";
-import { calendarDate } from "../sim/core/GameClock.ts";
+import { skyVariantForYear, yearOfDate } from "../world/Sky.ts";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import { FxaaPostProcess } from "@babylonjs/core/PostProcesses/fxaaPostProcess";
 import type { Settings, SettingsStore } from "../settings/Settings.ts";
@@ -98,7 +97,7 @@ export class GameView implements Screen {
   private shadowViewer: ShadowMapViewer | null = null;
   private perf: PerfStats | null = null;
   private setSkyVariant: ((v: 0 | 1 | 2) => void) | null = null;
-  private skyMode: "auto" | 0 | 1 | 2 = 2;
+  private skyMode: "auto" | 0 | 1 | 2 = "auto";
   private skyShown: number = -1;
   private hoverPerson: TransformNode | null = null;
   private readonly onHoverMove = (e: PointerEvent) => {
@@ -398,7 +397,7 @@ export class GameView implements Screen {
     const factor = SPEED_FACTOR[this.clock.speed];
     if (factor > 0) this.stepPeople?.(Math.min(dtMs, 99) * factor * this.clock.timeScale);
     if (this.skyMode === "auto") {
-      const v = skyVariantForHour(calendarDate(this.clock.date).hour);
+      const v = skyVariantForYear(yearOfDate(this.clock.date));
       if (v !== this.skyShown) { this.setSkyVariant?.(v); this.skyShown = v; }
     }
   }

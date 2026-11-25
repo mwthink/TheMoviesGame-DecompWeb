@@ -66,13 +66,14 @@ test("shadow settings are clamped", () => {
   assert.deepEqual(normalizeShadows({}), DEFAULT_SHADOWS);
 });
 
-import { skyVariantForHour } from "../../src/world/Sky.ts";
+import { skyVariantForYear, yearOfDate } from "../../src/world/Sky.ts";
 import { GameClock } from "../../src/sim/core/GameClock.ts";
 
-test("the sky variant follows the game's hour thresholds: night to 5, morning 6 to 9, day from 10", () => {
-  assert.deepEqual([0, 3, 5].map(skyVariantForHour), [0, 0, 0]);
-  assert.deepEqual([6, 8, 9].map(skyVariantForHour), [1, 1, 1]);
-  assert.deepEqual([10, 14, 23].map(skyVariantForHour), [2, 2, 2]);
+test("the sky variant is an era of the game year: before 1955, 1955 to 1994, 1995 on (orig 0x009CBA90)", () => {
+  assert.deepEqual([1850, 1900, 1920, 1949.9].map(skyVariantForYear), [0, 0, 0, 0]);
+  assert.deepEqual([1955, 1960, 1994.9].map(skyVariantForYear), [1, 1, 1]);
+  assert.deepEqual([1995, 2000, 2010].map(skyVariantForYear), [2, 2, 2]);
+  assert.equal(yearOfDate(1960 * 365 + 182.5), 1960.5);
 });
 
 test("the dev time scale multiplies the game speed", () => {

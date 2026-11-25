@@ -177,11 +177,11 @@ export class DevMenu {
     viewSec.append(hlLabel);
     this.body.append(viewSec);
 
-    // The sky's variant: the game picks it from the hour (night to 5, morning 6 to 9, day from 10); Day is the default here.
+    // The sky's variant: the game picks it from the game year (before 1955, 1955 to 1994, 1995 on), so the default follows the clock (docs/SKY.md).
     const skySec = document.createElement("section");
     skySec.innerHTML = `<h4>Sky</h4>`;
     const skySel = document.createElement("select");
-    [["2", "Day"], ["1", "Morning"], ["0", "Night"], ["auto", "From the game clock's hour"]].forEach(([v, name]) => skySel.append(new Option(name, v)));
+    [["auto", "From the game's year (as the game)"], ["0", "Era 1: before 1955"], ["1", "Era 2: 1955 to 1994"], ["2", "Era 3: 1995 on"]].forEach(([v, name]) => skySel.append(new Option(name, v)));
     skySel.addEventListener("change", () => tools.onSkyVariant?.(skySel.value === "auto" ? "auto" : (Number(skySel.value) as 0 | 1 | 2)));
     const skyLabel = document.createElement("label");
     skyLabel.append("Variant ", skySel);

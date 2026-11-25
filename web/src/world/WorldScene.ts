@@ -22,7 +22,6 @@ import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import type { Material } from "@babylonjs/core/Materials/material";
 import { PersonMeshes } from "./PersonMeshes.ts";
 import { SUN_LIT } from "./SunLight.ts";
-export { skyVariantForHour } from "./Sky.ts";
 import type { MeshAsset, PersonInWorld, SkyData, TerrainData, WorldData } from "./WorldData.ts";
 
 /**

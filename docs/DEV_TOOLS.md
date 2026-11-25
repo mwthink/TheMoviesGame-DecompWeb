@@ -8,7 +8,7 @@ The dev menu (bottom right in the game view; every section folds away) holds the
 | **Performance** | frames per second, the average frame, render, mesh-selection and render-target times, the CPU time of the shadow pass, draw calls, active meshes, triangles drawn and materials (Babylon's `SceneInstrumentation`) |
 | **Views** | **World shading**: Normal, Diffuse only, Lightmap only, Normals, Sun term (normal . sun), Shadow factor: a `debugMode` uniform in the terrain and static-model shaders (the people use Babylon materials and are not affected). **Show the shadow frustum**: the sun's shadow box as a wireframe. **Shadow map viewer**: the depth map as a 192-pixel grey picture (white = far or empty), read back twice a second from a small copy, never from the 4096 map. **Outline what the pointer is over**: a yellow outline round a person and a blue one round a building (`HoverHighlight`) |
 | **Time control** | a scale on the game speed from 0.1x to 10x (it multiplies the clock and the people's animation, not the flags) and **Step one tick** (0.1 s of game time, also moves the people on), for watching motion while paused |
-| **Sky** | the sky's variant (`SKY.md`) |
+| **Sky** | the sky's variant: the game's year rule (the default) or one of its three eras (`SKY.md`) |
 | **Sun**, **Shadows**, **Rooms**, **Camera** | `LIGHTING.md`, `ROOM_DISPLAY.md`, `CAMERA.md` |
 
 ## Notes
