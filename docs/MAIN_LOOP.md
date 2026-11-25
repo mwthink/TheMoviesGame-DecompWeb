@@ -109,9 +109,8 @@ Other ways in **[read]**:
 - **Skip Front End** = 1 or 2: `WFrontEnd_Tick` posts the sandbox or new-game event on its first tick.
 
 What is **not** known:
-- **How the starting world is created.** `Campaign_Begin` builds the clock and runs eight calls (`FUN_00467D50`, `FUN_00422750`, `FUN_008C3930`, `FUN_008C9620`, `FUN_00471B10`,
-  `FUN_00442BE0`, `FUN_00530D90`, `FUN_0048F3F0`); none was read. It also builds a `savedefaults/...` path that nothing uses, so a new game does **not** load a default
-  save in this build, and the objects that make up the studio, lot and AI studios come from those calls or from later ticks. This is the largest gap between the menu and the running game.
+- **Who is in the studio on day one.** The starting world is built by `Game_ConstructSystems` (about 45 steps, shared with loading a game) and a layout file chosen by `Campaign_Begin`
+  (`data/savedefaults/<year>.ini`: the buildings and props); see NEW_GAME.md. The starting staff, cast and applicant stream were not found.
 - Who dispatches events other than `0x209`, `0x231` and `0x259` to windows such as `WFrontEnd_OnEvent`, and on which pass.
 - What `FUN_009B3890` (engine update) and the render functions `FUN_00423040`, `FUN_00423150`, `FUN_00423260` do.
 - The meaning of `Game+7`, `+8`, `+9`, `+0xA`, `+0xB` (set to 1 after a `0x259` load) and `+0xC7`.

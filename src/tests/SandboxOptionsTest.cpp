@@ -23,7 +23,7 @@ int main() {
     {
         // The sandbox screen's own defaults (WSandboxOptions constructor): decay on, everything else off, ready-built lot on.
         SandboxChoices c;
-        Check("screen defaults", c.buildingsDecay && !c.instantBuild && !c.instantShoot && !c.starsDontMisbehave && !c.stuntmen && !c.stuntInjuries && c.readyBuiltLot);
+        Check("screen defaults", c.buildingsDecay && !c.instantBuild && !c.instantShoot && !c.starsDontMisbehave && !c.stuntmen && !c.stuntInjuries && c.emptyLot);
         Options o = DefaultOptions();
         ApplySandboxChoices(o, c);
         Check("sandbox with the screen defaults: game type 2", o.get(Option::GameType) == 2.0f);
