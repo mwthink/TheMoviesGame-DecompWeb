@@ -181,6 +181,18 @@ body[data-screen="game"] .devmenu { bottom: 70px; }
 .viewer label.check { display: flex; align-items: center; gap: 6px; }
 .viewer select, .viewer input[type=range], .viewer input[type=search], .viewer input[type=file] { width: 100%; font: inherit; color: var(--fg); background: #14141c; border: 1px solid #3a3a48; padding: 2px 4px; }
 .viewer output { color: var(--muted); font-size: 12px; }
+.viewer .pick { margin: 4px 0; }
+.viewer .pick-head { display: flex; justify-content: space-between; }
+.viewer .stepper { display: flex; gap: 3px; }
+.viewer .stepper select { flex: 1; min-width: 0; }
+.viewer .stepper select:focus { outline: 1px solid var(--accent); }
+.viewer .stepper button { font: inherit; color: var(--fg); background: #14141c; border: 1px solid #3a3a48; padding: 0 7px; cursor: pointer; }
+.viewer .stepper button:hover { border-color: var(--accent); color: var(--accent); }
+.viewer details { margin-top: 8px; color: var(--muted); font-size: 12px; }
+.viewer summary { cursor: pointer; }
+.viewer .keys { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 6px 0 0; }
+.viewer .keys dt { color: var(--fg); white-space: nowrap; }
+.viewer .keys dd { margin: 0; }
 .viewer hr { border: none; border-top: 1px solid #25252f; margin: 8px 0; }
 .viewer .actions { margin-top: 10px; }
 .viewer .actions button { font: inherit; color: var(--fg); background: transparent; border: 1px solid #3a3a48; padding: 4px 14px; cursor: pointer; }
