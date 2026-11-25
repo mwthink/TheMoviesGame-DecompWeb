@@ -12,10 +12,11 @@ export class OptionsScreen implements Screen {
   private el: HTMLElement | null = null;
   private readonly onKey = (e: KeyboardEvent) => { if (e.key === "Escape") this.onBack(); };
 
-  constructor(private readonly container: HTMLElement, private readonly store: SettingsStore, private readonly onBack: () => void) {}
+  /** `overlay` shows it over something else (the running game) on a dimmed backdrop instead of the main menu's own. */
+  constructor(private readonly container: HTMLElement, private readonly store: SettingsStore, private readonly onBack: () => void, private readonly overlay = false) {}
 
   enter(): void {
-    this.el = mountScreen(this.container, "menu options");
+    this.el = mountScreen(this.container, `menu options${this.overlay ? " overlay" : ""}`);
     this.render();
     window.addEventListener("keydown", this.onKey);
   }

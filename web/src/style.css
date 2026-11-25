@@ -11,7 +11,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); o
 #game-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: none; outline: none; }
 body[data-screen="game"] #game-canvas, body[data-screen="viewer"] #game-canvas { display: block; }
 
-#screens { position: fixed; inset: 0; pointer-events: none; }
+#screens { position: fixed; inset: 0; pointer-events: none; z-index: 8; } /* above the game overlays (the HUD is 5): the loading screen and Options cover them */
 .screen {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; pointer-events: auto;
@@ -217,3 +217,13 @@ body[data-screen="game"] .devmenu { bottom: 70px; }
 .gallery .lab output, .gallery .lab .info { color: var(--muted); font-size: 12px; margin: 0 0 4px; }
 .gallery .lab .buttons { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
 .gallery .lab button { width: auto; padding: 4px 10px; font-size: 12px; }
+
+/* Pause menu, and a screen shown over the running game. */
+.pausemenu { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; background: rgba(5, 5, 8, 0.55); pointer-events: auto; }
+.pausemenu[hidden] { display: none; }
+.pausemenu .box { min-width: 16rem; padding: 1.4rem 1.6rem; background: rgba(11, 11, 16, 0.95); border: 1px solid #3a3a48; display: flex; flex-direction: column; gap: 0.6rem; font-family: var(--font, Georgia, serif); }
+.pausemenu h2 { margin: 0 0 0.5rem; font-weight: normal; letter-spacing: 0.2em; text-transform: uppercase; font-size: 1.3rem; text-align: center; }
+.pausemenu button { padding: 0.7rem 1rem; font: inherit; font-size: 1rem; letter-spacing: 0.08em; color: var(--fg); background: transparent; border: 1px solid #3a3a48; cursor: pointer; text-align: left; }
+.pausemenu button:hover, .pausemenu button:focus-visible { border-color: var(--accent); color: var(--accent); background: rgba(224, 165, 38, 0.06); outline: none; }
+.pausemenu .hint { margin: 0.4rem 0 0; color: var(--muted); font-size: 0.75rem; }
+.screen.overlay { background: rgba(5, 5, 8, 0.88); }

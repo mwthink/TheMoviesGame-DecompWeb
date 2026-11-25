@@ -55,7 +55,7 @@ older `webkitdirectory` fallback elsewhere) and a `.jad` saved game. The archive
 splash  --(3 s, click or any key)-->  main menu  --(Load Game)-->  Load Game  --(Load)-->  world view
                                           ^                           |                       |
                                           +-------- Back -------------+                       |
-                                          +------------------------ Esc -----------------------+
+                                          +------------- Esc, Main menu (pause menu) ----------+
 ```
 
 | Screen | File | Notes |
@@ -66,7 +66,7 @@ splash  --(3 s, click or any key)-->  main menu  --(Load Game)-->  Load Game  --
 | Options | `src/screens/OptionsScreen.ts` | Graphics and Game settings (`OPTIONS.md`), kept in `localStorage` through `src/settings/Settings.ts`. |
 | Character Viewer | `src/screens/CharacterViewerScreen.ts` | A side panel and an orbit view of any costume, head, hair and animation (`CHARACTER_VIEWER.md`). |
 | Loading screens (dev) | `src/screens/LoadingGalleryScreen.ts` | Dev builds only: a menu entry that browses the original's loading pictures (`LOADING_SCREENS.md`). |
-| World view | `src/screens/GameView.ts` | The toolbar (pause, play, fast, date, cash), the staff panel, a Babylon `Engine` and `Scene` on the page canvas, the menu bar and the dev menu. Default camera: drag = orbit, right-drag = pan, wheel = zoom. Game camera (chosen in the dev menu): WASD / arrows scroll, wheel zoom, Ctrl + arrows rotate, middle-drag rotate, Shift = 3x, pointer shoved against the window edge scrolls. Esc returns to the menu. |
+| World view | `src/screens/GameView.ts` | The toolbar (pause, play, fast, date, cash), the staff panel, a Babylon `Engine` and `Scene` on the page canvas, the menu bar and the dev menu. Default camera: drag = orbit, right-drag = pan, wheel = zoom. Game camera (chosen in the dev menu): WASD / arrows scroll, wheel zoom, Ctrl + arrows rotate, middle-drag rotate, Shift = 3x, pointer shoved against the window edge scrolls. Esc (or the bar's Pause button) opens the pause menu: Resume, Options (shown over the running game) and Main menu (leaves the game; there is no saving yet). The pause menu pauses the game clock; the flags and the camera keep running. |
 
 ## Code layout
 
@@ -82,7 +82,7 @@ web/
   src/sim/              the simulation, ported from the game (docs/REIMPLEMENTATION.md): movie, staff, studio, ai, boot, frontend, sandbox, character
   src/world/            WorldData (loads and prepares everything; no engine types), WorldScene (builds the Babylon scene), shaders
   src/camera/           GameCamera (the game's gameplay camera, no engine or DOM types, docs/CAMERA.md), CameraInput (DOM events -> its per-frame input)
-  src/ui/               DOM overlays above the canvas: Tooltip (bottom-right bubble, `data-tooltip`), MenuBar (fixed to the top; `toolbar` is the slot GameToolbar mounts into), GameToolbar (speed buttons, date, cash), StaffPanel (left, under the bar), DevMenu (fixed bottom right)
+  src/ui/               DOM overlays above the canvas: PauseMenu (Esc), Tooltip (bottom-right bubble, `data-tooltip`), MenuBar (fixed to the top; `toolbar` is the slot GameToolbar mounts into), GameToolbar (speed buttons, date, cash), StaffPanel (left, under the bar), DevMenu (fixed bottom right)
   tests/                node:test files and helpers; tests/sim/ for the simulation; the ones that read the real game files skip without them
   tools/                command-line tools run with node (movie-calc)
   localPaths.ts         this machine's game install and saves, from local.env (Node only)

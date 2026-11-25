@@ -22,7 +22,7 @@ The **start options** of a new game (stars misbehave, buildings decay, instant b
 
 ## What the web app exposes
 
-Kept simple, as asked: five settings, in two groups. All are stored in `localStorage` (`otm.settings.v1`), applied at once, and fall back to the defaults when the stored value is damaged.
+Reached from the main menu and, over the running game, from the pause menu (`PauseMenu.ts`; the original's `pause.mfl` also has Resume and Options). Kept simple, as asked: five settings, in two groups. All are stored in `localStorage` (`otm.settings.v1`), applied at once, and fall back to the defaults when the stored value is damaged.
 
 | Group | Setting | Effect | Original's counterpart |
 |---|---|---|---|

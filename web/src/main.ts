@@ -51,7 +51,15 @@ function loadWorld(task: LoadTask<WorldData>): void {
 
 // Screens are built on demand so each visit starts fresh. GameView keeps its engine between visits.
 const settings = new SettingsStore(typeof localStorage === "undefined" ? null : localStorage);
-const gameView = new GameView(canvas, () => show("menu"), settings);
+/** The Options screen shown over the running game (from the pause menu); `done` runs when it is closed. */
+let overlayOptions: OptionsScreen | null = null;
+function showOptionsOverGame(done: () => void): void {
+  overlayOptions?.exit();
+  const screen = new OptionsScreen(container, settings, () => { screen.exit(); overlayOptions = null; done(); }, true);
+  overlayOptions = screen;
+  screen.enter();
+}
+const gameView = new GameView(canvas, () => { overlayOptions?.exit(); overlayOptions = null; show("menu"); }, settings, showOptionsOverGame);
 const screens: Record<ScreenId, () => Screen> = {
   splash: () => new SplashScreen(container, () => show("menu")),
   menu: () => new MainMenuScreen(container, () => show("load"), () => show("options"), () => show("gallery"), () => show("viewer")),

@@ -22,6 +22,7 @@ import { MenuBar } from "../ui/MenuBar.ts";
 import { GameToolbar } from "../ui/GameToolbar.ts";
 import { StaffPanel } from "../ui/StaffPanel.ts";
 import { Tooltip } from "../ui/Tooltip.ts";
+import { PauseMenu } from "../ui/PauseMenu.ts";
 import { applySun, createSunLights, type SunLights } from "../world/SunLight.ts";
 import { DEFAULT_SHADOWS, DEFAULT_SUN, type ShadowSettings, type SunSettings } from "../world/Sun.ts";
 import { SunShadows } from "../world/SunShadows.ts";
@@ -37,7 +38,12 @@ export class GameView implements Screen {
   private engine: Engine | null = null;
   private scene: Scene | null = null;
   private readonly onResize = () => this.engine?.resize();
-  private readonly onKey = (e: KeyboardEvent) => { if (e.key === "Escape") this.onExit(); };
+  private readonly onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !this.overlayOpen) this.togglePause(); };
+  /** A screen shown over the running game (the Options screen from the pause menu) is open: Esc belongs to it. */
+  private overlayOpen = false;
+  private pauseMenu: PauseMenu | null = null;
+  /** The speed to go back to when the pause menu closes. */
+  private speedBeforePause: GameSpeed = "play";
 
   // Overlays and the cameras (see docs/CAMERA.md). The orbit camera is the default; the game camera is ported from the original's code.
   private hud: HTMLElement | null = null;
@@ -106,7 +112,8 @@ export class GameView implements Screen {
   private fxaa: FxaaPostProcess[] = [];
   private fpsEl: HTMLElement | null = null;
 
-  constructor(private readonly canvas: HTMLCanvasElement, private readonly onExit: () => void, settings: SettingsStore | null = null) {
+  /** `onOptions` shows the Options screen over the running game and calls `done` when it is closed. */
+  constructor(private readonly canvas: HTMLCanvasElement, private readonly onExit: () => void, settings: SettingsStore | null = null, private readonly onOptions: (done: () => void) => void = () => {}) {
     this.settings = settings;
   }
 
@@ -217,6 +224,9 @@ export class GameView implements Screen {
     this.devMenu?.dispose();
     this.menuBar?.dispose();
     this.toolbar?.dispose();
+    this.pauseMenu?.dispose();
+    this.pauseMenu = null;
+    this.overlayOpen = false;
     this.staffPanel?.dispose();
     this.tooltip?.dispose();
     this.hud?.remove();
@@ -249,7 +259,12 @@ export class GameView implements Screen {
     this.hud = document.createElement("div");
     this.hud.className = "hud";
     document.body.append(this.hud);
-    this.menuBar = new MenuBar(() => this.onExit());
+    this.menuBar = new MenuBar(() => this.togglePause());
+    this.pauseMenu = new PauseMenu({
+      onResume: () => this.togglePause(false),
+      onOptions: () => { this.overlayOpen = true; this.pauseMenu?.close(); this.onOptions(() => { this.overlayOpen = false; this.pauseMenu?.open(); }); },
+      onMainMenu: () => this.onExit(),
+    });
     this.menuBar.mount(this.hud);
     this.toolbar = new GameToolbar((speed) => this.setSpeed(speed));
     this.toolbar.mount(this.menuBar.toolbar);
@@ -261,6 +276,7 @@ export class GameView implements Screen {
     this.tooltip.attach(this.hud);
     this.devMenu = new DevMenu((m) => this.selectCamera(m), this.gameCamera !== null, (on) => { this.revealAlways = on; }, (s) => { this.sun = s; if (this.scene && this.sunLights) applySun(this.scene, this.sunLights, s); this.shadows?.update(this.sun, this.shadowSettings); }, (s) => { this.shadowSettings = s; this.shadows?.update(this.sun, s); });
     this.devMenu.mount(this.hud);
+    this.pauseMenu.mount(this.hud);
   }
 
   /**
@@ -281,6 +297,24 @@ export class GameView implements Screen {
     }
     if (this.fpsEl) this.fpsEl.hidden = !s.showFps;
     this.tooltip?.setEnabled(s.helpLevel !== "none");
+  }
+
+  /**
+   * Open or close the pause menu (`open` forces one way). Opening pauses the game clock, remembering the speed; closing puts the speed back. The flags and the camera are not
+   * part of the simulation and keep running behind the menu.
+   */
+  private togglePause(open = !this.pauseMenu?.isOpen): void {
+    const menu = this.pauseMenu;
+    if (!menu || open === menu.isOpen) return;
+    if (open) {
+      this.speedBeforePause = this.clock.speed;
+      this.setSpeed("pause");
+      menu.open();
+    } else {
+      menu.close();
+      this.setSpeed(this.speedBeforePause);
+      this.canvas.focus();
+    }
   }
 
   /** The toolbar's speed buttons: pause, play (1x) or fast. Only the game clock changes; flags and the camera keep running (docs/AUTO_ANIMATION.md). */
