@@ -28,6 +28,7 @@ import { makeTexture, setTextureAnisotropy } from "./textures.ts";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import type { Material } from "@babylonjs/core/Materials/material";
 import { PersonMeshes } from "./PersonMeshes.ts";
+import { buildSelectionOctree } from "./SelectionOctree.ts";
 import { SUN_LIT } from "./SunLight.ts";
 import type { MeshAsset, PersonInWorld, SkyData, TerrainData, WorldData } from "./WorldData.ts";
 
@@ -209,6 +210,12 @@ function buildSources(scene: Scene, m: MeshAsset, caches: Caches, cut = false): 
 }
 
 
+/** A person this far from the camera (scene units) is re-posed every 33 ms (30 times a second), beyond the far distance every 66 ms (15 times a second); nearer, every frame. */
+const POSE_NEAR_DISTANCE = 45;
+const POSE_FAR_DISTANCE = 90;
+const POSE_INTERVAL_MID_MS = 33;
+const POSE_INTERVAL_FAR_MS = 66;
+
 /**
  * Draw the people (docs/PEOPLE.md). Each person is a node at their saved world position, turned by their saved facing the way placed assets are
  * (`rotation.y = -angle`; game counter-clockwise = Babylon clockwise in the mirrored space), holding a mesh per model part (body, head, hair) in the
@@ -218,7 +225,7 @@ function buildSources(scene: Scene, m: MeshAsset, caches: Caches, cut = false): 
 function buildPeople(scene: Scene, people: PersonInWorld[], nav: NavGrid | null, props: readonly PropExplainer[], desireTable: Map<string, DesireDef>): { nodes: TransformNode[]; step(dtMs: number): void; clips: () => { name: string; clip: string; source: string }[]; control: PeopleControl } {
   const materials = new Map<string, StandardMaterial>();
   const nodes: TransformNode[] = [];
-  const animated: { animator: PersonAnimator; entry: PersonInWorld; meshes: PersonMeshes; walker: PersonWalker; wanderer: Wanderer; agent: DesireAgent; actor: Actor; held?: boolean }[] = [];
+  const animated: { animator: PersonAnimator; entry: PersonInWorld; meshes: PersonMeshes; walker: PersonWalker; wanderer: Wanderer; agent: DesireAgent; actor: Actor; held?: boolean; sincePose: number }[] = [];
   let wander = false;
   let desiresOn = false;
   let now = 0; // game seconds since the world was built: props are "taken" for a moment after someone chooses them
@@ -242,6 +249,7 @@ function buildPeople(scene: Scene, people: PersonInWorld[], nav: NavGrid | null,
       animated.push({
         animator: new PersonAnimator(entry.skeleton, entry.clips, entry.plan), entry, meshes, walker, wanderer: new Wanderer(),
         agent: new DesireAgent(desireTable, [female ? "crap_female" : "crap_male", "buyfood", "propinteract"]), actor,
+        sincePose: Math.random() * POSE_INTERVAL_FAR_MS, // staggered, so the far people are not all re-posed on the same frame
       });
     }
   }
@@ -249,6 +257,7 @@ function buildPeople(scene: Scene, people: PersonInWorld[], nav: NavGrid | null,
   const step = (dtMs: number) => {
     const dt = dtMs / 1000;
     now += dt;
+    const eye = scene.activeCamera?.globalPosition ?? null;
     for (const a of animated) {
       const { animator, meshes, walker, entry } = a;
       // desires first: a person with an activity does not wander; they go where it takes them
@@ -268,8 +277,16 @@ function buildPeople(scene: Scene, people: PersonInWorld[], nav: NavGrid | null,
       // the gait clip while on the way, the room plan otherwise
       animator.setOverride(walker.moving ? entry.gaits.files[walker.gait] : null);
       // a person outside the camera's view keeps their clock running but is not re-skinned (the mesh is posed again the first frame it is seen)
+      // and one far from the camera is re-posed less often (they are a few pixels tall; skinning is the cost of a crowded view)
       const planes = scene.frustumPlanes;
-      const seen = !planes || !meshes.meshes[0] || meshes.meshes.some((m) => m.isInFrustum(planes));
+      let seen = !planes || !meshes.meshes[0] || meshes.meshes.some((m) => m.isInFrustum(planes));
+      a.sincePose += dtMs;
+      if (seen && eye) {
+        const d = Vector3.Distance(eye, meshes.node.position);
+        const interval = d > POSE_FAR_DISTANCE ? POSE_INTERVAL_FAR_MS : d > POSE_NEAR_DISTANCE ? POSE_INTERVAL_MID_MS : 0;
+        if (a.sincePose < interval) seen = false;
+      }
+      if (seen) a.sincePose = 0;
       const transforms = animator.step(dtMs, seen);
       if (transforms) meshes.applyPose(transforms);
     }
@@ -503,5 +520,6 @@ export function buildWorld(scene: Scene, canvas: HTMLCanvasElement, world: World
   const built = buildPeople(scene, world.people, world.nav, world.props, world.desires);
   for (const node of built.nodes) for (const part of node.getChildMeshes()) shadowCasters.push({ mesh: part, material: null });
   const skyHandle = world.sky ? buildSky(scene, world.sky) : null;
+  buildSelectionOctree(scene); // last: it sorts the meshes that exist now into still and moving
   return { camera, instances, shadowCasters, setSkyVariant: (v) => skyHandle?.setVariant(v), stepAutoAnimations, autoAnimated, people: built.nodes, stepPeople: built.step, peopleClips: built.clips, peopleControl: built.control };
 }
