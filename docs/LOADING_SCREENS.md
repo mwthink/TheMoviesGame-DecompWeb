@@ -34,12 +34,22 @@
 - Not done (next steps): the 3D character (the pictures' characters are baked in), the logo drawn separately, the game's own bar movie, a tip chosen to match the save, and the
   box fill drawn by us instead of the picture's, which would let the box size itself to the text.
 
-## Browsing them
+## The loading-screen lab (dev)
 
-Run the dev server (`npm run dev` from a terminal, see `WEB.md`), open the main menu and choose **Loading screens (dev)**. The gallery shows every
-picture as a thumbnail; click one (or use the arrow keys) to see it large, Escape to go back. The pictures are read from your install each time (nothing is
-copied into the repository). With no local files configured, use **Load Game** once to pick the game folder first. Code: `web/src/screens/LoadingGalleryScreen.ts`,
-`loadingPictures()` in `frontEndArt.ts`, `PakIndex.list()`.
+Run the dev server (`npm run dev` from a terminal, see `WEB.md`), open the main menu and choose **Loading screens (dev)**. The page shows every picture as a thumbnail; choosing
+one opens the **lab**: a live preview of the real loading layout (`web/src/screens/LoadingView.ts`, the same view `LoadingScreen` uses) with a collapsible control panel:
+
+- **Picture:** previous, next, random; fit (the whole picture, or filling the window and cropping the edges).
+- **Tip:** any of the game's tips, or a random one, or none.
+- **Progress bar:** a fixed value, a 0 to 100 % animation (8 s), or the sweeping bar (when the length is unknown), and the step text under it.
+- **Text box:** left, top, width, height (fractions of the picture), text size, heading and body colours.
+- **Our own panel:** draw our own filled panel (colour, opacity, corner radius) over the picture's baked box, so the box can be resized or recoloured; the baked one shows around it
+  if ours is smaller.
+- **Copy layout as JSON** puts the current `LoadingLayout` on the clipboard, ready to become a new default in `DEFAULT_LOADING_LAYOUT`.
+- **Coming later** (disabled): the real-time 3D character, with the logo and box drawn separately.
+
+The pictures are read from your install each time (nothing is copied into the repository). With no local files configured, use **Load Game** once to pick the game folder first.
+Code: `web/src/screens/LoadingGalleryScreen.ts`, `loadingPictures()` in `frontEndArt.ts`, `PakIndex.list()`.
 
 ## Ideas for our own loading screens
 

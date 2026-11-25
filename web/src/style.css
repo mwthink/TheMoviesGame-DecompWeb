@@ -130,13 +130,6 @@ body[data-screen="game"] .hud { display: block; }
 .gallery .thumb span { letter-spacing: 0.08em; }
 .gallery .actions { margin: 1.5rem 0; }
 .gallery .actions button { width: auto; padding: 0.5rem 1.4rem; font-size: 0.95rem; }
-.gallery .viewer { position: fixed; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; gap: 1rem; background: rgba(5, 5, 8, 0.96); }
-.gallery .viewer[hidden] { display: none; }
-.gallery .viewer figure { margin: 0; text-align: center; }
-.gallery .viewer .stage canvas { max-width: min(86vw, 90vh); max-height: 86vh; width: auto; height: auto; aspect-ratio: 1; }
-.gallery .viewer figcaption { margin-top: 0.5rem; color: var(--muted); letter-spacing: 0.1em; font-size: 0.85rem; }
-.gallery .viewer .nav, .gallery .viewer .close { width: auto; padding: 0.4rem 1rem; font-size: 1.6rem; }
-.gallery .viewer .close { position: absolute; top: 1rem; right: 1rem; }
 
 /* Tooltip bubble: bottom right, click to dismiss. */
 .tooltip {
@@ -182,8 +175,8 @@ body[data-screen="game"] .devmenu { bottom: 70px; }
 .loadpic[hidden] { display: none; }
 .loadpic .picture { position: absolute; inset: 0; width: 100%; height: 100%; }
 .loadbox { position: absolute; display: flex; flex-direction: column; justify-content: space-between; padding: 3.2cqw 4.2cqw 2.4cqw; color: #000; font-family: "Georgia", "Times New Roman", serif; }
-.loadbox .tip h3 { margin: 0 0 1.2cqw; text-align: center; font-size: 3cqw; font-weight: bold; color: #17223a; }
-.loadbox .tip p { margin: 0; font-size: 2.35cqw; line-height: 1.3; white-space: pre-line; }
+.loadbox .tip h3 { margin: 0 0 1.2cqw; text-align: center; font-size: calc(3cqw * var(--ts, 1)); font-weight: bold; color: var(--heading, #17223a); }
+.loadbox .tip p { margin: 0; font-size: calc(2.35cqw * var(--ts, 1)); line-height: 1.3; white-space: pre-line; color: var(--body, #000); }
 .loadbox .loadprogress { display: flex; flex-direction: column; align-items: center; gap: 0.6cqw; }
 .loadbox .progress { width: 100%; height: 1.6cqw; min-height: 6px; border-color: #5d6f93; background: rgba(255, 255, 255, 0.45); }
 .loadbox .fill { background: #b3262e; }
@@ -200,3 +193,27 @@ body[data-screen="game"] .devmenu { bottom: 70px; }
 .devmenu label.slider { display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 8px; }
 .devmenu label.slider input[type=range] { grid-column: 1 / -1; width: 100%; }
 .devmenu label.slider output { color: var(--muted); }
+
+/* The loading view: picture fit and the plain fallback block. */
+.loadpic.cover { width: max(100vw, 100vh); height: max(100vw, 100vh); flex: none; }
+.loading.dressed { overflow: hidden; }
+.loading .plain { display: flex; flex-direction: column; align-items: center; }
+.loading .plain[hidden], .loadpic[hidden] { display: none; }
+
+/* Loading-screen lab. */
+.gallery .lab { position: fixed; inset: 0; z-index: 2; background: #050507; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.gallery .lab[hidden] { display: none; }
+.gallery .lab .stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.gallery .lab .panel { position: absolute; top: 10px; right: 10px; bottom: 10px; width: 300px; overflow-y: auto; padding: 8px 12px; background: rgba(11, 11, 16, 0.92); border: 1px solid #3a3a48; font-size: 13px; }
+.gallery .lab section { border-bottom: 1px solid #25252f; padding: 4px 0 8px; }
+.gallery .lab h4 { margin: 4px 0 6px; font-weight: normal; letter-spacing: 0.1em; text-transform: uppercase; font-size: 11px; color: var(--accent); cursor: pointer; }
+.gallery .lab section.closed > :not(h4) { display: none; }
+.gallery .lab label { display: block; margin: 4px 0; }
+.gallery .lab label.check { display: flex; align-items: center; gap: 6px; }
+.gallery .lab label.slider { display: grid; grid-template-columns: 1fr auto; column-gap: 8px; }
+.gallery .lab label.slider input { grid-column: 1 / -1; }
+.gallery .lab select, .gallery .lab input[type=text] { width: 100%; font: inherit; color: var(--fg); background: #14141c; border: 1px solid #3a3a48; padding: 2px 4px; }
+.gallery .lab input[type=range] { width: 100%; }
+.gallery .lab output, .gallery .lab .info { color: var(--muted); font-size: 12px; margin: 0 0 4px; }
+.gallery .lab .buttons { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.gallery .lab button { width: auto; padding: 4px 10px; font-size: 12px; }

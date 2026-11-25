@@ -65,3 +65,12 @@ test("the speech-bubble box is where LOADING_BOX says in every picture", { skip:
     }
   }
 });
+
+import { DEFAULT_LOADING_LAYOUT, withOpacity } from "../src/screens/LoadingView.ts";
+
+test("the default layout is the measured box; colours convert for the panel", () => {
+  assert.deepEqual(DEFAULT_LOADING_LAYOUT.box, LOADING_BOX);
+  assert.equal(DEFAULT_LOADING_LAYOUT.fit, "contain");
+  assert.equal(withOpacity("#a6b7d5", 0.5), "rgba(166, 183, 213, 0.5)");
+  assert.equal(withOpacity("#000000", 7), "rgba(0, 0, 0, 1)");
+});
