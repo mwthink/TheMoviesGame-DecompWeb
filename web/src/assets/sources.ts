@@ -8,7 +8,7 @@ interface PermissionedHandle {
 }
 declare global {
   interface Window {
-    showDirectoryPicker?(opts?: { mode?: "read"; id?: string }): Promise<FileSystemDirectoryHandle>;
+    showDirectoryPicker?(opts?: { mode?: "read"; id?: string; startIn?: FileSystemHandle | "documents" | "desktop" | "downloads" }): Promise<FileSystemDirectoryHandle>;
   }
 }
 
@@ -87,13 +87,16 @@ export async function ensureReadable(handle: FileSystemDirectoryHandle): Promise
   return (await h.requestPermission?.({ mode: "read" })) === "granted";
 }
 
+/** A saved game the dev server offers: its file name, modification time (ms since 1970) and a way to open it. */
+export interface DevSave { name: string; modified: number; open(): Promise<ByteSource>; }
+
 /** Dev server only: the archives and saved game that vite.config.ts serves from this machine. Null when that endpoint is absent. */
-export async function localDevSources(pick?: string): Promise<{ paks: ByteSource[]; save: ByteSource | null; text: ByteSource[] } | null> {
+export async function localDevSources(pick?: string): Promise<{ paks: ByteSource[]; save: ByteSource | null; text: ByteSource[]; saves: DevSave[] } | null> {
   if (!import.meta.env.DEV) return null;
   try {
     const res = await fetch("/__local/manifest.json");
     if (!res.ok || !(res.headers.get("content-type") ?? "").includes("json")) return null;
-    const manifest = (await res.json()) as { paks: string[]; save: string | null; saves?: string[]; text?: string[] };
+    const manifest = (await res.json()) as { paks: string[]; save: string | null; saves?: string[]; saveTimes?: number[]; text?: string[] };
     const paks = await Promise.all(manifest.paks.map((n) => HttpSource.open(n, `/__local/pak/${encodeURIComponent(n)}`)));
     // `pick`: part of a saved game's file name, to choose another save than the default one.
     const chosen = pick ? manifest.saves?.find((n) => n.toLowerCase().includes(pick.toLowerCase())) : undefined;
@@ -101,7 +104,10 @@ export async function localDevSources(pick?: string): Promise<{ paks: ByteSource
       ? await HttpSource.open(chosen, `/__local/save/${encodeURIComponent(chosen)}`)
       : manifest.save ? await HttpSource.open(manifest.save, "/__local/save") : null;
     const text = await Promise.all((manifest.text ?? []).map((n) => HttpSource.open(n, `/__local/text/${encodeURIComponent(n)}`)));
-    return { paks, save, text };
+    const saves = (manifest.saves ?? []).map((name, i): DevSave => ({
+      name, modified: manifest.saveTimes?.[i] ?? 0, open: () => HttpSource.open(name, `/__local/save/${encodeURIComponent(name)}`),
+    }));
+    return { paks, save, text, saves };
   } catch {
     return null;
   }

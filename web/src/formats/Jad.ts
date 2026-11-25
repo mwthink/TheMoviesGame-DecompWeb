@@ -224,6 +224,46 @@ export function parseSave(d: Uint8Array): Save {
   return { people, header: readHeader(d, v), staff, placed, landscape: landscapeBlob ? parseLandscape(landscapeBlob) : null, lotCamera };
 }
 
+/** What a save list shows about a saved game, read from its header alone (docs/SAVE_FORMAT.md, "Header"). */
+export interface SaveSummary extends SaveHeader {
+  /** The header's last name string, which the game also names the file after: the studio's in a Quick Start save (docs/SAVE_FORMAT.md, "Header"). */
+  studio: string;
+  /** The tutorial / quick-start state label (`post-intro-tutorial`, `QUICKSTART`, `script-casting`, ...). */
+  state: string;
+  /** The real-world time the game saved, from the header's six numbers (local time, as the game wrote it); null if they do not make a date. */
+  savedAt: Date | null;
+}
+
+/** How many leading bytes of a save `parseSaveSummary` needs (the header starts a few bytes in and is a few hundred bytes long). */
+export const SAVE_SUMMARY_BYTES = 4096;
+
+/**
+ * Read the header of a `.jad` from its first bytes (`SAVE_SUMMARY_BYTES` are enough), without parsing the objects. Throws on a file that is not a saved game.
+ * Order of the fields: date, cash, six u32 (hour, minute, weekday, day, month, year), then three wide strings: one empty in every save seen, the state label,
+ * the studio name [data].
+ */
+export function parseSaveSummary(d: Uint8Array): SaveSummary {
+  if (!PREFIX.every((b, i) => d[i] === b)) throw new Error("not a saved game (unexpected file prefix)");
+  const v = new DataView(d.buffer, d.byteOffset, d.byteLength);
+  const header = readHeader(d, v);
+  if (!header) throw new Error("saved game has no header");
+  let p = find(d, enc("[HEADER]\n"), 0) + 9 + 8;
+  let savedAt: Date | null = null;
+  if (p + 24 <= d.length) {
+    const [hour, minute, , day, month, year] = Array.from({ length: 6 }, (_, i) => v.getUint32(p + 4 * i, true));
+    if (year! > 1990 && year! < 3000 && month! >= 1 && month! <= 12 && day! >= 1 && day! <= 31) savedAt = new Date(year!, month! - 1, day!, hour!, minute!);
+  }
+  p += 24;
+  const strings: string[] = [];
+  for (let i = 0; i < 3 && p + 4 <= d.length; i++) {
+    const n = v.getUint32(p, true);
+    if (p + 4 + n > d.length || n > 1024) break;
+    strings.push(readWide(d.subarray(p, p + 4 + n)));
+    p += 4 + n;
+  }
+  return { ...header, studio: strings[2] ?? "", state: strings[1] ?? "", savedAt };
+}
+
 /** The header's two leading floats: the date, then the cash. */
 function readHeader(d: Uint8Array, v: DataView): SaveHeader | null {
   const at = find(d, enc("[HEADER]\n"), 0);

@@ -40,29 +40,49 @@ Requires Node 20.19 or 22.12 or newer (Vite's requirement; the tests run `.ts` f
 
 **Try it quickly:** `npm run dev`, open `http://localhost:5173/?autoload`. In dev the server also serves the game archives and one save from this machine
 (`vite.config.ts`, `/__local/...`, read-only, byte ranges; paths from `local.env` or the environment, `web/localPaths.ts`: the archives of `OTM_GAME_DIR`,
-and `OTM_SAVE` or else the first save in the game's Saved Games folder). `?autoload` uses them and skips the menus; `?autoload=quick` (any part of a file name, case-insensitive) picks another `.jad` from the same folder (the server lists them all); the Load Game screen has a "Use local files" button for the same.
+and `OTM_SAVE` or else the first save in the game's Saved Games folder). `?autoload` uses them and skips the menus; `?autoload=quick` (any part of a file name, case-insensitive) picks another `.jad` from the same folder (the server lists them all). Without `?autoload` the dev server's files stand in for the linked folders (below): its archives
+as the game folder, its saves as the saved games folder.
 This endpoint exists only under `npm run dev`; the production build has none.
 
 **Run the dev server from a terminal** when it has to read game files. Some sandboxed launchers (an editor's or an agent's preview server) cannot read
 `~/Documents` or a CrossOver bottle and their reads hang; a server started from a terminal can.
 
-In a normal browser, **Load Game** asks for the game folder (the one with `Data/pak` inside; Chromium's folder picker, which remembers the choice, or the
-older `webkitdirectory` fallback elsewhere) and a `.jad` saved game. The archives are read in slices from disk, never uploaded.
+In a normal browser the player links the game folder and the saved games folder once (next section). The archives are read in slices from disk, never uploaded.
+
+## Linking the game
+
+Everything past the splash reads the player's install, and Load Game and Continue read their saves, which the game keeps in a different place
+(`Documents/The Movies/Saved Games`). `src/screens/gameLink.ts` owns both links:
+
+- **Choosing.** Chromium's folder picker (`showDirectoryPicker`; the saves picker starts in Documents), dragging a folder onto Find your game or Load Game, or, in
+  browsers without the picker, `<input webkitdirectory>`. The game folder may be the install itself, its `Data` or `Data/pak`; the saves folder may be `Saved Games` or
+  the `The Movies` folder above it. A wrong folder is refused with a message saying what was expected.
+- **Remembering.** A picked folder handle goes into IndexedDB (`src/assets/remembered.ts`, keys `gameFolder` and `savesFolder`). On a later visit `restoreLinks` uses it
+  without asking if read permission is still granted; otherwise it is *pending*, because asking needs a user gesture. The splash then says "Click or press any key to
+  open <folder>", does not time out, and its click calls `regrantLinks`, so a returning player gets the dressed menu for the click the splash already asks for. The menu
+  footer and Load Game also offer an Allow button for a pending folder. `webkitdirectory` picks cannot be remembered; Find your game says so.
+- **The save list** reads only each save's first 4 KB (`parseSaveSummary`, `SAVE_FORMAT.md` "Header"): studio, in-game date, cash and the real time it was saved,
+  newest first (the header's save time, then the file's time). **Continue** loads the newest. A `.jad` can also be opened from anywhere or dropped on the screen.
+- **Errors.** A failed load's Back returns to the same Load Game screen with the same save chosen and the error under the list (or to the profile screen for a New Game).
 
 ## Flow
 
 ```
-splash  --(3 s, click or any key)-->  main menu  --(Load Game)-->  Load Game  --(Load)-->  world view
-                                          ^                           |                       |
-                                          +-------- Back -------------+                       |
-                                          +------------- Esc, Main menu (pause menu) ----------+
+splash --(3 s, click or key)--> main menu --(Load Game)--> Load Game --(Load)--> world view
+  |                               |  ^                        |                    ^   |
+  | first visit                   |  +--------- Back ---------+                    |   |
+  v                               +---------- Continue (the newest save) ----------+   |
+Find your game --(Continue)--> main menu                                               |
+  (also opened before New Game, Load Game and the Character Viewer while no game folder is linked)
+main menu <----------------------- Esc, Main menu (pause menu) ------------------------+
 ```
 
 | Screen | File | Notes |
 |---|---|---|
-| Splash | `src/screens/SplashScreen.ts` | Title card, fades in. Advances after `SPLASH_MS` (3000 ms) or on click or key. |
-| Main menu | `src/screens/MainMenuScreen.ts` | Eight entries, listed in the `items` array. An entry is enabled only if it has an `action`; **Load Game** and **Options** are. |
-| Load Game | `src/screens/LoadGameScreen.ts` | Pick the game folder and a `.jad`, then Load: opens the archives, parses the save, loads the world data, hands it to the game view. Shows progress and errors. |
+| Splash | `src/screens/SplashScreen.ts` | Title card, fades in. Advances after `SPLASH_MS` (3000 ms) or on click or key; waits for the click when a remembered folder needs permission again, and asks for it with that click. |
+| Find your game | `src/screens/LinkGameScreen.ts` | Links the game folder (required) and the saved games folder (optional), with hints for Windows and CrossOver. Shown on a first visit instead of the menu, and before any entry that needs the game files. |
+| Main menu | `src/screens/MainMenuScreen.ts` | The original's entries, listed in the `items` array; an entry is enabled only if it has an `action`. **Continue** (the newest save, named under it), New Game, Load Game, Options and the Character Viewer are. The footer names the linked game folder or offers to link or re-allow it. |
+| Load Game | `src/screens/LoadGameScreen.ts` | The saved games folder's saves, newest first, with studio, date and cash; or a `.jad` opened or dropped. Load (or double-click, or Enter) hands `loadSaveTask` to the loading screen: archives, save, text database, world data. |
 | Options | `src/screens/OptionsScreen.ts` | Graphics and Game settings (`OPTIONS.md`), kept in `localStorage` through `src/settings/Settings.ts`. |
 | Character Viewer | `src/screens/CharacterViewerScreen.ts` | A side panel and an orbit view of any costume, head, hair and animation (`CHARACTER_VIEWER.md`). |
 | Loading screens (dev) | `src/screens/LoadingGalleryScreen.ts` | Dev builds only: a menu entry that browses the original's loading pictures (`LOADING_SCREENS.md`). |

@@ -1,29 +1,29 @@
 import type { ByteSource } from "../assets/ByteSource.ts";
 import { PakIndex } from "../assets/Pak.ts";
-import { recallGameFolder } from "../assets/remembered.ts";
-import { localDevSources, pakSourcesFromDirectory, readStrings } from "../assets/sources.ts";
+import { readStrings } from "../assets/sources.ts";
 import type { Strings } from "../formats/Lhts.ts";
 import { decodeDds, type Rgba } from "../formats/Dds.ts";
+import { currentInstall, onLinkChange, restoreLinks } from "./gameLink.ts";
 
 /**
  * The game's own front-end artwork, read from the player's install at run time (nothing is copied into the repository).
- * The Load Game screen hands over its archives; before that, the menus look for them in the dev server's files or the remembered folder.
+ * Where the install comes from (a linked folder, the dev server's files) is `gameLink.ts`; the caches here are dropped whenever that link changes.
  */
 
 const LOGO = { name: "frontend_movieslogo.dds", dir: "data\\textures\\ui\\" };
 
-let chosen: ByteSource[] = [];
-let chosenText: ByteSource[] = [];
 let strings: Promise<Strings | null> | null = null;
 let logo: Promise<Rgba | null> | null = null;
 let pak: Promise<PakIndex | null> | null = null;
-
-/** Called by the Load Game screen whenever the player picks a game folder (an empty list clears it). */
-export function setGameArchives(paks: ByteSource[]): void {
-  chosen = paks;
+let linkedPaks: ByteSource[] | null = null;
+onLinkChange(() => {
+  const now = currentInstall()?.paks ?? null;
+  if (now === linkedPaks) return;
+  linkedPaks = now;
   logo = null;
   pak = null;
-}
+  strings = null;
+});
 
 /** The game's archives opened once and kept (null when none can be found). */
 export function gamePak(): Promise<PakIndex | null> {
@@ -38,19 +38,13 @@ export function gamePak(): Promise<PakIndex | null> {
   })());
 }
 
-/** Called with the string database files (`stringdatabase*.lhts`) the player's folder has; the loading screen's tips come from them. */
-export function setGameText(text: ByteSource[]): void {
-  chosenText = text;
-  strings = null;
-}
-
-/** The game's string database from the chosen folder or, in the dev server, its local files; null when there is none. */
+/** The game's string database from the linked install; null when there is none. */
 export function gameStrings(): Promise<Strings | null> {
   return (strings ??= (async () => {
     try {
-      if (chosenText.length) return await readStrings(chosenText);
-      const local = await localDevSources();
-      return local?.text.length ? await readStrings(local.text) : null;
+      await restoreLinks();
+      const text = currentInstall()?.text ?? [];
+      return text.length ? await readStrings(text) : null;
     } catch (e) {
       console.warn("string database unavailable:", e);
       return null;
@@ -58,17 +52,10 @@ export function gameStrings(): Promise<Strings | null> {
   })());
 }
 
-/** The game's archives from wherever they can be found without asking (chosen on the Load Game screen, the dev server's local files, a remembered folder). */
+/** The game's archives from the linked install (empty when none is linked, or its folder still waits for a click). */
 export async function findGameArchives(): Promise<ByteSource[]> {
-  if (chosen.length) return chosen;
-  const local = await localDevSources();
-  if (local?.paks.length) return local.paks;
-  // A remembered folder is used only if read access is still granted; asking for it needs a click, so none is asked here.
-  const dir = await recallGameFolder();
-  if (dir && (await (dir as FileSystemDirectoryHandle & { queryPermission?(o: { mode: "read" }): Promise<PermissionState> }).queryPermission?.({ mode: "read" })) === "granted") {
-    return pakSourcesFromDirectory(dir);
-  }
-  return [];
+  await restoreLinks();
+  return currentInstall()?.paks ?? [];
 }
 
 /** The game's "The Movies" star logo as a new canvas (each screen gets its own), or null when no archives are available. */

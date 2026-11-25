@@ -55,7 +55,7 @@ The fields are **not tagged**; they are written in this order:
 | 1 | f32 `+0x28` | **in-game date**, days at 365 per year (715563.875 = June 1960). Earlier notes called these four bytes a tag |
 | 2 | f32 `+0x64` | cash: player studio capital x 2^-23 (`SaveGameHeader_FillFromGameState`) |
 | 3-8 | 6 x u32 `+0x2c..+0x40` | real-world save time from `strftime` + `wtol`: **hour, minute, weekday (0 = Sunday), day, month, year** (observed 10, 45, 2, 24, 11, 2026 for a save named "...1045Tuesday24November2026") |
-| 9-11 | 3 x wide string `+0x44`, `+0x68`, `+0x88` | state label, studio name, boss name in some order (see below); each is `u32 byte length` (chars x 2 + 2) + UTF-16LE with terminator |
+| 9-11 | 3 x wide string `+0x44`, `+0x68`, `+0x88` | in the file: a string that is empty in every save seen, the state label, then the name the game also names the file after [data, ten saves]; each is `u32 byte length` (chars x 2 + 2) + UTF-16LE with terminator |
 | 12 | f32 `+0xa8` | a studio field `+0x1ec` (unsigned) x (1/60000) x (1/60): milliseconds to hours, so probably play time. *unverified* |
 | 13-14 | 2 x u32 `+0xac`, `+0xb0` | studio field `+0x1e4`; `+0xb0` is a value from the player's entry in the studio list (virtual call slot 0x28), 0 when absent. Meaning unknown |
 | 15 | wide string `+0xb4` | a string from `FUN_00421b80` (unidentified) |
@@ -64,11 +64,13 @@ The fields are **not tagged**; they are written in this order:
 
 The decompiler drops `this` for the string assignments in `SaveGameHeader_FillFromGameState`, so which of the three strings is the studio name could not be
 read from the code; the field values seen in saves are in the paragraph that follows. After the closing `[/HEADER]` marker the saver writes one more u32 (`DAT_0104cdf4 + 0x3c`).
-In the saves: the state label (`post-intro-tutorial`; set by the tutorial scripts, tutorial saves use
-`no-facility-hired-star`, `pending-building`; a Quick Start save shows `script-casting`), the **studio name**, and the **boss/owner name** (`crossover`, `big boss`; the studio name is
-empty/absent in the tutorial saves and is typed in at the end of the tutorial). A section marker (`[HEADER]` etc.) is a length-prefixed string `"\n[HEADER]\n"` (`Save_SectionMarker`, `004b1790`).
+In the saves, in file order: an empty string (in tutorial and Quick Start saves alike), the state label (`post-intro-tutorial`; set by the tutorial scripts, tutorial saves use
+`no-facility-hired-star`, `pending-building`; Quick Start saves show `QUICKSTART`, `script-casting` and other script steps), and a name: the studio's in a Quick Start save,
+the one typed in during the tutorial in tutorial saves (`crossover`), which is the file name's prefix in both. Which of the studio and boss names the empty string and the
+name are is not settled; the web app shows the third as the studio. A section marker (`[HEADER]` etc.) is a length-prefixed string `"\n[HEADER]\n"` (`Save_SectionMarker`, `004b1790`).
 
-The web app (`web/src/formats/Jad.ts`) reads the first two header floats (date, cash) and the player's employees: every `CStaff` and `CStar` whose `PEmployer` is
+The web app (`web/src/formats/Jad.ts`) reads the first two header floats (date, cash) and the player's employees; `parseSaveSummary` reads the whole header (date, cash,
+save time, state label, studio name) from a save's first 4 KB, for the Load Game list: every `CStaff` and `CStar` whose `PEmployer` is
 the `CStudioPlayer`'s id, with `name` (UTF-16) and the `StaffCareer` of their `PSubFacility` (seen: `staff`, `crew`, `scientist`, `wannabe` for the stars; some staff have no
 sub-facility). One Quick Start save has 30 such people (4 stars); the rival studios' people carry their own studio's id. A fresh studio has none.
 

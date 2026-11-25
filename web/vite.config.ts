@@ -40,7 +40,9 @@ function localGameFiles(): Plugin {
           const saves = existsSync(saveDir) ? readdirSync(saveDir).filter((n) => n.toLowerCase().endsWith(".jad")).sort() : [];
           // the string database (Data/text/EN-UK/stringdatabase*.lhts), for the room labels
           const text = ["stringdatabase.lhts", "stringdatabase_addon1.lhts"].filter((n) => existsSync(join(textDir, n)));
-          res.end(JSON.stringify({ paks, text, audio: existsSync(audioDir), save: existsSync(savePath) ? savePath.split("/").pop() : null, saves }));
+          // each save's modification time, for the save list's order when a header has no save time
+          const saveTimes = saves.map((n) => statSync(join(saveDir, n)).mtimeMs);
+          res.end(JSON.stringify({ paks, text, audio: existsSync(audioDir), save: existsSync(savePath) ? savePath.split("/").pop() : null, saves, saveTimes }));
           return;
         }
         if (url.pathname === "/save") file = savePath;

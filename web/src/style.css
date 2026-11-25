@@ -42,7 +42,11 @@ body[data-screen="game"] #game-canvas, body[data-screen="viewer"] #game-canvas {
 }
 .menu button:hover:not(:disabled), .menu button:focus-visible { border-color: var(--accent); color: var(--accent); background: rgba(224, 165, 38, 0.06); outline: none; }
 .menu button:disabled { color: var(--muted); border-color: #25252f; cursor: not-allowed; }
-.menu .footer { position: absolute; bottom: 1.5rem; color: var(--muted); font-size: 0.75rem; letter-spacing: 0.1em; }
+.menu .footer { position: absolute; bottom: 1.5rem; color: var(--muted); font-size: 0.75rem; letter-spacing: 0.1em; display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }
+.menu ul button small { display: block; max-width: 18rem; margin-top: 0.25rem; font-size: 0.75rem; letter-spacing: 0.04em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.menu .footer .linkbutton { width: auto; display: inline; padding: 0; border: none; background: none; font-size: inherit; letter-spacing: inherit; color: var(--accent); text-decoration: underline; }
+.menu .footer .linkbutton:hover, .menu .footer .linkbutton:focus-visible { background: none; }
+.menu.dropping { outline: 2px dashed var(--accent); outline-offset: -12px; }
 
 /* Load Game */
 .load .loadbox { width: min(44rem, 92vw); display: flex; flex-direction: column; gap: 0.9rem; }
@@ -55,6 +59,19 @@ body[data-screen="game"] #game-canvas, body[data-screen="viewer"] #game-canvas {
 .load .row.actions { border: none; justify-content: flex-end; padding: 0; }
 .load .status { min-height: 1.4em; margin: 0; color: var(--accent); font-size: 0.85rem; }
 .load .status.error { color: #e0584c; }
+.load .row.ok em { color: var(--fg); }
+.load .saves { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; max-height: min(22rem, 45vh); overflow-y: auto; min-width: 0; }
+.load .saves button.save { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 1rem; padding: 0.6rem 1rem; font-size: 0.95rem; letter-spacing: 0.04em; }
+.load .saves button.save b { font-weight: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.load .saves button.save span { color: var(--muted); font-size: 0.85rem; text-align: right; }
+.load .saves button.save small { grid-column: 1 / -1; color: var(--muted); font-size: 0.72rem; }
+.load .saves button.save.selected { border-color: var(--accent); background: rgba(224, 165, 38, 0.1); }
+.load .saves button.save.selected b { color: var(--accent); }
+.load .note.empty { border: 1px dashed #3a3a48; padding: 1rem; margin: 0; }
+.load .hints { color: var(--muted); font-size: 0.85rem; }
+.load .hints summary { cursor: pointer; color: var(--fg); }
+.load .hints ul { margin: 0.5rem 0 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
+.load .hints code, .load .hints kbd { font-family: ui-monospace, monospace; font-size: 0.8rem; color: var(--fg); }
 
 /* Game view overlays: the menu bar fixed to the top and the dev menu at the bottom right. Plain DOM above the canvas. */
 .hud { position: fixed; inset: 0; pointer-events: none; display: none; z-index: 5; font-family: system-ui, sans-serif; font-size: 12px; }

@@ -24,6 +24,8 @@ export class LoadingScreen<T> implements Screen {
   private cancelled = false;
   private readonly view = new LoadingView();
   private dressed = false;
+  /** The error the task failed with, handed to `onError` when the player presses Back. */
+  private failure = "";
   /** The last progress report, kept so the dressed view can start where the plain one is. */
   private last: { fraction: number | null; label: string } = { fraction: 0, label: "Starting" };
 
@@ -48,7 +50,7 @@ export class LoadingScreen<T> implements Screen {
         <p class="error" hidden></p>
         <div class="actions" hidden><button type="button">Back</button></div>
       </div>`);
-    this.el.querySelector<HTMLButtonElement>(".plain .actions button")!.addEventListener("click", () => this.onError(""));
+    this.el.querySelector<HTMLButtonElement>(".plain .actions button")!.addEventListener("click", () => this.onError(this.failure));
     void this.dress();
     void this.run();
   }
@@ -99,7 +101,8 @@ export class LoadingScreen<T> implements Screen {
 
   private fail(message: string): void {
     const el = this.el!;
-    if (this.dressed) { this.view.showError(message, () => this.onError("")); return; }
+    this.failure = message;
+    if (this.dressed) { this.view.showError(message, () => this.onError(message)); return; }
     el.querySelector<HTMLElement>(".plain .progress")!.hidden = true;
     el.querySelector<HTMLElement>(".plain .label")!.hidden = true;
     const err = el.querySelector<HTMLElement>(".plain .error")!;

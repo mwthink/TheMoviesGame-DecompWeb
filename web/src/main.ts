@@ -8,13 +8,15 @@ import { CharacterViewerScreen } from "./screens/CharacterViewerScreen.ts";
 import { OptionsScreen } from "./screens/OptionsScreen.ts";
 import { SettingsStore } from "./settings/Settings.ts";
 import { ProfileScreen } from "./screens/ProfileScreen.ts";
-import { LoadGameScreen } from "./screens/LoadGameScreen.ts";
+import { LoadGameScreen, loadSaveTask } from "./screens/LoadGameScreen.ts";
+import { LinkGameScreen } from "./screens/LinkGameScreen.ts";
+import { currentInstall, pendingLinks, restoreLinks } from "./screens/gameLink.ts";
 import { LoadingScreen, type LoadTask } from "./screens/LoadingScreen.ts";
 import type { WorldData } from "./world/WorldData.ts";
 import { AudioManager } from "./audio/AudioManager.ts";
 import { calendarDate } from "./sim/core/GameClock.ts";
 
-type ScreenId = "splash" | "menu" | "load" | "profile" | "loading" | "game" | "gallery" | "options" | "viewer";
+type ScreenId = "splash" | "menu" | "load" | "link" | "profile" | "loading" | "game" | "gallery" | "options" | "viewer";
 
 const canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
 const container = document.getElementById("screens") as HTMLElement;
@@ -34,10 +36,10 @@ function show(id: ScreenId): void {
 }
 
 /**
- * Run a world load behind the loading screen. The game view is built under the overlay and the overlay goes only once the scene
+ * Run a world load behind the loading screen. `back` runs when the load fails and the player presses Back, with the error message. The game view is built under the overlay and the overlay goes only once the scene
  * is compiled and has drawn a frame, so the player never sees the blank canvas that is still compiling shaders.
  */
-function loadWorld(task: LoadTask<WorldData>): void {
+function loadWorld(task: LoadTask<WorldData>, back: (message: string) => void = () => show("menu")): void {
   const loading: LoadingScreen<WorldData> = new LoadingScreen(container, async (progress) => {
     const world = await task(progress);
     progress.report(null, "Building the scene");
@@ -51,7 +53,7 @@ function loadWorld(task: LoadTask<WorldData>): void {
     audio.newGameLoaded();
     // the loading music runs until the loading screen is gone, then the radio (already holding its place under it) comes back
     void gameView.ready.then(() => { loading.exit(); syncAudio("game"); });
-  }, () => show("load"));
+  }, back);
   present("loading", loading);
 }
 
@@ -73,7 +75,7 @@ const AUDIO_FOR: Record<ScreenId, ReadonlyArray<readonly [number, string]>> = {
   // Deviation: the original stops the splash music (state 6) when the splash ends and plays the front end's own soundtrack (state 4, a WMA video track a browser
   // cannot play, docs/AUDIO.md). Here the same pair stays held through the menu screens, so the intro music carries on and loops until a game starts loading.
   splash: [[6, "intro"]],
-  menu: [[6, "intro"]], load: [[6, "intro"]], profile: [[6, "intro"]], options: [[6, "intro"]], gallery: [[6, "intro"]], viewer: [[6, "intro"]],
+  menu: [[6, "intro"]], load: [[6, "intro"]], link: [[6, "intro"]], profile: [[6, "intro"]], options: [[6, "intro"]], gallery: [[6, "intro"]], viewer: [[6, "intro"]],
   loading: [[2, "game"], [1, "loading"]],
   game: [[2, "game"]],
 };
@@ -96,14 +98,39 @@ function showOptionsOverGame(done: () => void): void {
   screen.enter();
 }
 const gameView = new GameView(canvas, () => { overlayOptions?.exit(); overlayOptions = null; show("menu"); }, settings, showOptionsOverGame);
+/** Load Game is kept while a load runs, so a failed load's Back returns to it with the same save chosen and the error shown. */
+let loadScreen: LoadGameScreen | null = null;
+function makeLoadGame(): LoadGameScreen {
+  const screen: LoadGameScreen = new LoadGameScreen(container, (task) => loadWorld(task, (message) => { present("load", screen); screen.showError(message); }),
+    () => show("menu"), () => openLink(() => present("load", screen), () => present("load", screen)));
+  return (loadScreen = screen);
+}
+function openLoadGame(): void { present("load", makeLoadGame()); }
+/** Find your game; `then` runs once it is linked and the player continues, `back` when they leave without (both default to the menu). */
+function openLink(then: () => void = () => show("menu"), back: () => void = () => show("menu")): void {
+  present("link", new LinkGameScreen(container, then, back));
+}
 const screens: Record<ScreenId, () => Screen> = {
-  splash: () => new SplashScreen(container, () => show("menu")),
-  menu: () => new MainMenuScreen(container, () => show("load"), () => show("profile"), () => show("options"), () => show("gallery"), () => show("viewer")),
+  splash: () => new SplashScreen(container, () => void restoreLinks().then(() => {
+    // first visit (nothing linked, nothing remembered): Find your game before the menu
+    if (currentInstall() || pendingLinks().install) show("menu");
+    else openLink();
+  })),
+  menu: () => new MainMenuScreen(container, {
+    continueGame: (save) => loadWorld(loadSaveTask(save.open), (message) => { openLoadGame(); loadScreen?.showError(message); }),
+    newGame: () => show("profile"),
+    loadGame: openLoadGame,
+    options: () => show("options"),
+    viewer: () => show("viewer"),
+    linkGame: (then) => openLink(then),
+    loadingScreens: () => show("gallery"),
+  }),
   viewer: () => new CharacterViewerScreen(container, canvas, () => show("menu")),
   options: () => new OptionsScreen(container, settings, () => show("menu")),
   gallery: () => new LoadingGalleryScreen(container, () => show("menu")),
-  profile: () => new ProfileScreen(container, loadWorld, () => show("menu")),
-  load: () => new LoadGameScreen(loadWorld, () => show("menu"), container),
+  profile: () => new ProfileScreen(container, (task) => loadWorld(task, () => show("profile")), () => show("menu")),
+  load: makeLoadGame,
+  link: () => new LinkGameScreen(container, () => show("menu"), () => show("menu")),
   game: () => gameView,
   loading: () => { throw new Error("the loading screen is started by loadWorld"); },
 };
@@ -111,30 +138,15 @@ const screens: Record<ScreenId, () => Screen> = {
 // Dev shortcut: /?autoload (or /?autoload=<part of a save's file name>) skips the splash and menus and opens the world from the dev server's local files.
 async function devAutoload(): Promise<void> {
   const { localDevSources } = await import("./assets/sources.ts");
-  const { PakIndex } = await import("./assets/Pak.ts");
-  const { parseSave } = await import("./formats/Jad.ts");
-  const { loadWorldData } = await import("./world/WorldData.ts");
-  const { readStrings } = await import("./assets/sources.ts");
+  const local = await localDevSources(new URLSearchParams(location.search).get("autoload") || undefined); // /?autoload=quick picks a save by name
+  const save = local?.save;
+  if (!save) throw new Error("autoload: the dev server has no local game files");
   // The same loading screen as Load Game, so the scene's first frames are covered too.
-  loadWorld(async (progress) => {
-    progress.report(0.05, "Finding local files");
-    const local = await localDevSources(new URLSearchParams(location.search).get("autoload") || undefined); // /?autoload=quick picks a save by name
-    if (!local?.save) throw new Error("autoload: the dev server has no local game files");
-    progress.report(0.3, "Reading archives");
-    const pak = await PakIndex.open(local.paks);
-    progress.report(0.4, "Reading the saved game");
-    const save = parseSave(await local.save.read(0, local.save.size));
-    progress.report(0.45, "Reading the text database");
-    const strings = await readStrings(local.text);
-    progress.report(0.5, "Building the world");
-    const world = await loadWorldData(pak, save, (t) => progress.report(null, t), strings);
-    for (const w of world.warnings) console.warn(w);
-    return world;
-  });
+  loadWorld(loadSaveTask(async () => save), (message) => { openLoadGame(); loadScreen?.showError(message); });
 }
 
 if (import.meta.env.DEV && new URLSearchParams(location.search).has("autoload")) {
-  devAutoload().catch((e) => { console.error(e); show("load"); });
+  devAutoload().catch((e) => { console.error(e); show("menu"); });
 } else {
   show("splash");
 }

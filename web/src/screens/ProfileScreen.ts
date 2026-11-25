@@ -36,7 +36,7 @@ export class ProfileScreen implements Screen {
       this.onStart(async (progress) => {
         progress.report(0.05, "Reading archives");
         const pak = await gamePak();
-        if (!pak) throw new Error("The game's data archives were not found. Choose the game folder under Load Game first.");
+        if (!pak) throw new Error("The game's data archives were not found. Link the game folder first (Find your game).");
         progress.report(0.4, "Reading the text database");
         const strings = await gameStrings();
         progress.report(0.45, "Building the world");
