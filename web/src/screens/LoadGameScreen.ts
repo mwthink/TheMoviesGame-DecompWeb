@@ -5,7 +5,7 @@ import {
   canPickDirectory, ensureReadable, localDevSources, pakSourcesFromDirectory, pakSourcesFromFiles, readStrings, stringSourcesFromDirectory, stringSourcesFromFiles,
 } from "../assets/sources.ts";
 import { parseSave } from "../formats/Jad.ts";
-import { setGameArchives } from "./frontEndArt.ts";
+import { setGameArchives, setGameText } from "./frontEndArt.ts";
 import type { LoadTask } from "./LoadingScreen.ts";
 import { loadWorldData, type WorldData } from "../world/WorldData.ts";
 import { mountScreen, unmountScreen, type Screen } from "./Screen.ts";
@@ -72,7 +72,7 @@ export class LoadGameScreen implements Screen {
     });
     $<HTMLInputElement>("dirinput")!.addEventListener("change", (e) => {
       const files = (e.target as HTMLInputElement).files;
-      if (files) { this.text = stringSourcesFromFiles(files); this.setPaks(pakSourcesFromFiles(files)); }
+      if (files) { this.text = stringSourcesFromFiles(files); setGameText(this.text); this.setPaks(pakSourcesFromFiles(files)); }
     });
     $("file")!.addEventListener("click", () => $<HTMLInputElement>("fileinput")!.click());
     $<HTMLInputElement>("fileinput")!.addEventListener("change", (e) => {
@@ -111,6 +111,7 @@ export class LoadGameScreen implements Screen {
   private async useFolder(dir: FileSystemDirectoryHandle): Promise<void> {
     if (!(await ensureReadable(dir))) { this.status("Read access to that folder was not granted.", true); return; }
     this.text = await stringSourcesFromDirectory(dir);
+    setGameText(this.text);
     this.setPaks(await pakSourcesFromDirectory(dir));
     if (this.paks.length) void rememberGameFolder(dir);
   }
@@ -121,6 +122,7 @@ export class LoadGameScreen implements Screen {
     this.paks = local.paks;
     setGameArchives(local.paks);
     this.text = local.text;
+    setGameText(local.text);
     if (local.save) {
       const save = local.save;
       this.saveLabel = esc(save.name);

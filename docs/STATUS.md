@@ -57,7 +57,7 @@ the details and its open questions.
 | People in the world | `PEOPLE.md`, `CHARACTERS.md` | placement (world POSITION and MyAngle, z = floor height), the idle call | yes (saved people stand at their saved places and play their room scene's idle or a fallback idle; no movement yet) | by eye only |
 | Options | `OPTIONS.md`, `FRONTEND.md` | the original's video, audio, game and online option screens (strings and registry keys) | yes (graphics: render size, sharpness, FXAA, FPS counter, full screen; game: level of help) | no |
 | Character viewer | `CHARACTER_VIEWER.md`, `CHARACTERS.md`, `ANM_FORMAT.md` | costume, head, hair, skeleton, clips | yes (viewer screen in the app; face sliders / editing not yet) | by eye only |
-| Loading screens | `LOADING_SCREENS.md` | one random picture of 17 per load; the pictures | gallery only (dev) | no |
+| Loading screens | `LOADING_SCREENS.md` | one random picture of 17 per load with a baked-in text box; a random `FRONTEND_SPLASHSCREEN_<n>` tip in it | yes (picture + tip box + our progress bar; gallery in dev) | by eye only |
 | Camera | `CAMERA.md` | the normal (in-lot) state | yes, in the web app | eye placement against eight saves |
 | Saved games | `SAVE_FORMAT.md`, `CHARACTERS.md` | container, terrain, placement, many classes | the web app reads placement, landscape and camera | against the Python tools |
 | Models, textures, animation | `MSH_FORMAT.md`, `ANM_FORMAT.md`, `PAK_FORMAT.md` | static models, DDS, `.anm`, skinning | the web app draws static models | by eye against the game |

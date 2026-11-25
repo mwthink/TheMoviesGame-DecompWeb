@@ -1,7 +1,8 @@
 import type { ByteSource } from "../assets/ByteSource.ts";
 import { PakIndex } from "../assets/Pak.ts";
 import { recallGameFolder } from "../assets/remembered.ts";
-import { localDevSources, pakSourcesFromDirectory } from "../assets/sources.ts";
+import { localDevSources, pakSourcesFromDirectory, readStrings } from "../assets/sources.ts";
+import type { Strings } from "../formats/Lhts.ts";
 import { decodeDds, type Rgba } from "../formats/Dds.ts";
 
 /**
@@ -12,12 +13,34 @@ import { decodeDds, type Rgba } from "../formats/Dds.ts";
 const LOGO = { name: "frontend_movieslogo.dds", dir: "data\\textures\\ui\\" };
 
 let chosen: ByteSource[] = [];
+let chosenText: ByteSource[] = [];
+let strings: Promise<Strings | null> | null = null;
 let logo: Promise<Rgba | null> | null = null;
 
 /** Called by the Load Game screen whenever the player picks a game folder (an empty list clears it). */
 export function setGameArchives(paks: ByteSource[]): void {
   chosen = paks;
   logo = null;
+}
+
+/** Called with the string database files (`stringdatabase*.lhts`) the player's folder has; the loading screen's tips come from them. */
+export function setGameText(text: ByteSource[]): void {
+  chosenText = text;
+  strings = null;
+}
+
+/** The game's string database from the chosen folder or, in the dev server, its local files; null when there is none. */
+export function gameStrings(): Promise<Strings | null> {
+  return (strings ??= (async () => {
+    try {
+      if (chosenText.length) return await readStrings(chosenText);
+      const local = await localDevSources();
+      return local?.text.length ? await readStrings(local.text) : null;
+    } catch (e) {
+      console.warn("string database unavailable:", e);
+      return null;
+    }
+  })());
 }
 
 /** The game's archives from wherever they can be found without asking (chosen on the Load Game screen, the dev server's local files, a remembered folder). */
@@ -70,6 +93,27 @@ export async function loadingPictures(): Promise<LoadingPicture[]> {
   } catch (e) {
     console.warn("loading pictures unavailable:", e);
     return [];
+  }
+}
+
+/**
+ * One loading picture chosen uniformly at random and decoded into a new canvas (what the original does at every load, `Game_PickLoadingScreen`, orig 0x00422580),
+ * or null when the archives are unavailable. `random` gives 0 <= r < 1.
+ */
+export async function randomLoadingPicture(random: () => number = Math.random): Promise<{ name: string; canvas: HTMLCanvasElement } | null> {
+  const all = await loadingPictures();
+  if (!all.length) return null;
+  const pick = all[Math.min(all.length - 1, Math.floor(random() * all.length))]!;
+  try {
+    const img = await pick.load();
+    const canvas = document.createElement("canvas");
+    canvas.width = img.width;
+    canvas.height = img.height;
+    canvas.getContext("2d")!.putImageData(new ImageData(new Uint8ClampedArray(img.data), img.width, img.height), 0, 0);
+    return { name: pick.name, canvas };
+  } catch (e) {
+    console.warn("loading picture unreadable:", e);
+    return null;
   }
 }
 

@@ -2498,3 +2498,7 @@ address,old_name,new_name,evidence
 0073b4a0,FUN_0073b4a0,Tooltip_Show,"(text, followMouse, mode, ..., anchor point, flag): takes the singleton tooltip (DAT_0104e104), sets its text, anchor (the pointer, or the given point), mode and shows it; resets state DAT_0104e0e4 = 0"
 00447aa0,FUN_00447aa0,AnimId_GetName,"(id): the animation name for an animation id, from a 32-byte-stride table at DAT_00f87fc0 that is filled at run time; TMCharacter_ResetToIdlePose plays id 0x29"
 00455410,FUN_00455410,World_GetGroundHeight,"(&pos): the ground height at x, y; TMCharacter_PlaceAt uses it when the given z is 0 [inferred from that use]"
+005e68a0,FUN_005e68a0,SplashTip_BuildHtml,"picks a random SPLASHSCREEN_TIPS text (Localize_PickRandomText), splits it at the first <br><br> and builds <table><tr><td align=center><x0>heading</x0></td></tr><tr><td height=10></td></tr><tr><td><font color=#000000>body</font></td></tr></table>; a text without <br><br> is used as it is"
+005e6af0,FUN_005e6af0,SplashTip_Refresh,"calls SplashTip_BuildHtml then the layout routine FUN_005e64f0; called from the loading code (decomp 0002 line 8091, 0007 line 7539)"
+0087eb30,FUN_0087eb30,Screens_RegisterLoadAndMoviePlayer,registers two named screens in the screen registry (FUN_0087d600): LoadScreen (factory FUN_0087def0) and MoviePlayerScreen (factory FUN_0087dfc0)
+0087def0,FUN_0087def0,LoadScreen_Factory,creates the LoadScreen window for the screen registry
