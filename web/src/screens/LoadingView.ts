@@ -1,3 +1,4 @@
+import type { Rgba } from "../formats/Dds.ts";
 import type { Tip } from "./loadingTips.ts";
 import { LOADING_BOX } from "./loadingTips.ts";
 
@@ -16,6 +17,11 @@ export interface LoadingLayout {
   ownFill: { enabled: boolean; colour: string; opacity: number; radius: number };
   /** `contain`: the whole picture is visible; `cover`: the picture fills the window and its edges are cropped. */
   fit: "contain" | "cover";
+  /**
+   * What is behind everything: the picture as the game made it (its baked character and box included), the picture blurred and dimmed (which hides the baked character,
+   * for a 3D one to stand in), or a plain dark backdrop.
+   */
+  background: "picture" | "blurred" | "dark";
 }
 
 export const DEFAULT_LOADING_LAYOUT: Readonly<LoadingLayout> = {
@@ -25,6 +31,7 @@ export const DEFAULT_LOADING_LAYOUT: Readonly<LoadingLayout> = {
   bodyColour: "#000000",
   ownFill: { enabled: false, colour: "#a6b7d5", opacity: 1, radius: 2 },
   fit: "contain",
+  background: "picture",
 };
 
 /**
@@ -41,6 +48,7 @@ export class LoadingView {
   private readonly error: HTMLElement;
   private readonly actions: HTMLElement;
   private picture: HTMLCanvasElement | null = null;
+  private logo: HTMLCanvasElement | null = null;
 
   constructor() {
     const el = document.createElement("div");
@@ -108,6 +116,20 @@ export class LoadingView {
     button.focus();
   }
 
+  /** The element layers go in front of: the text box. Things put before it are drawn behind the text. */
+  get boxElement(): HTMLElement { return this.box; }
+
+  /** The logo, cut out of the picture (`logoFromPicture`), drawn over the background and under the text; null removes it. */
+  setLogo(canvas: HTMLCanvasElement | null): void {
+    this.logo?.remove();
+    this.logo = canvas;
+    if (canvas) {
+      canvas.className = "logo";
+      canvas.setAttribute("aria-hidden", "true");
+      this.element.insertBefore(canvas, this.box);
+    }
+  }
+
   /** Apply a layout: the box rectangle, text scale and colours, our own fill, and how the picture fits the window. */
   setLayout(l: LoadingLayout): void {
     const pct = (v: number) => `${(v * 100).toFixed(2)}%`;
@@ -121,6 +143,8 @@ export class LoadingView {
     this.box.style.background = l.ownFill.enabled ? withOpacity(l.ownFill.colour, l.ownFill.opacity) : "";
     this.box.style.borderRadius = l.ownFill.enabled ? `${l.ownFill.radius}cqw` : "";
     this.element.classList.toggle("cover", l.fit === "cover");
+    this.element.classList.toggle("bg-blurred", l.background === "blurred");
+    this.element.classList.toggle("bg-dark", l.background === "dark");
   }
 }
 
@@ -128,4 +152,34 @@ export class LoadingView {
 export function withOpacity(hex: string, opacity: number): string {
   const n = (i: number) => parseInt(hex.slice(i, i + 2), 16) || 0;
   return `rgba(${n(1)}, ${n(3)}, ${n(5)}, ${Math.min(1, Math.max(0, opacity))})`;
+}
+
+/** Where the logo sits in every loading picture, as fractions of the image (measured by eye on the 17 pictures: the star and its glow at the top centre). */
+export const LOGO_BOX = { x: 0.26, y: 0.02, width: 0.48, height: 0.46 } as const;
+
+/**
+ * The logo cut out of a loading picture: its rectangle (`LOGO_BOX`) with the background keyed out by brightness (the logo and its glow are bright, the pictures' scenery dark),
+ * so it can be drawn over a different background. A rough key, not a clean matte: the glow's edge is soft.
+ */
+export function logoFromPicture(img: Rgba): HTMLCanvasElement {
+  const x0 = Math.round(LOGO_BOX.x * img.width), y0 = Math.round(LOGO_BOX.y * img.height);
+  const w = Math.round(LOGO_BOX.width * img.width), h = Math.round(LOGO_BOX.height * img.height);
+  const out = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = ((y0 + y) * img.width + x0 + x) * 4, o = (y * w + x) * 4;
+      const r = img.data[i]!, g = img.data[i + 1]!, b = img.data[i + 2]!;
+      const alpha = Math.min(1, Math.max(0, (Math.max(r, g, b) - 70) / 90));
+      out[o] = r; out[o + 1] = g; out[o + 2] = b; out[o + 3] = Math.round(alpha * 255);
+    }
+  }
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  c.getContext("2d")!.putImageData(new ImageData(out, w, h), 0, 0);
+  c.style.left = `${LOGO_BOX.x * 100}%`;
+  c.style.top = `${LOGO_BOX.y * 100}%`;
+  c.style.width = `${LOGO_BOX.width * 100}%`;
+  c.style.height = `${LOGO_BOX.height * 100}%`;
+  return c;
 }

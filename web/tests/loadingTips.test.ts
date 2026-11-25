@@ -74,3 +74,18 @@ test("the default layout is the measured box; colours convert for the panel", ()
   assert.equal(withOpacity("#a6b7d5", 0.5), "rgba(166, 183, 213, 0.5)");
   assert.equal(withOpacity("#000000", 7), "rgba(0, 0, 0, 1)");
 });
+
+import { characterFraming, DEFAULT_CHARACTER, PERSON_HEIGHT } from "../src/screens/LoadingCharacterFraming.ts";
+
+test("character framing: the person fills `size` of the picture's height and stands at a quarter or three quarters across", () => {
+  const f = characterFraming({ side: "left", size: 0.8, nudgeX: 0, nudgeY: 0 });
+  const height = f.halfHeight * 2;
+  assert.ok(Math.abs(height - PERSON_HEIGHT / 0.8) < 1e-9);
+  // the character stands at x = 0: its position across the picture is 0.5 + (0 - lookX) / height
+  assert.ok(Math.abs(0.5 + (0 - f.lookX) / height - 0.25) < 1e-9);
+  assert.ok(Math.abs(0.5 + (0 - characterFraming({ side: "right", size: 0.8, nudgeX: 0, nudgeY: 0 }).lookX) / height - 0.75) < 1e-9);
+  // the feet (height 0) are 6 % up from the bottom
+  const bottom = f.lookY - f.halfHeight;
+  assert.ok(Math.abs((0 - bottom) / height - 0.06) < 1e-9);
+  assert.equal(DEFAULT_CHARACTER.enabled, false);
+});

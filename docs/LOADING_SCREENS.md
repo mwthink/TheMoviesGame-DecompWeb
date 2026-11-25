@@ -46,10 +46,28 @@ one opens the **lab**: a live preview of the real loading layout (`web/src/scree
 - **Our own panel:** draw our own filled panel (colour, opacity, corner radius) over the picture's baked box, so the box can be resized or recoloured; the baked one shows around it
   if ours is smaller.
 - **Copy layout as JSON** puts the current `LoadingLayout` on the clipboard, ready to become a new default in `DEFAULT_LOADING_LAYOUT`.
-- **Coming later** (disabled): the real-time 3D character, with the logo and box drawn separately.
+- **Background:** the picture as the game made it, the picture blurred and dimmed (which hides its baked character), or a plain dark backdrop; with the last two the logo can be shown cut out of the picture (below).
+- **3D character:** see the next section.
+- **Coming later:** costume layers, makeup and hair colour (as on people in the world), expressions, a moving camera.
 
 The pictures are read from your install each time (nothing is copied into the repository). With no local files configured, use **Load Game** once to pick the game folder first.
 Code: `web/src/screens/LoadingGalleryScreen.ts`, `loadingPictures()` in `frontEndArt.ts`, `PakIndex.list()`.
+
+## The 3D character (lab)
+
+A real-time character drawn on a transparent canvas **between the background and our text box**, so the text sits in front of it (`web/src/screens/LoadingCharacter.ts`, framing maths in
+`LoadingCharacterFraming.ts`, layers in `LoadingView.ts`). In the lab's **3D character** section:
+
+- **Show a 3D character**, **Side of the screen** (Left or Right: the character stands at a quarter or three quarters of the way across), **Costume** (any `.cos`; a plain hair by the costume's sex),
+  **Animation** (the idle, wait, talk, wave and similar clips that fit the skeleton), **Random costume**.
+- **Size** (the share of the picture's height the character fills), **Nudge across** and **Nudge up**, **Turn** (degrees about the vertical axis; 0 faces the viewer, a guess to check by eye).
+- The character has its own Babylon engine on its own canvas (the page canvas belongs to the game view), an orthographic camera, and the same person pipeline as the world and the character viewer
+  (`PersonModelBuilder`, `PersonMeshes`, `poseBones`). People are unlit by their texture, as in the world.
+- **Background:** the pictures have their own character baked in (at the right), so over *The picture as it is* you see both; **Blurred** or **Plain dark** replaces it. With those, the **logo is cut
+  out of the picture** (`logoFromPicture`: a brightness key over the logo's rectangle `LOGO_BOX`, a rough matte) and drawn above the background. Turn on **Our own panel** to replace the baked text box.
+
+Not done: the real loading screen does not use the 3D character yet (only the lab does), it does not load the character in the background while the world loads, and hair, makeup and costume layers are
+as simple as in the viewer.
 
 ## Ideas for our own loading screens
 

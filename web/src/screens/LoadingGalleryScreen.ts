@@ -1,7 +1,8 @@
 import type { Rgba } from "../formats/Dds.ts";
 import type { Strings } from "../formats/Lhts.ts";
-import { gameStrings, loadingPictures, type LoadingPicture } from "./frontEndArt.ts";
-import { DEFAULT_LOADING_LAYOUT, LoadingView, type LoadingLayout } from "./LoadingView.ts";
+import { gamePak, gameStrings, loadingPictures, type LoadingPicture } from "./frontEndArt.ts";
+import { DEFAULT_CHARACTER, LoadingCharacter, type CharacterSettings } from "./LoadingCharacter.ts";
+import { DEFAULT_LOADING_LAYOUT, LoadingView, logoFromPicture, type LoadingLayout } from "./LoadingView.ts";
 import { parseTip, pickTip, tipKeys, type Tip } from "./loadingTips.ts";
 import { mountScreen, unmountScreen, type Screen } from "./Screen.ts";
 
@@ -28,6 +29,11 @@ export class LoadingGalleryScreen implements Screen {
   private decoded = new Map<string, Promise<Rgba>>();
   private current = -1;
   private view: LoadingView | null = null;
+  /** The 3D character layer (made the first time it is switched on) and its settings; the logo cut-out switch and the current picture's pixels. */
+  private char: LoadingCharacter | null = null;
+  private character: CharacterSettings = { ...DEFAULT_CHARACTER };
+  private showLogo = true;
+  private pictureImg: Rgba | null = null;
   private layout: LoadingLayout = structuredClone(DEFAULT_LOADING_LAYOUT) as LoadingLayout;
   private tip: Tip | null = null;
   private fraction: number | null = 0.4;
@@ -109,7 +115,7 @@ export class LoadingGalleryScreen implements Screen {
     }
     const p = this.pictures[i]!;
     lab.querySelector("[data-picname]")!.textContent = `${p.name}  (${i + 1} / ${this.pictures.length})`;
-    void this.decode(p).then((img) => { if (this.current === i) this.view?.setPicture(toCanvas(img)); });
+    void this.decode(p).then((img) => { if (this.current === i) { this.pictureImg = img; this.view?.setPicture(toCanvas(img)); this.refreshLogo(); } });
   }
 
   private close(): void {
@@ -119,6 +125,14 @@ export class LoadingGalleryScreen implements Screen {
     const lab = this.el?.querySelector<HTMLElement>(".lab");
     if (lab) { lab.hidden = true; lab.textContent = ""; }
     this.view = null;
+    this.char?.dispose();
+    this.char = null;
+  }
+
+  /** The logo cut out of the picture is shown only when the background is not the picture (which has its own). */
+  private refreshLogo(): void {
+    const wanted = this.showLogo && this.layout.background !== "picture" && this.pictureImg;
+    this.view?.setLogo(wanted ? logoFromPicture(this.pictureImg!) : null);
   }
 
   /** The preview and the control panel. */
@@ -185,6 +199,15 @@ export class LoadingGalleryScreen implements Screen {
     fit.innerHTML = `<option value="contain">Whole picture</option><option value="cover">Fill the window</option>`;
     fit.addEventListener("change", () => { this.layout.fit = fit.value as LoadingLayout["fit"]; apply(); });
     row(pic, "Fit", fit);
+    const bg = document.createElement("select");
+    bg.innerHTML = `<option value="picture">The picture as it is</option><option value="blurred">Blurred (hides its character)</option><option value="dark">Plain dark</option>`;
+    bg.addEventListener("change", () => { this.layout.background = bg.value as LoadingLayout["background"]; apply(); this.refreshLogo(); });
+    row(pic, "Background", bg);
+    const logoBox = document.createElement("input");
+    logoBox.type = "checkbox";
+    logoBox.checked = this.showLogo;
+    logoBox.addEventListener("change", () => { this.showLogo = logoBox.checked; this.refreshLogo(); });
+    row(pic, "Logo cut out of the picture (when the background is not the picture)", logoBox).classList.add("check");
 
     // Tip
     const tips = section("Tip");
@@ -259,12 +282,56 @@ export class LoadingGalleryScreen implements Screen {
     slider(own, "Opacity", 0, 1, 0.05, f.opacity, (v) => { f.opacity = v; apply(); });
     slider(own, "Corner radius", 0, 8, 0.25, f.radius, (v) => { f.radius = v; apply(); });
 
+    // The 3D character: a transparent canvas between the background and the text box.
+    const ch = section("3D character");
+    const pakPromise = gamePak();
+    const applyCharacter = async () => {
+      const pak = await pakPromise;
+      const view = this.view;
+      if (!pak || !view) return;
+      if (this.character.enabled && !this.char) this.char = new LoadingCharacter(pak, view.element, view.boxElement);
+      await this.char?.set(this.character);
+    };
+    const chOn = document.createElement("input");
+    chOn.type = "checkbox";
+    chOn.addEventListener("change", () => { this.character.enabled = chOn.checked; void applyCharacter(); });
+    row(ch, "Show a 3D character", chOn).classList.add("check");
+    const sideSel = document.createElement("select");
+    sideSel.innerHTML = `<option value="left">Left</option><option value="right">Right</option>`;
+    sideSel.addEventListener("change", () => { this.character.side = sideSel.value as CharacterSettings["side"]; void applyCharacter(); });
+    row(ch, "Side of the screen", sideSel);
+    const costumeSel = document.createElement("select");
+    const clipSel = document.createElement("select");
+    void pakPromise.then((pak) => {
+      if (!pak) return;
+      const names = (dir: string, test: RegExp) => pak.list(dir).map((f) => f.entry.name).filter((n) => test.test(n));
+      const fillSel = (sel: HTMLSelectElement, values: string[], value: string) => {
+        sel.textContent = "";
+        for (const v of values) sel.append(new Option(v, v));
+        sel.value = values.includes(value) ? value : values[0] ?? "";
+      };
+      fillSel(costumeSel, names("data\\costume\\datas\\", /\.cos$/i), this.character.costume);
+      fillSel(clipSel, names("data\\animations\\high\\", /^(idle|wait|talk|wave|stand|clap|think|actor_|dir_|coach_)[a-z0-9_]*\.anm$/i).slice(0, 250), this.character.clip);
+    });
+    costumeSel.addEventListener("change", () => { this.character.costume = costumeSel.value; void applyCharacter(); });
+    clipSel.addEventListener("change", () => { this.character.clip = clipSel.value; void applyCharacter(); });
+    row(ch, "Costume", costumeSel);
+    row(ch, "Animation", clipSel);
+    ch.append(button("Random costume", () => {
+      const opts = [...costumeSel.options];
+      if (!opts.length) return;
+      costumeSel.value = opts[Math.floor(Math.random() * opts.length)]!.value;
+      this.character.costume = costumeSel.value;
+      void applyCharacter();
+    }));
+    slider(ch, "Size", 0.3, 1.2, 0.01, this.character.size, (v) => { this.character.size = v; void applyCharacter(); });
+    slider(ch, "Nudge across", -0.3, 0.3, 0.005, this.character.nudgeX, (v) => { this.character.nudgeX = v; void applyCharacter(); });
+    slider(ch, "Nudge up", -0.2, 0.3, 0.005, this.character.nudgeY, (v) => { this.character.nudgeY = v; void applyCharacter(); });
+    slider(ch, "Turn", -180, 180, 1, this.character.turn, (v) => { this.character.turn = v; void applyCharacter(); });
+    ch.append(Object.assign(document.createElement("p"), { className: "info", textContent: "The character is drawn behind the text box. Over the picture as it is, its own baked character shows too: choose Blurred or Plain dark above to replace it." }));
+
     const later = section("Coming later");
-    const three = document.createElement("input");
-    three.type = "checkbox";
-    three.disabled = true;
-    row(later, "Real-time 3D character in place of the picture's", three).classList.add("check");
-    later.append(Object.assign(document.createElement("p"), { className: "info", textContent: "The pictures' characters are baked in; this will draw our own people on the left with the logo and box separate." }));
+    later.append(Object.assign(document.createElement("p"), { className: "info", textContent: "Costume layers, makeup and hair colour (as on people in the world), hair choice, expressions, and a moving camera." }));
 
     const actions = document.createElement("div");
     actions.className = "buttons";

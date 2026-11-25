@@ -16,11 +16,26 @@ let chosen: ByteSource[] = [];
 let chosenText: ByteSource[] = [];
 let strings: Promise<Strings | null> | null = null;
 let logo: Promise<Rgba | null> | null = null;
+let pak: Promise<PakIndex | null> | null = null;
 
 /** Called by the Load Game screen whenever the player picks a game folder (an empty list clears it). */
 export function setGameArchives(paks: ByteSource[]): void {
   chosen = paks;
   logo = null;
+  pak = null;
+}
+
+/** The game's archives opened once and kept (null when none can be found). */
+export function gamePak(): Promise<PakIndex | null> {
+  return (pak ??= (async () => {
+    try {
+      const paks = await findGameArchives();
+      return paks.length ? await PakIndex.open(paks) : null;
+    } catch (e) {
+      console.warn("game archives unavailable:", e);
+      return null;
+    }
+  })());
 }
 
 /** Called with the string database files (`stringdatabase*.lhts`) the player's folder has; the loading screen's tips come from them. */
@@ -82,18 +97,12 @@ const LOADING_DIR = "data\\textures\\ui\\loadingscreens\\";
  * one uniformly at random per load, docs/LOADING_SCREENS.md), read from the player's install. Empty when no archives are available.
  */
 export async function loadingPictures(): Promise<LoadingPicture[]> {
-  try {
-    const paks = await findGameArchives();
-    if (!paks.length) return [];
-    const pak = await PakIndex.open(paks);
-    return pak.list(LOADING_DIR).map((f) => ({
-      name: f.entry.name.replace(/\.dds$/i, ""),
-      load: async () => decodeDds(await pak.read(f)),
-    }));
-  } catch (e) {
-    console.warn("loading pictures unavailable:", e);
-    return [];
-  }
+  const pak = await gamePak();
+  if (!pak) return [];
+  return pak.list(LOADING_DIR).map((f) => ({
+    name: f.entry.name.replace(/\.dds$/i, ""),
+    load: async () => decodeDds(await pak.read(f)),
+  }));
 }
 
 /**

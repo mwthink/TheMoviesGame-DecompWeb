@@ -227,3 +227,12 @@ body[data-screen="game"] .devmenu { bottom: 70px; }
 .pausemenu button:hover, .pausemenu button:focus-visible { border-color: var(--accent); color: var(--accent); background: rgba(224, 165, 38, 0.06); outline: none; }
 .pausemenu .hint { margin: 0.4rem 0 0; color: var(--muted); font-size: 0.75rem; }
 .screen.overlay { background: rgba(5, 5, 8, 0.88); }
+
+/* The loading view's layers: background modes, the cut-out logo and the 3D character canvas (both under the text box). */
+.loadpic .logo, .loadpic .char3d { position: absolute; pointer-events: none; }
+.loadpic .char3d { inset: 0; width: 100%; height: 100%; }
+.loadpic .char3d[hidden] { display: none; }
+.loadpic.bg-blurred .picture { filter: blur(1.4cqw) brightness(0.45); transform: scale(1.06); }
+.loadpic.bg-dark { background: radial-gradient(ellipse at 50% 40%, #1d1d2a 0%, #07070b 75%); }
+.loadpic.bg-dark .picture { visibility: hidden; }
+.loadpic { overflow: hidden; }
