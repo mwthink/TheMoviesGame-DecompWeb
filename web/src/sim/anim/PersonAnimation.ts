@@ -39,6 +39,8 @@ export class PersonAnimator {
   private timeMs = 0;
   /** Base-idle plays still to go before the next fidget. */
   private idleLeft = 0;
+  /** A clip that overrides the plan while it is set (the gait clip while walking); null returns to the plan. */
+  private override: string | null = null;
 
   constructor(skeleton: MshBone[], clips: Map<string, Anm>, plan: AnimationPlan, random: () => number = Math.random) {
     this.skeleton = skeleton;
@@ -52,10 +54,22 @@ export class PersonAnimator {
   }
 
   /** The clip playing now (a file name). */
-  get clipName(): string { return this.current; }
+  get clipName(): string { return this.override ?? this.current; }
+
+  /** Play `name` (looping) in place of the plan, or return to the plan with null. A change restarts the clip. */
+  setOverride(name: string | null): void {
+    if (name === this.override) return;
+    this.override = name && this.clips.has(name) ? name : null;
+    if (this.override) this.timeMs = 0;
+  }
 
   /** Advance by `dtMs` and return the skinning transforms of the pose now, or null when the clip is unknown (the person keeps their last pose). */
   step(dtMs: number): SkinTransform[] | null {
+    if (this.override) {
+      const walk = this.clips.get(this.override)!;
+      this.timeMs = (this.timeMs + Math.max(0, dtMs)) % anmDurationMs(walk);
+      return skinTransforms(this.skeleton, poseBones(this.skeleton, walk, anmFramePosition(walk, this.timeMs), "absolute"));
+    }
     let clip = this.clips.get(this.current);
     if (!clip) return null;
     this.timeMs += Math.max(0, dtMs);

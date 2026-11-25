@@ -15,6 +15,11 @@ export interface Anm {
   angles: Float32Array;
   /** Translation (parent frame) per frame and channel, same indexing. */
   translations: Float32Array;
+  /**
+   * The distance the clip moves the character in one pass: the set header's first float (1.674 for `walk.anm`, whose 31 frames last 1.0 s: a stride of 1.674 units). The game keeps it
+   * times 0.1 per clip as the clip's move speed (`AnimIdTable_InitFromGaitIni`, orig 0x00446880: `DAT_00F87EF8[id] = stride * 0.1`, units per 0.1 s tick). 0 for clips that stay in place.
+   */
+  stride: number;
 }
 
 const align4 = (p: number) => (p + 3) & ~3;
@@ -51,6 +56,7 @@ export function parseAnm(file: Uint8Array): Anm {
   const nFrames = v.getUint32(pos, true) & 0x7fff;
   const nChannels = v.getUint16(pos + 4, true);
   const flags = d[pos + 7]!;
+  const stride = v.getFloat32(pos + 8, true);
   pos += flags & 2 ? 0x1c : 0x18;
   let scale = 10;
   if (flags & 1) {
@@ -88,7 +94,7 @@ export function parseAnm(file: Uint8Array): Anm {
       pos = align4(pos);
     }
   }
-  return { nFrames, nChannels, parents, flags, angles, translations };
+  return { nFrames, nChannels, parents, flags, angles, translations, stride };
 }
 
 /**
@@ -109,4 +115,9 @@ export function anmFramePosition(a: Pick<Anm, "nFrames" | "flags">, timeMs: numb
   const dur = anmDurationMs(a);
   const t = ((timeMs % dur) + dur) % dur;
   return ((a.nFrames - 1) * t) / dur;
+}
+
+/** How fast a clip moves its character, in units per second: its stride over its length (`walk.anm`: 1.674 / 1.0 s). 0 for a clip that stays in place. */
+export function anmSpeed(a: Pick<Anm, "nFrames" | "flags" | "stride">): number {
+  return a.stride > 0 ? a.stride / (anmDurationMs(a) / 1000) : 0;
 }

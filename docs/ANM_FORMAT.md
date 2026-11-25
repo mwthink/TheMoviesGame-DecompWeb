@@ -5,12 +5,12 @@ Layout read from `Anim_ReadHeader` (`00984ad0`), `Anim_ReadSetHeader` (`00984b40
 
 ## Checked against real files
 `walk.anm`, `walk_angry`, `walk_zombie`, `walk_casual_stroll`: the parser ends exactly at the end of each file. 30 channels = the 30 bones of `cos_m_50s_1.msh` (the parent table in the anim equals the skeleton's parents); the anim's translations equal the bind-pose local offsets (0.046, 0.121, 0.431 ...). Played on the skinned costume the walk looks right (legs alternate, arms counter-swing).
-Not checked: other costumes/skeletons (female, creatures), clips with a different channel count, the meaning of the file header's 12 floats (for `walk.anm` identity + (0.276, 0, 0), looks like the root movement of one cycle), the set header's other floats (the first is the clip duration in seconds: 1.674 s for `walk.anm`), version < 12.
+Not checked: other costumes/skeletons (female, creatures), clips with a different channel count, the meaning of the file header's 12 floats (for `walk.anm` identity + (0.276, 0, 0), looks like the root movement of one cycle), the set header's other floats (the first is the distance the clip moves its character per pass, its stride: 1.674 for `walk.anm`, which lasts 1.0 s; see `MOVEMENT.md`). A few female gait clips (`walk_female.anm`, `walk_female_2.anm`, `walk_fem_bored.anm`) are 60 KB files whose set header reads 0 frames: another layout, not decoded, version < 12.
 
 ## `.anm` (version 12, usually `zcmp`-wrapped like `.msh`)
 ```
 file header 0x3c bytes: u32 version, 4 bytes, 12 x f32 (3x3 matrix + translation), 4 bytes
-set header  0x1c bytes: u32 n_frames, u16 n_channels, u8, u8 flags, f32 duration(s), 3 x f32, f32 (flags & 2)
+set header  0x1c bytes: u32 n_frames, u16 n_channels, u8, u8 flags, f32 stride (distance per pass), 3 x f32, f32 (flags & 2)
 f32 translation scale (flags & 1; default 10.0), n_channels bytes parent bone index (0xff = root), pad to 4
 n_channels channels: u8 flags (bit 0 = translation constant), 3 bytes, 3 RLE arrays (rotation x, y, z) pad4, then 3 RLE arrays (translation) or 3 f32 constants, pad4
 RLE array: u16 mask M, then u16 words until n_frames values: (w & M) == 0 is one literal value; otherwise a run of count

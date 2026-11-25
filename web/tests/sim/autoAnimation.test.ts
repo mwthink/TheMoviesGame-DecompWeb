@@ -46,7 +46,7 @@ test("the flag prop: 7-bone skeleton, a 55-frame clip that fits, skinned cloth t
 
 test("playback: real frame time, capped at 99 ms, a clip is re-chosen when it wraps", () => {
   const msh = { primitives: [], skeleton: [] } as unknown as Msh;
-  const clip = { nFrames: 55, nChannels: 0, flags: 3, parents: new Int16Array(0), angles: new Float32Array(0), translations: new Float32Array(0) };
+  const clip = { nFrames: 55, nChannels: 0, flags: 3, parents: new Int16Array(0), angles: new Float32Array(0), translations: new Float32Array(0), stride: 0 };
   let picks = 0;
   const animator = new AutoAnimator(msh, [clip, clip], () => (picks++ % 2 ? 0.9 : 0.1));
   assert.equal(animator.clip, 0);

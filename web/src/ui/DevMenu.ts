@@ -13,6 +13,9 @@ export interface DevTools {
   onSkyVariant?: (v: "auto" | 0 | 1 | 2) => void;
   onShadowFrustum?: (on: boolean) => void;
   onHighlight?: (on: boolean) => void;
+  /** Movement: let loose people wander; the gait (0 stroll, 1 walk, 2 run) right-click orders use. */
+  onWander?: (on: boolean) => void;
+  onGait?: (gait: 0 | 1 | 2) => void;
   /** The canvas the shadow map viewer draws into (the game view fills it). */
   shadowViewCanvas?: (canvas: HTMLCanvasElement | null) => void;
 }
@@ -187,6 +190,25 @@ export class DevMenu {
     skyLabel.append("Variant ", skySel);
     skySec.append(skyLabel);
     this.body.append(skySec);
+
+    // Movement (docs/MOVEMENT.md): right-click the ground to send the person last clicked there.
+    const moveSec = document.createElement("section");
+    moveSec.innerHTML = `<h4>Movement</h4>`;
+    const wanderBox = document.createElement("input");
+    wanderBox.type = "checkbox";
+    wanderBox.addEventListener("change", () => tools.onWander?.(wanderBox.checked));
+    const wanderLabel = document.createElement("label");
+    wanderLabel.append(wanderBox, " Loose people wander about");
+    const gaitSel = document.createElement("select");
+    [["0", "Stroll"], ["1", "Walk"], ["2", "Run"]].forEach(([v, name]) => gaitSel.append(new Option(name, v)));
+    gaitSel.value = "1";
+    gaitSel.addEventListener("change", () => tools.onGait?.(Number(gaitSel.value) as 0 | 1 | 2));
+    const gaitLabel = document.createElement("label");
+    gaitLabel.append("Right-click gait ", gaitSel);
+    const hint = document.createElement("p");
+    hint.textContent = "Click a person, then right-click the ground.";
+    moveSec.append(wanderLabel, gaitLabel, hint);
+    this.body.append(moveSec);
 
     // Time: a scale on the game speed and single steps (for watching motion).
     const timeSec = document.createElement("section");

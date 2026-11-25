@@ -9,7 +9,8 @@ import { Color4 } from "@babylonjs/core/Maths/math.color";
 import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial";
 import type { Screen } from "./Screen.ts";
-import { buildWorld } from "../world/WorldScene.ts";
+import { buildWorld, type PeopleControl } from "../world/WorldScene.ts";
+import type { Locomotion } from "../sim/anim/Gaits.ts";
 import { buildRoomFloors, type RoomFloors } from "../world/RoomFloors.ts";
 import { ALWAYS_RULE, distanceToPolygon, RevealTracker, revealRule, type RevealCandidate } from "../sim/ui/FloorplanReveal.ts";
 import type { MshChunk } from "../formats/Msh.ts";
@@ -63,6 +64,10 @@ export class GameView implements Screen {
   private stepAutoAnimations: ((dtMs: number) => void) | null = null;
   /** Moves the people's animations on by game time (scaled by the speed buttons; frozen while paused). */
   private stepPeople: ((dtMs: number) => void) | null = null;
+  private people: PeopleControl | null = null;
+  /** The gait a right-click order walks at (dev menu). */
+  private orderGait: Locomotion = 1;
+  private rightDownAt: { x: number; y: number } | null = null;
   private peopleClips: (() => { name: string; clip: string; source: string }[]) | null = null;
   private autoAnimated: { model: string; clip: () => number }[] = [];
   private orbit: ArcRotateCamera | null = null;
@@ -111,12 +116,17 @@ export class GameView implements Screen {
   private dragger: PersonDragger | null = null;
   private readonly onDown = (e: PointerEvent) => {
     this.downAt = e.button === 0 ? { x: e.clientX, y: e.clientY } : null;
+    this.rightDownAt = e.button === 2 ? { x: e.clientX, y: e.clientY } : null;
     this.dragger?.down(e);
   };
+  private readonly onContext = (e: Event) => e.preventDefault(); // right-click orders people, not the browser menu
   private readonly onDragMove = (e: PointerEvent) => this.dragger?.move(e);
   private readonly onUp = (e: PointerEvent) => {
     const d = this.downAt;
     this.downAt = null;
+    const r = this.rightDownAt;
+    this.rightDownAt = null;
+    if (e.button === 2 && r && Math.hypot(e.clientX - r.x, e.clientY - r.y) <= 4) this.orderWalk(e.clientX, e.clientY);
     if (this.dragger?.up(e) === "dropped") return; // a person was carried: not a click
     if (!d || e.button !== 0 || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) return; // a drag (orbit, rotate) is not a click
     this.pickAt(e.clientX, e.clientY);
@@ -167,6 +177,7 @@ export class GameView implements Screen {
       this.perf = new PerfStats(this.scene, () => this.shadows);
       this.dragger = this.makeDragger(this.scene);
       this.peopleClips = built.peopleClips;
+      this.people = built.peopleControl;
       this.autoAnimated = built.autoAnimated;
     } else {
       this.stepAutoAnimations = null;
@@ -177,6 +188,7 @@ export class GameView implements Screen {
       this.setSkyVariant = null;
       this.stepPeople = null;
       this.peopleClips = null;
+      this.people = null;
       this.autoAnimated = [];
       // A scene needs a camera to render. This one is a placeholder until the real game camera exists.
       this.orbit = new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 3, 20, Vector3.Zero(), this.scene);
@@ -191,6 +203,7 @@ export class GameView implements Screen {
     this.canvas.addEventListener("pointerdown", this.onDown, true); // capture: before the orbit camera sees the press
     window.addEventListener("pointermove", this.onDragMove);
     this.canvas.addEventListener("pointerup", this.onUp);
+    this.canvas.addEventListener("contextmenu", this.onContext);
     this.sun = { ...DEFAULT_SUN };
     this.shadowSettings = { ...DEFAULT_SHADOWS };
     this.sunLights = createSunLights(this.scene);
@@ -255,6 +268,7 @@ export class GameView implements Screen {
     window.removeEventListener("pointermove", this.onDragMove);
     this.dragger = null;
     this.canvas.removeEventListener("pointerup", this.onUp);
+    this.canvas.removeEventListener("contextmenu", this.onContext);
     this.input?.detach();
     this.devMenu?.dispose();
     this.menuBar?.dispose();
@@ -275,6 +289,7 @@ export class GameView implements Screen {
     this.shadows = null;
     this.stepPeople = null;
     this.peopleClips = null;
+    this.people = null;
     this.hud = this.devMenu = this.menuBar = this.fpsEl = null;
     this.toolbar = this.staffPanel = this.tooltip = this.input = this.gameCamera = this.gameBabylon = this.orbit = null;
     this.scene?.dispose();
@@ -318,6 +333,8 @@ export class GameView implements Screen {
     this.devMenu = new DevMenu((m) => this.selectCamera(m), this.gameCamera !== null, (on) => { this.revealAlways = on; }, (s) => { this.sun = s; if (this.scene && this.sunLights) applySun(this.scene, this.sunLights, s); this.shadows?.update(this.sun, this.shadowSettings); this.frustum?.update(this.frustumOn); }, (s) => { this.shadowSettings = s; this.shadows?.update(this.sun, s); this.frustum?.update(this.frustumOn); }, {
       onTimeScale: (v) => { this.clock.timeScale = v; },
       onStep: () => this.stepOnce(),
+      onWander: (on) => this.people?.setWander(on),
+      onGait: (g) => { this.orderGait = g; },
       onDebugMode: (m) => { if (this.scene) setDebugMode(this.scene, m); },
       onSkyVariant: (v) => { this.skyMode = v; this.skyShown = -1; if (v !== "auto") { this.setSkyVariant?.(v); this.skyShown = v; } },
       onShadowFrustum: (on) => { this.frustumOn = on; this.frustum?.update(on); },
@@ -400,6 +417,19 @@ export class GameView implements Screen {
       const v = skyVariantForYear(yearOfDate(this.clock.date));
       if (v !== this.skyShown) { this.setSkyVariant?.(v); this.skyShown = v; }
     }
+  }
+
+  /** Right-click: the person last pressed on walks to the ground point (game x, y = scene x, z). */
+  private orderWalk(clientX: number, clientY: number): void {
+    const id = this.dragger?.lastPressed;
+    const engine = this.engine;
+    if (!id || !engine || !this.people) return;
+    const k = engine.getRenderWidth() / window.innerWidth;
+    const g = this.groundPoint(clientX * k, clientY * k);
+    if (!g) return;
+    const ok = this.people.walkTo(id, g.x, g.z, this.orderGait);
+    const name = this.world?.people.find((p) => p.person.id === id)?.person.name || "Someone";
+    this.lastClick = { object: ok ? `${name} sent walking` : `${name}: no route`, position: `${g.x.toFixed(1)}, ${g.z.toFixed(1)}` };
   }
 
   /** Pick the placed object under a canvas pixel (terrain is not pickable) and record it for the dev menu. */
@@ -489,7 +519,9 @@ export class GameView implements Screen {
       resumeCamera: () => { if (this.mode === "default") this.orbit?.attachControl(this.canvas, true); },
       // [guess] CanDropHere (orig 0x0053A560) is about rooms and held objects; with neither, anywhere on the ground the world draws is allowed
       canDrop: (x, z) => x >= -192 && x <= 192 && z >= -128 && z <= 256,
+      held: (id, held) => this.people?.hold(id, held),
       dropped: (id, x, z) => {
+        this.people?.place(id, x, z);
         const entry = this.world?.people.find((p) => p.person.id === id);
         if (entry) { entry.person.position = [x, z, entry.person.position[2]]; this.lastClick = { object: `${entry.person.name} put down`, position: `${x.toFixed(1)}, ${z.toFixed(1)}` }; }
       },

@@ -7,10 +7,12 @@ import { firstAnimation, parseFlm } from "../formats/Flm.ts";
 import { parseFloorplanRevealing, type RevealRules } from "../sim/ui/FloorplanReveal.ts";
 import { parseSeq } from "../formats/Seq.ts";
 import { FALLBACK_CLIP, type AnimationPlan } from "../sim/anim/PersonAnimation.ts";
+import { defaultGaits, gaitClipFile, parseGaitIni } from "../sim/anim/Gaits.ts";
+import { NavGrid, type Point } from "../sim/nav/NavGrid.ts";
 import type { MshBone } from "../formats/Msh.ts";
 import { parseHead, type HeadFile } from "../sim/character/HeadFile.ts";
 import { ageYears, defaultHeadFor, meshParts, morphedHead, poseParts, STANDING_POSE_CLIP, type ModelPart } from "../sim/character/PersonModel.ts";
-import { parseAnm, type Anm } from "../formats/Anm.ts";
+import { anmSpeed, parseAnm, type Anm } from "../formats/Anm.ts";
 import { parseMsh, type Msh, type MshChunk } from "../formats/Msh.ts";
 import { clipFits } from "../sim/anim/AutoAnimation.ts";
 import { roomLines, type Strings } from "../formats/Lhts.ts";
@@ -65,6 +67,64 @@ async function loadSky(pak: PakIndex, texture: (name: string) => Promise<Rgba | 
     else warnings.push(`sky texture ${name} not found`);
   }
   return { msh, textures };
+}
+
+/**
+ * The gait clips of a person (docs/MOVEMENT.md): the stroll, walk and run of `defaultGaits` for their sex, looked up in `gait.ini` (a built-in list when the archives lack it), loaded into
+ * `clips`; and how fast each moves them. A clip that cannot be loaded gives speed 0 for that gait.
+ */
+async function loadGaits(
+  pak: PakIndex, person: SavedPerson, clip: (name: string) => Promise<Anm | null>, clips: Map<string, Anm>, skeleton: MshBone[],
+): Promise<PersonInWorld["gaits"]> {
+  const fallbackFiles = ["walk.anm", "walk.anm", "run_jog.anm"];
+  const femaleFallback = ["walk_female_middle.anm", "walk_female.anm", "run_f_jog.anm"];
+  const bytes = await pak.readByName("gait.ini");
+  const ini = bytes ? parseGaitIni(new TextDecoder("latin1").decode(bytes)) : null;
+  const female = (person.costume?.cos ?? "").toLowerCase().startsWith("f_");
+  const ids = defaultGaits(female);
+  const wanted = [ids.stroll, ids.walk, ids.run];
+  const files = wanted.map((id, i) => (ini && gaitClipFile(ini, id)) || (female ? femaleFallback : fallbackFiles)[i]!) as [string, string, string];
+  const speeds: [number, number, number] = [0, 0, 0];
+  for (let i = 0; i < 3; i++) {
+    let c = clips.get(files[i]!);
+    if (!c) {
+      const loaded = await clip(files[i]!);
+      if (loaded && clipFits(skeleton, loaded)) { clips.set(files[i]!, loaded); c = loaded; }
+    }
+    speeds[i] = c ? anmSpeed(c) : 0;
+  }
+  // some female gait clips hold no frames (walk_female.anm, walk_female_2.anm, walk_fem_bored.anm): take the speed and clip of a working neighbour
+  for (let i = 0; i < 3; i++) {
+    if (speeds[i]! > 0) continue;
+    const j = [0, 1, 2].filter((k) => speeds[k]! > 0).sort((a, b) => Math.abs(a - i) - Math.abs(b - i))[0];
+    if (j !== undefined) { speeds[i] = speeds[j]!; files[i] = files[j]!; }
+    else speeds[i] = [0.9, 1.67, 3.16][i]!;
+  }
+  return { files, speeds };
+}
+
+/**
+ * The walking grid: the lot's rectangle is walkable except where a placed model's footprint (`b15_02`, the polygon the placement code keeps clear, `SAVE_FORMAT.md`) lies, turned by
+ * the placement's angle and moved to its position. People outside the lot are not covered (the lot's walls and gate keep them in).
+ */
+function buildNav(lot: WorldData["lot"], placements: Placement[]): NavGrid {
+  const nav = new NavGrid();
+  if (lot) nav.openRect(lot.bounds.minX, lot.bounds.minY, lot.bounds.maxX, lot.bounds.maxY);
+  else nav.openRect(-190, -126, 190, 254);
+  for (const p of placements) {
+    const fp = p.mesh.msh.chunks.b15_02;
+    if (!fp || !fp.tris.length) continue;
+    const [px, py] = p.asset.position;
+    const c = Math.cos(p.asset.angle), s = Math.sin(p.asset.angle), k = p.scale ?? 1;
+    const world = (i: number): Point => {
+      const x = fp.verts[i * 3]! * k, y = fp.verts[i * 3 + 1]! * k;
+      return { x: px + x * c - y * s, y: py + x * s + y * c };
+    };
+    const tris: [Point, Point, Point][] = [];
+    for (let t = 0; t < fp.tris.length; t += 3) tris.push([world(fp.tris[t]!), world(fp.tris[t + 1]!), world(fp.tris[t + 2]!)]);
+    nav.blockTriangles(tris);
+  }
+  return nav;
 }
 
 /** The most clip variants the original loads for a model (`AutoAnimSet_Constructor` names them `aa_<model>_v00` to `_v010`, then `_v`). */
@@ -206,8 +266,9 @@ async function loadPeople(
       const body = { skeleton: model.skeleton };
       const clips = new Map<string, Anm>();
       const plan = await resolvePlan(pak, person, scene, clip, clips, body.skeleton);
+      const gaits = await loadGaits(pak, person, clip, clips, body.skeleton);
       out.push({
-        person, bind: parts, skeleton: body.skeleton, plan, clips, textures,
+        person, bind: parts, skeleton: body.skeleton, plan, clips, textures, gaits, outdoors: !plan || plan.source.startsWith("fallback"),
         parts: pose && clipFits(body.skeleton, pose) ? (poseParts(parts, body.skeleton, pose) as PersonInWorld["parts"]) : parts,
       });
     } catch (e) {
@@ -308,6 +369,10 @@ export interface PersonInWorld {
   /** What the person plays (docs/PEOPLE.md "Animation") and the clips that plan needs, by file name; null plan = no animation. */
   plan: AnimationPlan | null;
   clips: Map<string, Anm>;
+  /** The clip files of the person's stroll, walk and run gaits (loaded into `clips`) and how fast each moves them, in units per second. */
+  gaits: { files: [string, string, string]; speeds: [number, number, number] };
+  /** Free to wander: not busy in a room (outside, or in a room with no scene). */
+  outdoors: boolean;
 }
 
 /** The game's sky box (`Sky_box.msh`, docs/SKY.md): its model and the textures of every sky variant. */
@@ -318,6 +383,8 @@ export interface SkyData {
 }
 
 export interface WorldData {
+  /** Where people can walk: the lot's area minus the footprints of what is placed on it (`sim/nav/NavGrid.ts`, docs/MOVEMENT.md). */
+  nav: NavGrid;
   /** The sky box and the ground plane around the lot; null if the archives lack `Sky_box.msh`. */
   sky: SkyData | null;
   /** When each building's floor plan is revealed (`data\\floorplans\\floorplanrevealing.csv`); null if the archives lack it. */
@@ -558,5 +625,8 @@ export async function loadWorldData(
   const rulesBytes = await pak.readByName("floorplanrevealing.csv", { dir: "data\\floorplans\\" });
   const floorplanRules = rulesBytes ? parseFloorplanRevealing(new TextDecoder("latin1").decode(rulesBytes)) : null;
   const sky = await loadSky(pak, texture, warnings);
-  return { sky, floorplanRules, people, camera, lot, terrain, meshes, placements, header: save.header, staff: save.staff, warnings };
+  const nav = buildNav(lot, placements);
+  // outdoors: no room scene and standing on open ground (the others stay where their scene put them until sent somewhere)
+  for (const p of people) p.outdoors = p.outdoors && !nav.isBlocked(p.person.position[0], p.person.position[1]);
+  return { nav, sky, floorplanRules, people, camera, lot, terrain, meshes, placements, header: save.header, staff: save.staff, warnings };
 }

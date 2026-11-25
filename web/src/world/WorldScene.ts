@@ -16,6 +16,10 @@ import type { Scene } from "@babylonjs/core/scene";
 import type { Rgba } from "../formats/Dds.ts";
 import { AutoAnimator } from "../sim/anim/AutoAnimation.ts";
 import { PersonAnimator } from "../sim/anim/PersonAnimation.ts";
+import type { Locomotion } from "../sim/anim/Gaits.ts";
+import { PersonWalker } from "../sim/anim/Walker.ts";
+import { Wanderer } from "../sim/ai/Wander.ts";
+import type { NavGrid } from "../sim/nav/NavGrid.ts";
 import { registerShaders } from "./shaders.ts";
 import { makeTexture, setTextureAnisotropy } from "./textures.ts";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
@@ -191,25 +195,77 @@ function buildSources(scene: Scene, m: MeshAsset, caches: Caches, cut = false): 
  * game's (x, y, z up) -> Babylon (x, z, y) mapping. Parts are lit by their texture alone for now (the game's people take the lightmap of where they stand).
  * The node and its meshes carry `metadata.person` for picking.
  */
-function buildPeople(scene: Scene, people: PersonInWorld[]): { nodes: TransformNode[]; step(dtMs: number): void; clips: () => { name: string; clip: string; source: string }[] } {
+function buildPeople(scene: Scene, people: PersonInWorld[], nav: NavGrid | null): { nodes: TransformNode[]; step(dtMs: number): void; clips: () => { name: string; clip: string; source: string }[]; control: PeopleControl } {
   const materials = new Map<string, StandardMaterial>();
   const nodes: TransformNode[] = [];
-  const animated: { animator: PersonAnimator; entry: PersonInWorld; meshes: PersonMeshes }[] = [];
+  const animated: { animator: PersonAnimator; entry: PersonInWorld; meshes: PersonMeshes; walker: PersonWalker; wanderer: Wanderer; held?: boolean }[] = [];
+  let wander = false;
   for (const entry of people) {
     const { person } = entry;
     const meshes = new PersonMeshes(scene, entry, `person/${person.id}`, materials, { person: { id: person.id, cls: person.cls, name: person.name } });
     meshes.node.position.set(person.position[0], person.position[2], person.position[1]);
     meshes.node.rotation.y = -person.angle;
     nodes.push(meshes.node);
-    if (entry.plan && meshes.hasSkin) animated.push({ animator: new PersonAnimator(entry.skeleton, entry.clips, entry.plan), entry, meshes });
+    if (entry.plan && meshes.hasSkin) {
+      animated.push({
+        animator: new PersonAnimator(entry.skeleton, entry.clips, entry.plan), entry, meshes,
+        walker: new PersonWalker(person.position[0], person.position[1], person.angle, entry.gaits.speeds), wanderer: new Wanderer(),
+      });
+    }
   }
+  const byId = (id: number) => animated.find((a) => a.entry.person.id === id);
   const step = (dtMs: number) => {
-    for (const { animator, meshes } of animated) {
+    const dt = dtMs / 1000;
+    for (const a of animated) {
+      const { animator, meshes, walker, entry } = a;
+      if (nav && wander && entry.outdoors && !walker.moving && !a.held) {
+        const plan = a.wanderer.update(dt, walker, nav);
+        if (plan) walker.go(plan.to, plan.gait);
+      }
+      if (walker.moving) {
+        walker.step(dt);
+        meshes.node.position.x = walker.x;
+        meshes.node.position.z = walker.y;
+        meshes.node.rotation.y = -walker.heading;
+        entry.person.position = [walker.x, walker.y, entry.person.position[2]];
+      }
+      // the gait clip while on the way, the room plan otherwise
+      animator.setOverride(walker.moving ? entry.gaits.files[walker.gait] : null);
       const transforms = animator.step(dtMs);
       if (transforms) meshes.applyPose(transforms);
     }
   };
-  return { nodes, step, clips: () => animated.map((a) => ({ name: a.entry.person.name, clip: a.animator.clipName, source: a.entry.plan!.source })) };
+  const control: PeopleControl = {
+    walkTo(id, x, y, gait) {
+      const a = byId(id);
+      if (!a || !nav) return false;
+      const path = nav.findPath(a.walker, { x, y });
+      if (!path) return false;
+      a.walker.go(path, gait);
+      return true;
+    },
+    stop(id) { byId(id)?.walker.stop(); },
+    hold(id, held) { const a = byId(id); if (a) { a.held = held; if (held) a.walker.stop(); } },
+    place(id, x, y) { byId(id)?.walker.place(x, y); },
+    setWander(on) { wander = on; },
+    route(id) { return byId(id)?.walker.path ?? []; },
+  };
+  return { nodes, step, control, clips: () => animated.map((a) => ({ name: a.entry.person.name, clip: a.animator.clipName, source: a.entry.plan!.source })) };
+}
+
+/** What the game view can ask of the walking people (docs/MOVEMENT.md). Ids are saved person ids; positions are game coordinates. */
+export interface PeopleControl {
+  /** Send a person to a point by the shortest clear route; false when there is none. */
+  walkTo(id: number, x: number, y: number, gait: Locomotion): boolean;
+  stop(id: number): void;
+  /** A person is being carried (or put down): they stop walking, and do not start wandering while held. */
+  hold(id: number, held: boolean): void;
+  /** Put a person down at a point; they stand there. */
+  place(id: number, x: number, y: number): void;
+  /** Let people who are outdoors wander. */
+  setWander(on: boolean): void;
+  /** The waypoints a person still has to walk. */
+  route(id: number): readonly { x: number; y: number }[];
 }
 
 /** The sky's scale: the game's sky box is about 980 units across but its camera sees only 300 units (`FAR_PLANE`), so the sky is drawn at a fifth of its size and stays centred on the camera. */
@@ -304,6 +360,8 @@ export interface BuiltWorld {
   people: TransformNode[];
   /** Move every person's animation on by `dtMs` of game time (0 = paused: nothing moves). */
   stepPeople(dtMs: number): void;
+  /** Send people places, stop them, let them wander. */
+  peopleControl: PeopleControl;
   /** What each animated person is playing now, for the dev menu. */
   peopleClips(): { name: string; clip: string; source: string }[];
   /** How many models are auto-animated here (for the dev menu). */
@@ -394,8 +452,8 @@ export function buildWorld(scene: Scene, canvas: HTMLCanvasElement, world: World
   camera.wheelPrecision = 5;
   camera.panningSensibility = 60;
   camera.attachControl(canvas, true);
-  const built = buildPeople(scene, world.people);
+  const built = buildPeople(scene, world.people, world.nav);
   for (const node of built.nodes) for (const part of node.getChildMeshes()) shadowCasters.push({ mesh: part, material: null });
   const skyHandle = world.sky ? buildSky(scene, world.sky) : null;
-  return { camera, instances, shadowCasters, setSkyVariant: (v) => skyHandle?.setVariant(v), stepAutoAnimations, autoAnimated, people: built.nodes, stepPeople: built.step, peopleClips: built.clips };
+  return { camera, instances, shadowCasters, setSkyVariant: (v) => skyHandle?.setVariant(v), stepAutoAnimations, autoAnimated, people: built.nodes, stepPeople: built.step, peopleClips: built.clips, peopleControl: built.control };
 }

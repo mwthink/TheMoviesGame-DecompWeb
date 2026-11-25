@@ -60,3 +60,5 @@ Body, head and hair. Before the animation starts (and in tests) they are in the 
 
 Movement: the scenes' `MoveToBox` walks and path nodes, the pathfinder, the animation id table (`AnimId_GetName`), blending, and the game loop's per-tick character update
 (`TMMobile_*`, `TMCharacter_*`).
+
+Movement (walking, gaits, routes) is in `MOVEMENT.md`.

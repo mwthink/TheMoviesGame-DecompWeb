@@ -15,6 +15,8 @@ export interface DragHost {
   canDrop(x: number, z: number): boolean;
   /** A person was put down for good at scene (x, z) (game x, y). */
   dropped(personId: number, x: number, z: number): void;
+  /** A person was picked up (true) or is no longer held, put down or back where they were (false). */
+  held?(personId: number, held: boolean): void;
 }
 
 type Phase = "idle" | "pressed" | "held" | "returning";
@@ -33,6 +35,8 @@ export class PersonDragger {
   /** Where and how the person stood when picked up (the node's position and facing). */
   private rest = { x: 0, y: 0, z: 0, yaw: 0 };
   private returnAccumulator = 0;
+  /** The person last pressed on (picked up or just clicked), 0 for none. */
+  lastPressed = 0;
 
   constructor(private readonly scene: Scene, private readonly canvas: HTMLCanvasElement, private readonly host: DragHost) {}
 
@@ -55,6 +59,7 @@ export class PersonDragger {
     if (this.phase === "returning") this.finishReturn();
     this.node = node;
     this.personId = (node.metadata as { person: { id: number } }).person.id;
+    this.lastPressed = this.personId;
     this.pressAt = { x: e.clientX, y: e.clientY, ms: performance.now() };
     this.pointer = { x: e.clientX, y: e.clientY };
     this.phase = "pressed";
@@ -83,6 +88,7 @@ export class PersonDragger {
       node.position.y = this.rest.z; // set down on the ground (their own floor height)
       node.rotation.y = this.rest.yaw;
       this.phase = "idle";
+      this.host.held?.(this.personId, false);
       this.host.dropped(this.personId, node.position.x, node.position.z);
     } else {
       this.phase = "returning";
@@ -95,6 +101,7 @@ export class PersonDragger {
     const node = this.node!;
     this.rest = { x: node.position.x, y: node.position.z, z: node.position.y, yaw: node.rotation.y };
     this.phase = "held";
+    this.host.held?.(this.personId, true);
     this.canvas.style.cursor = "grabbing";
   }
 
@@ -125,5 +132,6 @@ export class PersonDragger {
     const node = this.node;
     if (node) { node.position.set(this.rest.x, this.rest.z, this.rest.y); node.rotation.y = this.rest.yaw; }
     this.phase = "idle";
+    this.host.held?.(this.personId, false);
   }
 }
