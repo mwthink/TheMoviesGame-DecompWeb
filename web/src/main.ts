@@ -4,19 +4,30 @@ import { SplashScreen } from "./screens/SplashScreen.ts";
 import { MainMenuScreen } from "./screens/MainMenuScreen.ts";
 import { GameView } from "./screens/GameView.ts";
 import { LoadGameScreen } from "./screens/LoadGameScreen.ts";
+import { LoadingScreen, type LoadTask } from "./screens/LoadingScreen.ts";
+import type { WorldData } from "./world/WorldData.ts";
 
-type ScreenId = "splash" | "menu" | "load" | "game";
+type ScreenId = "splash" | "menu" | "load" | "loading" | "game";
 
 const canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
 const container = document.getElementById("screens") as HTMLElement;
 
 let current: Screen | null = null;
 
-function show(id: ScreenId): void {
+function present(id: ScreenId, screen: Screen): void {
   current?.exit();
-  current = screens[id]();
+  current = screen;
   document.body.dataset.screen = id;
   current.enter();
+}
+
+function show(id: ScreenId): void {
+  present(id, screens[id]());
+}
+
+/** Run a world load behind the loading screen: on success the game opens, on failure the Load Game screen comes back. */
+function loadWorld(task: LoadTask<WorldData>): void {
+  present("loading", new LoadingScreen(container, task, (world) => { gameView.world = world; show("game"); }, () => show("load")));
 }
 
 // Screens are built on demand so each visit starts fresh. GameView keeps its engine between visits.
@@ -24,8 +35,9 @@ const gameView = new GameView(canvas, () => show("menu"));
 const screens: Record<ScreenId, () => Screen> = {
   splash: () => new SplashScreen(container, () => show("menu")),
   menu: () => new MainMenuScreen(container, () => show("load")),
-  load: () => new LoadGameScreen((world) => { gameView.world = world; show("game"); }, () => show("menu"), container),
+  load: () => new LoadGameScreen(loadWorld, () => show("menu"), container),
   game: () => gameView,
+  loading: () => { throw new Error("the loading screen is started by loadWorld"); },
 };
 
 // Dev shortcut: /?autoload (or /?autoload=<part of a save's file name>) skips the splash and menus and opens the world from the dev server's local files.
