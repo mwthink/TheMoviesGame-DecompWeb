@@ -1,5 +1,6 @@
 import { Engine } from "@babylonjs/core/Engines/engine";
 import { Scene } from "@babylonjs/core/scene";
+import "@babylonjs/core/Culling/ray"; // side effect: adds Scene.pick
 import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera";
 import { Camera } from "@babylonjs/core/Cameras/camera";
 import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";
@@ -31,6 +32,16 @@ export class GameView implements Screen {
   private input: CameraInputSource | null = null;
   private mode: CameraMode = "default";
   private frame = 0;
+  /** What the last click hit, for the dev menu. */
+  private lastClick: Record<string, string> = { object: "no click yet" };
+  private downAt: { x: number; y: number } | null = null;
+  private readonly onDown = (e: PointerEvent) => { this.downAt = e.button === 0 ? { x: e.clientX, y: e.clientY } : null; };
+  private readonly onUp = (e: PointerEvent) => {
+    const d = this.downAt;
+    this.downAt = null;
+    if (!d || e.button !== 0 || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) return; // a drag (orbit, rotate) is not a click
+    this.pickAt(e.clientX, e.clientY);
+  };
 
   /** The world to draw on the next enter(); null shows the blank placeholder scene. */
   world: WorldData | null = null;
@@ -50,6 +61,9 @@ export class GameView implements Screen {
       this.orbit = new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 3, 20, Vector3.Zero(), this.scene);
     }
     this.mode = "default";
+    this.lastClick = { object: "no click yet" };
+    this.canvas.addEventListener("pointerdown", this.onDown);
+    this.canvas.addEventListener("pointerup", this.onUp);
     this.setupHud(this.scene);
 
     if (import.meta.env.DEV) {
@@ -81,6 +95,8 @@ export class GameView implements Screen {
     window.removeEventListener("resize", this.onResize);
     window.removeEventListener("keydown", this.onKey);
     this.engine?.stopRenderLoop();
+    this.canvas.removeEventListener("pointerdown", this.onDown);
+    this.canvas.removeEventListener("pointerup", this.onUp);
     this.input?.detach();
     this.devMenu?.dispose();
     this.menuBar?.dispose();
@@ -113,6 +129,31 @@ export class GameView implements Screen {
     this.menuBar.mount(this.hud);
     this.devMenu = new DevMenu((m) => this.selectCamera(m), this.gameCamera !== null);
     this.devMenu.mount(this.hud);
+  }
+
+  /** Pick the placed object under a canvas pixel (terrain is not pickable) and record it for the dev menu. */
+  private pickAt(clientX: number, clientY: number): void {
+    const scene = this.scene, engine = this.engine;
+    if (!scene || !engine) return;
+    const k = engine.getRenderWidth() / window.innerWidth;
+    const hit = scene.pick(clientX * k, clientY * k, (m) => m.isPickable && m.isEnabled());
+    const f = (v: number) => v.toFixed(1);
+    if (!hit?.hit || !hit.pickedMesh) {
+      this.lastClick = { object: "nothing" };
+    } else {
+      const md = (hit.pickedMesh.metadata ?? {}) as { cls?: string; id?: number; source?: string; model?: string; position?: number[] };
+      const p = hit.pickedPoint;
+      this.lastClick = {
+        object: md.source ?? hit.pickedMesh.name,
+        class: md.cls ?? "?",
+        id: md.id === undefined ? "?" : String(md.id),
+        model: md.model ?? "?",
+        position: md.position ? md.position.map(f).join(", ") : "?",
+        "hit point": p ? `${f(p.x)}, ${f(p.z)}, ${f(p.y)}` : "?", // Babylon (x, y, z) -> game (x, z, y)
+        distance: hit.distance.toFixed(1),
+      };
+    }
+    this.refreshDevMenu();
   }
 
   private selectCamera(mode: CameraMode): void {
@@ -170,6 +211,7 @@ export class GameView implements Screen {
         placements: w ? String(w.placements.length) : "none",
       },
     };
+    state["Last click"] = this.lastClick;
     const gc = this.gameCamera;
     if (this.mode === "game" && gc) {
       const d = gc.debug;

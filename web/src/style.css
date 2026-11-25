@@ -77,3 +77,4 @@ body[data-screen="game"] .hud { display: block; }
 .devmenu .row { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; }
 .devmenu .row .k { color: var(--muted); }
 .devmenu .row .v { text-align: right; }
+.devmenu [hidden] { display: none; }

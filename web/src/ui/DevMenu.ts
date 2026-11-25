@@ -80,6 +80,11 @@ export class DevMenu {
         if (v.textContent !== value) v.textContent = value;
       }
     }
+    // Rows that this state no longer has (a section whose fields changed) are hidden too.
+    for (const [key, row] of this.rows) {
+      const [section, name] = [key.slice(0, key.indexOf("/")), key.slice(key.indexOf("/") + 1)];
+      row.hidden = !(state[section] && name in state[section]!);
+    }
     // Sections that are not part of this state (the other camera's) are hidden rather than left showing old values.
     for (const sec of this.body.querySelectorAll<HTMLElement>("section[data-s]")) sec.hidden = !(sec.dataset.s! in state);
   }

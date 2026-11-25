@@ -198,7 +198,8 @@ export function buildWorld(scene: Scene, canvas: HTMLCanvasElement, world: World
       inst.position.set(x, asset.cls === "CLot" ? 0 : z, y);
       if (scale && scale !== 1) inst.scaling.setAll(scale);
       inst.rotation.y = -asset.angle; // counter-clockwise seen from above in the game = this in the mirrored space
-      inst.isPickable = false;
+      inst.isPickable = true; // the dev menu reports the last object clicked
+      inst.metadata = { cls: asset.cls, id: asset.id, source: asset.source, model: mesh.name, position: asset.position };
       inst.freezeWorldMatrix(); // placed objects do not move
     }
     if (asset.cls === "CLot" || asset.source === "outside/lot_gate" || asset.source.startsWith("facility/")) framed.push([x, y]);
