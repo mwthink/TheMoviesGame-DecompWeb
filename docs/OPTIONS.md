@@ -28,7 +28,8 @@ Reached from the main menu and, over the running game, from the pause menu (`Pau
 |---|---|---|---|
 | Graphics | Render size (50 % .. 150 %) | `engine.setHardwareScalingLevel(1 / scale)`: fewer or more pixels than the window | screen size |
 | Graphics | Texture sharpness (1x .. 16x) | texture `anisotropicFilteringLevel`, read when a world is built | graphical detail (partly) |
-| Graphics | Smooth jagged edges | an FXAA post-process on each camera, on top of the engine's own MSAA | - |
+| Graphics | Multisampling (MSAA) | the canvas' own MSAA, `new Engine(canvas, antialias)`; fixed when the engine is made, so read when the page loads; off by default | - |
+| Graphics | Smooth jagged edges | an FXAA post-process on each camera, a cheap full-screen pass; on by default | - |
 | Graphics | Show frames per second | a small counter below the menu bar | - |
 | Graphics | Full screen | the browser's Fullscreen API (not stored: the browser decides) | `Fullscreen` |
 | Game | Level of help | "no extra assistance" turns tooltips off (`Tooltip.setEnabled`); the other levels are the same for now | level of help |
@@ -38,8 +39,7 @@ screen size in pixels (the window is the size).
 
 ## What Babylon.js could add
 
-Candidates if wanted later, each a small change in `applySettings` or the engine set-up: MSAA sample count (needs an engine re-create, `new Engine(canvas, antialias)` only has on/off;
-`RenderTargetTexture` samples apply to post-processes), a shadow generator (the game has none; people and buildings could cast), a hardware-scaling "adaptive quality" that lowers the
+Candidates if wanted later, each a small change in `applySettings` or the engine set-up: MSAA sample count (the engine only has MSAA on/off; `RenderTargetTexture` samples apply to post-processes), a shadow generator (the game has none; people and buildings could cast), a hardware-scaling "adaptive quality" that lowers the
 render size when the frame time stays high (`engine.getFps()` is already read for the counter), bloom or colour grading through `DefaultRenderingPipeline` (`imageProcessing`: contrast,
 exposure, a vignette; the game's look is the baked lightmaps, so these are style choices), a frame-rate cap, hiding people or the lot's scenery for speed, and a texture-detail option
 that decodes DDS mip levels from a lower level (saves memory on small devices).

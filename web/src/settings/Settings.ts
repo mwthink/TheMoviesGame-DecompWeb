@@ -16,8 +16,10 @@ export interface Settings {
   renderScale: number;
   /** Texture sharpness at a slant (Babylon `anisotropicFilteringLevel`): 1, 2, 4, 8 or 16. Applies to the next world that is built. */
   anisotropy: number;
-  /** Smooth jagged edges with an FXAA post-process on top of the engine's own multisampling. */
+  /** Smooth jagged edges with an FXAA post-process (a cheap full-screen pass). */
   smoothEdges: boolean;
+  /** The browser's own multisampling (MSAA) on the canvas: sharper edges, a lot more GPU work. Read when the page loads. */
+  multisampling: boolean;
   /** Show the frames-per-second counter in the game view. */
   showFps: boolean;
   /** How much help the game gives; "none" turns the tooltips off. */
@@ -28,7 +30,7 @@ export interface Settings {
   soundVolume: number;
 }
 
-export const DEFAULT_SETTINGS: Readonly<Settings> = { renderScale: 1, anisotropy: 8, smoothEdges: false, showFps: false, helpLevel: "max", musicVolume: 1, soundVolume: 1 };
+export const DEFAULT_SETTINGS: Readonly<Settings> = { renderScale: 1, anisotropy: 4, smoothEdges: true, multisampling: false, showFps: false, helpLevel: "max", musicVolume: 1, soundVolume: 1 };
 
 export const ANISOTROPY_CHOICES = [1, 2, 4, 8, 16] as const;
 /** The volume steps the original's buttons make (`ExternMusicVolUp` and friends: +-0.1). */
@@ -52,6 +54,7 @@ export function normalizeSettings(raw: unknown): Settings {
     renderScale: scale,
     anisotropy: (ANISOTROPY_CHOICES as readonly number[]).includes(aniso) ? aniso : d.anisotropy,
     smoothEdges: typeof o.smoothEdges === "boolean" ? o.smoothEdges : d.smoothEdges,
+    multisampling: typeof o.multisampling === "boolean" ? o.multisampling : d.multisampling,
     showFps: typeof o.showFps === "boolean" ? o.showFps : d.showFps,
     helpLevel: HELP_LEVELS.includes(o.helpLevel as HelpLevel) ? (o.helpLevel as HelpLevel) : d.helpLevel,
     musicVolume: volume(num(o.musicVolume, d.musicVolume)),

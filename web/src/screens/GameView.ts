@@ -159,6 +159,7 @@ export class GameView implements Screen {
     // The engine is created on first entry and reused afterwards: a new WebGL context per visit is wasteful.
     this.engine ??= sharedEngine(this.canvas);
     this.scene = new Scene(this.engine);
+    this.scene.skipPointerMovePicking = true; // hover does its own picking every 100 ms; Babylon's per-move pick is wasted work
     this.scene.clearColor = new Color4(0.04, 0.05, 0.08, 1);
 
     if (this.world) {

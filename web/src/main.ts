@@ -7,6 +7,7 @@ import { LoadingGalleryScreen } from "./screens/LoadingGalleryScreen.ts";
 import { CharacterViewerScreen } from "./screens/CharacterViewerScreen.ts";
 import { OptionsScreen } from "./screens/OptionsScreen.ts";
 import { SettingsStore } from "./settings/Settings.ts";
+import { setEngineMultisampling } from "./world/sharedEngine.ts";
 import { ProfileScreen } from "./screens/ProfileScreen.ts";
 import { LoadGameScreen, loadSaveTask } from "./screens/LoadGameScreen.ts";
 import { LinkGameScreen } from "./screens/LinkGameScreen.ts";
@@ -58,6 +59,7 @@ function loadWorld(task: LoadTask<WorldData>, back: (message: string) => void = 
 }
 
 const settings = new SettingsStore(typeof localStorage === "undefined" ? null : localStorage);
+setEngineMultisampling(settings.get().multisampling);
 
 // Audio: each screen holds the audio states the original's matching window sets (docs/AUDIO.md, "Audio states"). Music files are read from the dev server's
 // local files; a build without them stays silent.
