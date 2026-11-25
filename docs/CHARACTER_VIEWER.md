@@ -9,8 +9,7 @@ the meshes from `PersonMeshes` (`web/src/world/PersonMeshes.ts`, also used for t
 - **Who:** pick any costume (`data\costume\datas\*.cos`, 400+), head (`data\heads\*.hd`, or the default for the costume's sex), hair mesh (`hair_*.msh`) and set age and weight
   (the head morph, `CHARACTERS.md`). **Saved game** (a file picker; read in the browser, nothing uploaded) lists the people of a save; choosing one fills the controls from it.
 - **Costume looks:** under the costume choice, a select per variable texture layer (`cos_shoes`, `cos_tshirt`, `cos_dress`...) lists the variants that exist (`com_..._v00.dds`, `_v01`, ...;
-  `STARMAKER.md` section 11) and a select per accessory (hat, glasses, watch, ring) lists `(none)` and its variants. Choosing a layer variant paints the variants of all the costume's
-  layers over the body atlas in `.cos` order with plain alpha blending (`CostumeLayers.ts`); accessories are separate meshes, drawn with an alpha cut-off, and a static one (a hat)
+  `STARMAKER.md` section 11) and a select per accessory (hat, glasses, watch, ring) lists `(none)` and its variants. Choosing a layer variant paints the layers that differ from the variant the `.cos` names (the atlas already shows the default ones; repainting them darkened the outfit) over the body atlas in `.cos` order with plain alpha blending (`CostumeLayers.ts`); accessories are separate meshes, drawn with an alpha cut-off, and a static one (a hat)
   follows the head bone, the others are skinned like the body. Accessories start off. [guess] The atlas stands in for skin and the overlays under the layers; the alpha-map records
   (`..._a.dds`) are not applied. A saved person's variants are not decoded (`STARMAKER.md` section 11), so choosing one resets the layers to the costume's own.
 - **Character string:** *Copy character to clipboard* writes the look (costume, head, hair, age, weight, layer and accessory variants) as one line, `OTMCHAR1:` and base64 of a JSON array

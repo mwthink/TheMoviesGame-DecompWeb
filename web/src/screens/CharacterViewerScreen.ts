@@ -21,6 +21,8 @@ import { mountScreen, unmountScreen, type Screen } from "./Screen.ts";
 
 const DIR = { costumes: "data\\costume\\datas\\", heads: "data\\heads\\", meshes: "data\\meshes\\", clips: "data\\animations\\high\\" };
 /** The clip the viewer starts with (and the fallback idle of people without a room scene). */
+/** The Head choice that leaves the generic head off (a body that has its own). */
+const NO_HEAD = "(no head)";
 const DEFAULT_CLIP = STANDING_POSE_CLIP;
 /** At most this many clip names are listed at once; the filter narrows them. */
 const MAX_CLIP_CHOICES = 300;
@@ -185,13 +187,13 @@ export class CharacterViewerScreen implements Screen {
     this.builder = new PersonModelBuilder(pak, (name) => this.texture(name));
     const names = (files: PakFile[], test: RegExp) => files.map((x) => x.entry.name).filter((n) => test.test(n));
     fill(this.f("cos"), names(pak.list(DIR.costumes), /\.cos$/i));
-    fill(this.f("head"), ["(default for the costume)", ...names(pak.list(DIR.heads), /\.hd$/i)]);
+    fill(this.f("head"), ["(default for the costume)", NO_HEAD, ...names(pak.list(DIR.heads), /\.hd$/i)]);
     fill(this.f("hair"), ["(none)", ...names(pak.list(DIR.meshes), /^hair_.*\.msh$/i)]);
     this.f<HTMLSelectElement>("cos").value = pak.find("m_50s_2.cos") ? "m_50s_2.cos" : this.f<HTMLSelectElement>("cos").options[0]?.value ?? "";
     this.f<HTMLSelectElement>("hair").value = pak.find("hair_20s_m1.msh") ? "hair_20s_m1.msh" : "(none)";
     this.restore();
     this.fillClips();
-    note.textContent = `${this.f<HTMLSelectElement>("cos").options.length} costumes, ${this.f<HTMLSelectElement>("head").options.length - 1} heads. Drag to orbit, wheel to zoom.`;
+    note.textContent = `${this.f<HTMLSelectElement>("cos").options.length} costumes, ${this.f<HTMLSelectElement>("head").options.length - 2} heads. Drag to orbit, wheel to zoom.`;
     el.querySelector<HTMLElement>(".controls")!.hidden = false;
     this.wire();
     await this.rebuild();
@@ -456,7 +458,7 @@ export class CharacterViewerScreen implements Screen {
         this.showCostumeOptions();
       }
       const model = await this.builder.build({
-        cos, head: head.startsWith("(") ? "" : head, hair: hair.startsWith("(") ? "" : hair,
+        cos, head: head.startsWith("(") ? "" : head, noHead: head === NO_HEAD ? true : undefined, hair: hair.startsWith("(") ? "" : hair,
         ageYears: Number(this.f<HTMLInputElement>("age").value), weightKg: Number(this.f<HTMLInputElement>("weight").value),
         look: this.look,
       });

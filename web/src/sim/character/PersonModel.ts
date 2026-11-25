@@ -15,6 +15,13 @@ export function defaultHeadFor(cosName: string): string {
 }
 
 /**
+ * Whether a body mesh carries its own head (robots, aliens, mummies ...): one of its textures has "head" in its name (`rob_tz1_head_x0_v00.dds`). [inferred] Of the
+ * 382 body meshes, the 27 that do are all creature costumes and no ordinary one is; the game's own rule for leaving the generic head off was not found
+ * (docs/CHARACTERS.md), so this is a stand-in for it.
+ */
+export const bodyHasOwnHead = (textures: readonly string[]): boolean => textures.some((t) => /head/i.test(t));
+
+/**
  * The head morph amounts for an age in years and a weight in kg (`CharacterModel_SetAgeMorph` / `SetWeightMorph`, docs/CHARACTERS.md): the age morph is 0
  * below 30 years and rises 0.025 a year to 1 at 70; the weight morph is 0 at 60 kg and rises 0.025 a kg to 1 at 100.
  */

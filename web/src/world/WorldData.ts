@@ -16,7 +16,7 @@ import type { PropExplainer } from "../sim/ai/Explainers.ts";
 import type { DesireDef } from "../sim/ai/Desires.ts";
 import type { MshBone } from "../formats/Msh.ts";
 import { parseHead, type HeadFile } from "../sim/character/HeadFile.ts";
-import { ageYears, defaultHeadFor, meshParts, morphedHead, poseParts, STANDING_POSE_CLIP, type ModelPart } from "../sim/character/PersonModel.ts";
+import { ageYears, bodyHasOwnHead, defaultHeadFor, meshParts, morphedHead, poseParts, STANDING_POSE_CLIP, type ModelPart } from "../sim/character/PersonModel.ts";
 import { anmSpeed, parseAnm, type Anm } from "../formats/Anm.ts";
 import { parseMsh, type Msh, type MshChunk } from "../formats/Msh.ts";
 import { clipFits } from "../sim/anim/AutoAnimation.ts";
@@ -176,6 +176,8 @@ export interface PersonSpec {
   head: string;
   head2?: string;
   headMix?: number;
+  /** Leave the generic head off. Unset: left off when `head` is "" and the body mesh has its own head (`bodyHasOwnHead`). */
+  noHead?: boolean;
   /** The hair mesh (`hair_20s_m1.msh`); "" for none. */
   hair: string;
   ageYears: number;
@@ -267,9 +269,10 @@ export class PersonModelBuilder {
     if (!body) throw new Error(`no body mesh ${cos.body}`);
     const parts: PersonModel["parts"] = meshParts(body).map((p) => ({ ...p, cutout: false }));
     const headName = spec.head || defaultHeadFor(spec.cos);
-    const first = await this.hd(headName);
-    const generic = await this.msh("generic_head.msh");
-    if (generic && first) {
+    const noHead = spec.noHead ?? (spec.head === "" && bodyHasOwnHead(body.textures));
+    const first = noHead ? null : await this.hd(headName);
+    const generic = noHead ? null : await this.msh("generic_head.msh");
+    if (noHead) { /* the body brings its own head */ } else if (generic && first) {
       const second = spec.head2 ? await this.hd(spec.head2) : null;
       for (const p of morphedHead(generic, first, second, spec.headMix ?? 0, spec.ageYears, spec.weightKg, first.names[0])) parts.push({ ...p, cutout: false });
     } else warn(`no head ${headName}`);
@@ -280,15 +283,22 @@ export class PersonModelBuilder {
     }
     const look = spec.look;
     const extra = new Map<string, Rgba>();
-    if (look?.layers && Object.keys(look.layers).length) {
+    // Only layers moved off the variant the .cos names are painted: the atlas already shows the default ones, and painting those again over themselves
+    // darkens every translucent edge and shadow (a layer set back to its default must give back the plain atlas).
+    const changed = (i: number) => {
+      const rec = cos.textures[i];
+      const v = look?.layers?.[i];
+      return !!rec && v !== undefined && v !== variantOf(rec.file) && !isAlphaMap(rec.file);
+    };
+    if (look?.layers && cos.textures.some((_, i) => changed(i))) {
       const bodyKey = parts[0]?.texture.toLowerCase() ?? "";
       const atlas = bodyKey ? await this.texture(bodyKey) : null;
       if (atlas) {
         const layers: Rgba[] = [];
         for (let i = 0; i < cos.textures.length; i++) {
           const rec = cos.textures[i]!;
-          if (isAlphaMap(rec.file) || variantOf(rec.file) === undefined) continue;
-          const img = await this.texture(withVariant(rec.file, look.layers[i] ?? variantOf(rec.file)!));
+          if (!changed(i)) continue;
+          const img = await this.texture(withVariant(rec.file, look.layers[i]!));
           if (img) layers.push(img);
         }
         const name = `${bodyKey}+${Object.entries(look.layers).map(([i, v]) => `${i}:${v}`).join(",")}`;
