@@ -1,4 +1,5 @@
 import { RadioPlayer } from "./RadioPlayer.ts";
+import { AmbiencePlayer } from "./AmbiencePlayer.ts";
 import { SpeechPlayer } from "./SpeechPlayer.ts";
 import type { TimelineEvent } from "../sim/audio/RadioSpeech.ts";
 import type { SettingsStore } from "../settings/Settings.ts";
@@ -18,6 +19,8 @@ export interface GameInfo {
   year(): number;
   /** The game's date in days (365 to the year). */
   date(): number;
+  /** The camera's focus y in the lot's coordinates (the ambience follows it). */
+  focusY(): number;
   /** The timeline's events: the radio reads news about them. */
   events(): readonly TimelineEvent[];
   /** True for a studio just started: the radio opens with the tracks flagged to play first. */
@@ -45,11 +48,12 @@ export class AudioManager {
   /** Between the music voices and the music bus: lowered while the radio talks. */
   private duck: GainNode | null = null;
   private readonly speech: SpeechPlayer;
+  private readonly ambience: AmbiencePlayer;
   private sfx: GainNode | null = null;
   private readonly voices = new Map<number, Voice>();
   private readonly radio: RadioPlayer;
   /** Set by the game while one is running. */
-  game: GameInfo = { year: () => 1920, date: () => 1920 * 365, events: () => [], newGame: () => false };
+  game: GameInfo = { year: () => 1920, date: () => 1920 * 365, focusY: () => 60, events: () => [], newGame: () => false };
   private readonly settings: SettingsStore;
   private readonly locate: MusicLocator;
 
@@ -69,6 +73,12 @@ export class AudioManager {
       date: () => this.game.date(),
       duck: (on) => this.setDuck(on),
       events: () => this.game.events(),
+    });
+    this.ambience = new AmbiencePlayer({
+      graph: () => (this.context && this.sfx ? { context: this.context, bus: this.sfx } : null),
+      locate: (path) => this.locate(path),
+      year: () => this.game.year(),
+      focusY: () => this.game.focusY(),
     });
     settings.subscribe(() => this.applyVolumes());
     if (target) {
@@ -161,6 +171,7 @@ export class AudioManager {
     if (AUDIO_STATES[state]?.player === "radio") {
       this.radio.play();
       this.speech.start();
+      this.ambience.start();
       return;
     }
     const v = this.voices.get(state);
@@ -189,6 +200,7 @@ export class AudioManager {
     if (AUDIO_STATES[state]?.player === "radio") {
       this.radio.pause();
       this.speech.stop();
+      this.ambience.stop();
       return;
     }
     const v = this.voices.get(state);
@@ -209,6 +221,7 @@ export class AudioManager {
     if (AUDIO_STATES[state]?.player === "radio") {
       this.radio.dispose();
       this.speech.stop();
+      this.ambience.stop();
       return;
     }
     const v = this.voices.get(state);

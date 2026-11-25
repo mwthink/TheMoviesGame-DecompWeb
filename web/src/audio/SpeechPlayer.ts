@@ -1,6 +1,6 @@
 import { HttpSource } from "../assets/ByteSource.ts";
 import { indexCriteria, openLug, readLugClip, type LugBank } from "../formats/Lug.ts";
-import { djForYear, NewsAnnouncer, parseDjSchedule, parseTimelineEvents, SpeechQueue, type DjEntry, type DjForYear, type SpeechClip, type TimelineEvent } from "../sim/audio/RadioSpeech.ts";
+import { ClipBag, djForYear, NewsAnnouncer, parseDjSchedule, parseTimelineEvents, SpeechQueue, type DjEntry, type DjForYear, type SpeechClip, type TimelineEvent } from "../sim/audio/RadioSpeech.ts";
 
 /** What the speech player needs from the audio manager. */
 export interface SpeechHost {
@@ -40,7 +40,7 @@ export class SpeechPlayer {
   private runningMs = 0;
   private lastTick = 0;
   private currentDj: DjForYear | null = null;
-  private readonly lastSample = new Map<string, number>();
+  private readonly clips = new ClipBag();
 
   constructor(host: SpeechHost) {
     this.host = host;
@@ -123,11 +123,8 @@ export class SpeechPlayer {
     if (!bank || !g) return;
     const ids = indexCriteria(bank).get(clip.tag);
     if (!ids?.length) return;
-    // random among the tag's samples, not the one played last
-    let id = ids[Math.floor(Math.random() * ids.length)]!;
-    if (ids.length > 1 && id === this.lastSample.get(clip.tag)) id = ids[(ids.indexOf(id) + 1) % ids.length]!;
-    this.lastSample.set(clip.tag, id);
-    const sample = bank.byId.get(id);
+    // a shuffle bag over the tag's samples, as the original's clip list (`ClipBag`)
+    const sample = bank.byId.get(ids[this.clips.take(clip.tag, ids.length)]!);
     if (!sample) return;
     this.playing = true;
     try {

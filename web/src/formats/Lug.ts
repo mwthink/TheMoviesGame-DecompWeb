@@ -42,6 +42,8 @@ export interface LugSampleParams {
   maxDistance?: number;
   /** Record `+0x27c`; 1 when -1. */
   extra: number;
+  /** Record `+0x118`'s high word (`LH_BuildDriverTable` copies it to driver word 0xA): 5, 11, 14, 17 in `world.lug`'s ambience, 0 elsewhere. [guess] Seconds between an ambience layer's sounds. */
+  interval: number;
 }
 
 export interface LugSample {
@@ -118,7 +120,7 @@ export function parseSampleRecord(rec: Uint8Array, index: number, waveBase: numb
   const flags = v.getUint32(0x244, true);
   const priority = v.getUint32(0x240, true);
   const extra = v.getUint32(0x27c, true);
-  const params: LugSampleParams = { priority: priority === 0 ? 1 : priority, flags, extra: extra === 0xffffffff ? 1 : extra };
+  const params: LugSampleParams = { priority: priority === 0 ? 1 : priority, flags, extra: extra === 0xffffffff ? 1 : extra, interval: v.getUint16(0x11a, true) };
   if (flags & 0x80) params.minDistance = v.getFloat32(0x268, true);
   if (flags & 0x100) params.maxDistance = v.getFloat32(0x26c, true);
   return {

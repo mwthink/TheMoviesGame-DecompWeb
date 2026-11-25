@@ -136,6 +136,8 @@ export class GameView implements Screen {
   world: WorldData | null = null;
   /** The game's date now (days; see `GameClock`): the radio plays the music of this year. */
   get gameDate(): number { return this.clock.date; }
+  /** The gameplay camera's focus y in the lot's coordinates (the ambience follows it); 60 (all lot, no street) when there is no game camera. */
+  get focusY(): number { return this.gameCamera?.focus.y ?? 60; }
   /** The date the loaded game started from (its saved header date), or 1 January 1920 without a world. */
   get startDate(): number { return this.world?.header?.date ?? 1920 * 365; }
 

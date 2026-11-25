@@ -66,7 +66,7 @@ the details and its open questions.
 | Saved games | `SAVE_FORMAT.md`, `CHARACTERS.md` | container, terrain, placement, many classes | the web app reads placement, landscape and camera | against the Python tools |
 | Models, textures, animation | `MSH_FORMAT.md`, `ANM_FORMAT.md`, `PAK_FORMAT.md` | static models, DDS, `.anm`, skinning | the web app draws static models | by eye against the game |
 | StarMaker / character looks | `STARMAKER.md` | the star file, sliders, expressions, makeup, hair, iris | geometry and plans (no texture compositing yet) | against stars saved in the editor |
-| Audio | `AUDIO.md` | the `.lug` bank layout (read from all six banks), the audio-state stack, the radio's clip queues | partly (`.lug` reader; audio states; music for the splash, loading and release states; the radio's music, DJ and news in a game; volumes; the menu's own music is a WMA video track browsers cannot decode, so the splash music loops through the menu instead) | no |
+| Audio | `AUDIO.md` | the `.lug` bank layout (read from all six banks), the audio-state stack, the radio's clip queues | partly (`.lug` reader; audio states; music for the splash, loading and release states; the radio's music, DJ and news and the ambience in a game; volumes; the menu's own music is a WMA video track browsers cannot decode, so the splash music loops through the menu instead) | no |
 | Networking | `NETWORK.md` | mapped, to be left out | — | — |
 
 ## Next steps

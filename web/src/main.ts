@@ -63,6 +63,7 @@ const audio = new AudioManager(settings, (path) => (import.meta.env.DEV ? `/__lo
 audio.game = {
   year: () => calendarDate(gameView.gameDate).year,
   date: () => gameView.gameDate,
+  focusY: () => gameView.focusY,
   events: () => gameView.world?.timelineEvents ?? [],
   newGame: () => gameView.startDate < 1920 * 365 + 1,
 };

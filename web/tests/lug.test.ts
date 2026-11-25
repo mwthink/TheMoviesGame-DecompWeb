@@ -90,7 +90,7 @@ test("a bank's directory, records, aliases, skipped ids and collisions", async (
   assert.equal(a.group, "Street_1950");
   assert.deepEqual(a.format, { tag: 1, channels: 1, sampleRate: 22050, bytesPerSecond: 44100, blockAlign: 2, bitsPerSample: 16 });
   assert.equal(a.loopStart, -1);
-  assert.deepEqual(a.params, { priority: 1, flags: 0x180, minDistance: 3, maxDistance: 25, extra: 1 });
+  assert.deepEqual(a.params, { priority: 1, flags: 0x180, minDistance: 3, maxDistance: 25, extra: 1, interval: 0 });
   assert.deepEqual([...(await readLugClip(bank, a))], [1, 2, 3, 4, 5, 6, 7, 8]);
   // the alias reads its target's audio, not its own offset
   assert.deepEqual([...(await readLugClip(bank, bank.byId.get(2)!))], [1, 2, 3, 4, 5, 6, 7, 8]);
@@ -155,4 +155,18 @@ test("the speech banks carry what the radio asks for: every DJ and news tag, wit
   // report how many of the timeline's events have a clip: the rest are simply never announced
   const have = events.filter((e) => newsTags.has(e.tag)).length;
   assert.ok(have >= 25, `only ${have} of ${events.length} events have news`);
+});
+
+test("world.lug's ambience groups are the ones the audio manager builds: LOT, STREET and GLOBAL for each of four eras", game, async () => {
+  const { AMBIENCE_ERAS, AMBIENCE_LAYERS, ambienceGroup } = await import("../src/sim/audio/Ambience.ts");
+  const bank = await openLug(await NodeSource.open(join(AUDIO_DIR, "world.lug")));
+  for (const era of AMBIENCE_ERAS) {
+    for (const layer of AMBIENCE_LAYERS) {
+      const group = ambienceGroup(layer, era).toLowerCase();
+      assert.ok(bank.samples.some((s) => s.group.toLowerCase() === group), group);
+    }
+  }
+  const lot = bank.samples.filter((s) => s.group.toLowerCase() === "lot_1950");
+  assert.equal(lot.length, 18);
+  assert.ok(lot.every((s) => s.params.interval === 5));
 });

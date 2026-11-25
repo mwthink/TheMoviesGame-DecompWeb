@@ -40,7 +40,7 @@ The audio manager (`Audio_GetInstance`, `DAT_0104B0E4`) is a small state machine
   recorded requests (`Audio_ReplayQueuedStateRequests`, `004F9EE0`) when no network game is on. The messages are not decoded.
 - `Audio_Update` (`004FB1C0`, once per frame from the main loop): unless audio is off (`DAT_0105CC29`), replays queued requests, releases a finished voice
   (`AudioState_ReleaseFinishedVoice`, `004F3400`), runs the current state's music tick by its mode word (`+0x60 + state*0x14`; 1 `AudioState_UpdateRadioMusic`
-  `004F8AE0`, 2 `AudioState_UpdateFrontEndMusic` `004F5E80`), then the clip queues (`RadioChannel_SelectNextClip`, `FUN_004F6960`).
+  `004F8AE0`, 2 `AudioState_UpdateFrontEndMusic` `004F5E80`), then the ambience (`Audio_UpdateAmbience`, `004F6960`, see "Ambience") and the clip queues (`RadioChannel_SelectNextClip`).
 - Two playlist players back states 2 and 4: `Audio_GetRadioPlayer` (`0049AB70`, `DAT_0104A718`) and `Audio_GetFrontEndPlayer` (`004465F0`, `DAT_00F87EF4`). The music
   library is read from `data/audio/trackinfo.csv` by `TrackInfo_LoadDefault` / `TrackInfo_LoadCsv` (`00488E70`, `00487EF0`). How a player picks the next track
   (year range, genre weights, volume, the first-songs flag) is not decoded.
@@ -157,7 +157,7 @@ does during playback is inferred from how it is used, not confirmed; the values 
 ## The DJ, the news and the speech queue
 
 A state record (0x164 bytes) has three voices for talk: `+0x22C` the current clip, `+0x230` a "forced" clip, `+0x234` a third; and five queues (priorities 0 to 4,
-from state `+0x1D4`, 0x14 apart). **[read]** What goes in:
+from state `+0x1D4`, 0x14 apart; each a ring buffer of pointers to 0x4C-byte clip records: tag, category string, volume, category index, age; `SpeechQueue_Push` `004F8650`, `SpeechQueue_Grow` `004F7DC0`). **[read]** What goes in:
 
 - `Audio_QueueSpeech` (`004F87C0`; `(state, tag, category, priority, categoryIndex, volume, delay)`): the one entry point. It refuses a clip when the state's speech is
   off, the category is blocked, the category's **speech level** (`DAT_0104B09C[categoryIndex]`) is -1 or below the priority, news or tannoy (index 1, 2) while the
@@ -175,7 +175,7 @@ the current voice (`+0x22C`). A clip in the forced voice (`+0x230`) has the curr
 fade time of the state changes.
 
 **The DJ.** `AudioState_UpdateRadioMusic` (`004F8AE0`): when a track's playback position is past its `DJ_STING` cue (as a fraction of the track [inferred]) and before one half,
-once per track, it rolls `Random_IntInRange(0, 6)`: below 5 (five in six) and with the forced voice free, it queues the current DJ's tag (`FUN_0049AC30` builds it;
+once per track, it rolls `Random_IntInRange(0, 6)`: below 5 (five in six) and with the forced voice free, it queues the current DJ's tag (`RadioPlayer_GetCurrentDjTag`, `0049AC30`: the DJ schedule entry whose years cover the player's year;
 category `"radio"`, priority 1, category 0, volume 1.0). The DJ for a year comes from `radiostinginfo.csv` (`RadioSting_LoadDefault` `0043E980`): `RADIO_DJ_MCDUFF` to 1940, `KRUNKLEBURGER`
 1941-55, `MADDOG` 1956-69, `SHAW` 1970-77, `WRIGHT` 1978-90, `KRISTEN` 1991-2004, `HUGH` 2005-24, each with an `_INTRO` tag (one clip) and, for the last three, an `_OUTRO` valid
 one year past their term. A flag (`+0x24C`) makes the first clip after a start the DJ's `_INTRO`. **[data]** `Data/Audio/EN-UK/speech_dj.lug` holds the tags: 90 to 150 chatter
@@ -188,8 +188,28 @@ event, it queues the name plus `_FUTURE`. The announcement is skipped while the 
 
 The web port (`sim/audio/RadioSpeech.ts`, `audio/SpeechPlayer.ts`): the same schedule, the same windows, the five-in-six roll, one clip at a time with the 5 s gap, picks a
 random clip of the tag, plays it through the radio filter from `radioeffect.ini` (band-pass 1548 Hz, Q 5, gain 1.6) and lowers the music while it plays [guess: to 0.3].
-The DJ's sign-off and introduction play when the year passes into a new DJ's term. The speech levels are fixed at 3 (no options yet), the tannoy is not done, and the news
+Each tag's clips come out as a shuffle bag (`RadioSting_LoadCurrentClipList` `0043DBE0` lists the indices, `RadioSting_TakeClipIndex` `0043D980` removes one at random: no repeat until the others have played; the port's `ClipBag`). The DJ schedule is a list of 100-byte entries (`RadioSting_GetEntry` `0043D780`; years at `+0x58`/`+0x5C`, the tag at `+0x38`, the Random flag at `+0x60`). The DJ's sign-off and introduction play when the year passes into a new DJ's term. The speech levels are fixed at 3 (no options yet), the tannoy is not done, and the news
 needs the dev server like the rest.
+
+## Ambience
+
+**[read]** `Audio_StartAmbienceLoops` (`004F5F90`) starts three looping voices for a running game (only while the current state is 2): the **lot**, the **street** and the
+**global** ambience. Each tag is built by `Audio_BuildAmbienceTag` (`004F55B0`) as prefix + `_` + era, with the era (`+0xAD4`) set by `Audio_OnYearChanged` from the game year, and
+falling back to prefix + `_2` when no bank has the tag. **[data]** `world.lug` holds exactly these as sample *groups* (the record's group name): `Lot_1920/1950/1970/1990` (about 18
+clips each: birds), `Street_1920/1950/1970/1990` (church bells, car horns and alarms of the era: 30 to 50 clips) and `Global_1920/1950/1970/1990` (planes, later helicopters: 3 to 7).
+The records carry no loop points; each group's records share a number in the high word of `+0x118` (5 for the lot, 11 for the street, 14 to 17 for the global layer) and a per-clip
+number at `+0x27C` (450 to 4000).
+
+`Audio_UpdateAmbienceVolumes` (`004F3B80`) sets the layers by `y = *(DAT_00F87AA0 + 0xE0)`. **[read]** `CAMERA.md` has the camera object's `+0xDC` as the *focus* (x, y, z), so
+`+0xE0` is the focus's **y on the ground**, not a height. The lot layer is master level times `clamp((y - DAT_0104B0C8) / 60)` and the street layer times
+`clamp((DAT_0104B0CC - y) / 60)` (60.0 is `DAT_00E51CDC`); the global layer stays at master. Nothing in the code writes the two edge values (they are in the zero-filled
+part of `.data`), so both are 0: the lot fades in over the first 60 units of y, and the street is heard only where the focus has y below 0, beyond the lot's gate.
+`Audio_UpdateAmbience` (`004F6960`) runs each frame and restarts any loop that stopped.
+
+The web port (`sim/audio/Ambience.ts`, `audio/AmbiencePlayer.ts`): the same tags and levels. The engine's own scheduling of the clips inside a group was not read, so a layer plays a
+random clip that is off its cooldown (`+0x27C` ms) and waits half to one and a half times its interval (`+0x118`'s high word, seconds) **[guess]**. The era is the latest of the four
+not after the game year **[guess]**: the original rounds the year through a function pointer (`DAT_0105BEA4`) that was not followed. The layers run only while the radio does (state 2),
+and are not positional.
 
 ## Timeline announcements
 

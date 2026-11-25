@@ -62,3 +62,15 @@ test("the shipped DJ schedule has a DJ for every year from 1920 to 2024", { skip
   assert.equal(djForYear(e, 1960).talk, "RADIO_DJ_MADDOG");
   assert.equal(djForYear(e, 1992).outro, "RADIO_DJ_KRISTEN_OUTRO");
 });
+
+test("clips of a tag come out as a shuffle bag: all of them before any repeats", async () => {
+  const { ClipBag } = await import("../../src/sim/audio/RadioSpeech.ts");
+  let seed = 7;
+  const bag = new ClipBag(() => ((seed = (seed * 16807) % 2147483647) / 2147483647));
+  const first = [0, 1, 2, 3].map(() => bag.take("A", 4));
+  assert.deepEqual([...first].sort(), [0, 1, 2, 3]);
+  const second = [0, 1, 2, 3].map(() => bag.take("A", 4));
+  assert.deepEqual([...second].sort(), [0, 1, 2, 3]);
+  assert.equal(bag.take("none", 0), -1);
+  assert.equal(bag.take("B", 1), 0);
+});

@@ -168,3 +168,28 @@ export class SpeechQueue {
     return undefined;
   }
 }
+
+/**
+ * Which clip of a tag plays next: a shuffle bag. orig: `RadioSting_LoadCurrentClipList` (0x0043DBE0) lists the indices 0..n-1 of the DJ's clips and
+ * `RadioSting_TakeClipIndex` (0x0043D980) removes one at random each time, so a clip does not repeat until the others have played; the bag is refilled when empty.
+ */
+export class ClipBag {
+  private readonly bags = new Map<string, number[]>();
+  private readonly random: () => number;
+
+  constructor(random: () => number = Math.random) {
+    this.random = random;
+  }
+
+  /** The next clip index (0..count-1) for `tag`, or -1 when it has no clips. */
+  take(tag: string, count: number): number {
+    if (count <= 0) return -1;
+    let bag = this.bags.get(tag);
+    if (!bag || bag.length === 0) {
+      bag = Array.from({ length: count }, (_, i) => i);
+      this.bags.set(tag, bag);
+    }
+    const i = Math.min(bag.length - 1, Math.floor(this.random() * bag.length));
+    return bag.splice(i, 1)[0]!;
+  }
+}
