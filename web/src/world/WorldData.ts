@@ -3,6 +3,7 @@ import { decodeDds, type Rgba } from "../formats/Dds.ts";
 import { Ini } from "../formats/Ini.ts";
 import type { Landscape, PlacedAsset, Save } from "../formats/Jad.ts";
 import { parseMsh, type Msh } from "../formats/Msh.ts";
+import { lotSize, perimeterPieces } from "./Perimeter.ts";
 
 /** Everything needed to draw the ground, as plain arrays (no engine types, so it can be tested in Node). */
 export interface TerrainData {
@@ -17,28 +18,37 @@ export interface TerrainData {
   sidewalk: number;
 }
 
-export interface ModelData {
-  asset: PlacedAsset;
+/** One distinct model file, loaded once however many times the save places it. */
+export interface MeshAsset {
+  name: string;
   msh: Msh;
-  /** Decoded textures by lower-case file name, for the diffuse and lightmap textures the model uses. */
+  /** Decoded textures by lower-case file name (diffuse and lightmap textures the model uses). Shared between meshes. */
   textures: Map<string, Rgba>;
+}
+
+/** One placed object, pointing at its model. */
+export interface Placement {
+  asset: PlacedAsset;
+  mesh: MeshAsset;
 }
 
 export interface WorldData {
   terrain: TerrainData | null;
-  models: ModelData[];
+  meshes: MeshAsset[];
+  placements: Placement[];
   warnings: string[];
 }
 
-const TEXTURE_DIRS = ["data\\textures\\", "data\\textures\\lightmap\\", "data\\textures\\ui\\logos\\"];
-
-/** Texture files live in `data\textures\` (lightmaps in a subfolder). Same-named thumbnails elsewhere must not be picked. */
+/**
+ * Texture files live under `data\\textures\\`: the main folder, and subfolders for lightmaps, props, backdrops and studio logos. Same-named
+ * thumbnails live under `data\\textures\\thumbs\\` and must not be picked. The plain folder wins, then the newest archive.
+ */
 export function findTexture(pak: PakIndex, name: string) {
-  for (const dir of TEXTURE_DIRS) {
-    const f = pak.find(name, { dir });
-    if (f) return f;
-  }
-  return undefined;
+  const all = pak.findAll(name).filter((f) => {
+    const d = f.dir.toLowerCase();
+    return d.startsWith("data\\textures\\") && !d.includes("thumbs");
+  });
+  return all.find((f) => f.dir.toLowerCase() === "data\\textures\\") ?? all[0];
 }
 
 /**
@@ -102,53 +112,90 @@ export async function loadWorldData(pak: PakIndex, save: Save, progress: (text: 
     };
   }
 
-  const models: ModelData[] = [];
-  const seen = new Map<string, Promise<Msh | null>>();
+  const textureCache = new Map<string, Promise<Rgba | null>>();
+  const texture = (name: string): Promise<Rgba | null> => {
+    const key = name.toLowerCase();
+    let t = textureCache.get(key);
+    if (!t) {
+      t = (async () => {
+        const f = findTexture(pak, key);
+        return f ? decodeDds(await pak.read(f)) : null;
+      })();
+      textureCache.set(key, t);
+    }
+    return t;
+  };
+
+  const meshCache = new Map<string, Promise<MeshAsset | null>>();
+  const loadMesh = (meshName: string): Promise<MeshAsset | null> => {
+    let m = meshCache.get(meshName);
+    if (!m) {
+      m = (async () => {
+        const bytes = await pak.readByName(meshName);
+        if (!bytes) return null;
+        const msh = parseMsh(bytes);
+        const wanted = new Set<string>();
+        for (const p of msh.primitives) {
+          const mat = msh.materials[p.material];
+          if (!mat) continue;
+          const diffuse = msh.textures[mat.tex[0]];
+          if (diffuse) wanted.add(diffuse.toLowerCase());
+          const lm = msh.textures[mat.tex[2]];
+          if (lm && p.uv2) wanted.add(lm.toLowerCase());
+        }
+        const textures = new Map<string, Rgba>();
+        for (const name of wanted) {
+          const img = await texture(name);
+          if (img) textures.set(name, img);
+          else warnings.push(`${meshName}: texture ${name} not found`);
+        }
+        return { name: meshName, msh, textures };
+      })();
+      meshCache.set(meshName, m);
+    }
+    return m;
+  };
+
+  const placements: Placement[] = [];
   for (const asset of save.placed) {
     const slash = asset.source.indexOf("/");
     const folder = slash > 0 ? asset.source.slice(0, slash) : "";
     const stem = asset.source.slice(slash + 1);
     try {
-      progress(`Model ${stem}`);
       let meshName: string | undefined;
       if (asset.cls === "CLot") {
-        // lot.ini names no mesh. The front gate, flag and walls of the lot are lot_gate.msh; which mesh the game picks, and how it places it
-        // (here: at the lot's origin), is not read from the code yet.
-        meshName = "lot_gate.msh";
+        // lot.ini names no mesh: CLot_LoadPerimeterAssets loads lot_gate, lot_wall_concrete and lot_wallcorner by name, and the fence is built
+        // from them (Perimeter.ts). Size tier 2 (300 x 224) is the constructor's default and what every save seen uses.
+        const lotIni = pak.find("lot.ini", { dir: "data\\" });
+        const size = (lotIni && Ini.parse(new TextDecoder().decode(await pak.read(lotIni))).get("size/2")) || "300,224";
+        const [w, d] = size.split(",").map((v) => Number(v.trim()));
+        const meshes = { wall: await loadMesh("lot_wall_concrete.msh"), corner: await loadMesh("lot_wallcorner.msh"), gate: await loadMesh("lot_gate.msh") };
+        for (const [kind, m] of Object.entries(meshes)) if (!m) warnings.push(`lot: mesh for the ${kind} not found`);
+        const lot = lotSize(w!, d!);
+        for (const piece of perimeterPieces(lot.width, lot.depth)) {
+          const mesh = meshes[piece.kind];
+          if (!mesh) continue;
+          const [ox, oy] = asset.position;
+          placements.push({
+            asset: { cls: piece.kind === "gate" ? "CLot" : "LotPerimeter", id: asset.id, source: `lot/${piece.kind}`, position: [ox + piece.x, oy + piece.y, 0], angle: piece.angle },
+            mesh,
+          });
+        }
+        continue;
       } else {
         const iniFile = pak.find(`${stem}.ini`, folder ? { dirHint: `\\${folder}\\` } : {});
         if (!iniFile) throw new Error(`no ${stem}.ini`);
         meshName = Ini.parse(new TextDecoder().decode(await pak.read(iniFile))).get("mesh");
         if (!meshName) throw new Error(`${stem}.ini names no mesh`);
       }
-      if (!seen.has(meshName)) {
-        seen.set(meshName, (async () => {
-          const bytes = await pak.readByName(meshName);
-          return bytes ? parseMsh(bytes) : null;
-        })());
-      }
-      const msh = await seen.get(meshName)!;
-      if (!msh) throw new Error(`mesh ${meshName} not found`);
-
-      const wanted = new Set<string>();
-      for (const p of msh.primitives) {
-        const m = msh.materials[p.material];
-        if (!m) continue;
-        const diffuse = msh.textures[m.tex[0]];
-        if (diffuse) wanted.add(diffuse.toLowerCase());
-        const lm = msh.textures[m.tex[2]];
-        if (lm && p.uv2) wanted.add(lm.toLowerCase());
-      }
-      const textures = new Map<string, Rgba>();
-      for (const name of wanted) {
-        const f = findTexture(pak, name);
-        if (f) textures.set(name, decodeDds(await pak.read(f)));
-        else warnings.push(`${meshName}: texture ${name} not found`);
-      }
-      models.push({ asset, msh, textures });
+      progress(`Model ${meshName}`);
+      const mesh = await loadMesh(meshName);
+      if (!mesh) throw new Error(`mesh ${meshName} not found`);
+      placements.push({ asset, mesh });
     } catch (e) {
       warnings.push(`${asset.source}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
-  return { terrain, models, warnings };
+  const meshes = [...new Set(placements.map((p) => p.mesh))];
+  return { terrain, meshes, placements, warnings };
 }

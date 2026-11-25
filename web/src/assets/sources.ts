@@ -47,14 +47,18 @@ export async function ensureReadable(handle: FileSystemDirectoryHandle): Promise
 }
 
 /** Dev server only: the archives and saved game that vite.config.ts serves from this machine. Null when that endpoint is absent. */
-export async function localDevSources(): Promise<{ paks: ByteSource[]; save: ByteSource | null } | null> {
+export async function localDevSources(pick?: string): Promise<{ paks: ByteSource[]; save: ByteSource | null } | null> {
   if (!import.meta.env.DEV) return null;
   try {
     const res = await fetch("/__local/manifest.json");
     if (!res.ok || !(res.headers.get("content-type") ?? "").includes("json")) return null;
-    const manifest = (await res.json()) as { paks: string[]; save: string | null };
+    const manifest = (await res.json()) as { paks: string[]; save: string | null; saves?: string[] };
     const paks = await Promise.all(manifest.paks.map((n) => HttpSource.open(n, `/__local/pak/${encodeURIComponent(n)}`)));
-    const save = manifest.save ? await HttpSource.open(manifest.save, "/__local/save") : null;
+    // `pick`: part of a saved game's file name, to choose another save than the default one.
+    const chosen = pick ? manifest.saves?.find((n) => n.toLowerCase().includes(pick.toLowerCase())) : undefined;
+    const save = chosen
+      ? await HttpSource.open(chosen, `/__local/save/${encodeURIComponent(chosen)}`)
+      : manifest.save ? await HttpSource.open(manifest.save, "/__local/save") : null;
     return { paks, save };
   } catch {
     return null;

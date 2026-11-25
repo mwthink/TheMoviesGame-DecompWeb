@@ -6,12 +6,12 @@ import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { CreateGround } from "@babylonjs/core/Meshes/Builders/groundBuilder";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
+import "@babylonjs/core/Meshes/instancedMesh"; // side effect: adds Mesh.createInstance
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData";
-import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import type { Scene } from "@babylonjs/core/scene";
 import type { Rgba } from "../formats/Dds.ts";
 import { registerShaders } from "./shaders.ts";
-import type { ModelData, TerrainData, WorldData } from "./WorldData.ts";
+import type { MeshAsset, TerrainData, WorldData } from "./WorldData.ts";
 
 /**
  * Coordinates. The game is right-handed with z up and the ground in x, y (seen from above: x right, y up). Babylon is left-handed with y up.
@@ -73,49 +73,53 @@ function buildTerrain(scene: Scene, t: TerrainData): Mesh {
   return ground;
 }
 
-function buildModel(scene: Scene, m: ModelData, textures: Map<string, RawTexture>): TransformNode {
-  const [x, y, z] = m.asset.position;
-  const root = new TransformNode(m.asset.source, scene);
-  root.position.set(x, z, y);
-  root.rotation.y = -m.asset.angle; // counter-clockwise seen from above in the game = this in the mirrored space
+/** Engine objects shared by every model: textures and materials are created once per file, not once per placed object. */
+interface Caches {
+  textures: Map<string, RawTexture>;
+  materials: Map<string, ShaderMaterial | null>;
+}
 
+/**
+ * Build the geometry of one model file: one hidden source mesh per primitive. Placed objects are drawn as instances of these, so a model the save
+ * places 40 times (a hedge, a lamp) costs one draw call per material rather than 40.
+ */
+function buildSources(scene: Scene, m: MeshAsset, caches: Caches): Mesh[] {
   const tex = (name: string) => {
     const key = name.toLowerCase();
-    let t = textures.get(key);
+    let t = caches.textures.get(key);
     if (!t) {
       const img = m.textures.get(key);
       if (!img) return null;
       t = makeTexture(scene, img);
-      textures.set(key, t);
+      caches.textures.set(key, t);
     }
     return t;
   };
-  const materials = new Map<string, ShaderMaterial | null>();
   const materialFor = (index: number, hasUv2: boolean): ShaderMaterial | null => {
-    const key = `${index}:${hasUv2}`;
-    if (materials.has(key)) return materials.get(key)!;
-    let result: ShaderMaterial | null = null;
     const mat = m.msh.materials[index];
     const diffuseName = mat ? m.msh.textures[mat.tex[0]] : undefined;
-    if (mat && diffuseName && !NOT_DIFFUSE.some((p) => diffuseName.toLowerCase().startsWith(p))) {
-      const diffuse = tex(diffuseName);
-      const lmName = m.msh.textures[mat.tex[2]];
-      const lightmap = hasUv2 && lmName ? tex(lmName) : null;
-      if (diffuse) {
-        result = new ShaderMaterial(`${m.asset.source}#${index}`, scene, "otmStatic", {
-          attributes: ["position", "uv", "uv2"],
-          uniforms: ["worldViewProjection", "useLightmap"],
-          samplers: ["diffuse", "lightmap"],
-        });
-        result.setTexture("diffuse", diffuse);
-        result.setTexture("lightmap", lightmap ?? diffuse);
-        result.setFloat("useLightmap", lightmap ? 1 : 0);
-      }
+    if (!mat || !diffuseName || NOT_DIFFUSE.some((p) => diffuseName.toLowerCase().startsWith(p))) return null;
+    const lmName = hasUv2 ? m.msh.textures[mat.tex[2]] : undefined;
+    const key = `${diffuseName.toLowerCase()}|${lmName?.toLowerCase() ?? ""}`;
+    if (caches.materials.has(key)) return caches.materials.get(key)!;
+    let result: ShaderMaterial | null = null;
+    const diffuse = tex(diffuseName);
+    const lightmap = lmName ? tex(lmName) : null;
+    if (diffuse) {
+      result = new ShaderMaterial(key, scene, "otmStatic", {
+        attributes: ["position", "uv", "uv2"],
+        uniforms: ["world", "viewProjection", "useLightmap"],
+        samplers: ["diffuse", "lightmap"],
+      });
+      result.setTexture("diffuse", diffuse);
+      result.setTexture("lightmap", lightmap ?? diffuse);
+      result.setFloat("useLightmap", lightmap ? 1 : 0);
     }
-    materials.set(key, result);
+    caches.materials.set(key, result);
     return result;
   };
 
+  const sources: Mesh[] = [];
   m.msh.primitives.forEach((p, i) => {
     const material = materialFor(p.material, p.uv2 !== null);
     if (!material) return;
@@ -126,25 +130,21 @@ function buildModel(scene: Scene, m: ModelData, textures: Map<string, RawTexture
       positions.set([p.positions[v * 3]!, p.positions[v * 3 + 2]!, p.positions[v * 3 + 1]!], v * 3);
       normals.set([p.normals[v * 3]!, p.normals[v * 3 + 2]!, p.normals[v * 3 + 1]!], v * 3);
     }
-    const indices = new Uint32Array(p.indices.length);
-    for (let t = 0; t < p.indices.length; t += 3) {
-      indices[t] = p.indices[t]!; // the mirror reverses winding, and so does Babylon's front-face convention: the order stays as in the file
-      indices[t + 1] = p.indices[t + 1]!;
-      indices[t + 2] = p.indices[t + 2]!;
-    }
-    const mesh = new Mesh(`${m.asset.source}/${i}`, scene);
+    // The mirror reverses winding, and so does Babylon's front-face convention: the triangle order stays as in the file.
+    const mesh = new Mesh(`${m.name}/${i}`, scene);
     const data = new VertexData();
     data.positions = positions;
     data.normals = normals;
     data.uvs = p.uv;
     if (p.uv2) data.uvs2 = p.uv2;
-    data.indices = indices;
+    data.indices = Uint32Array.from(p.indices);
     data.applyToMesh(mesh);
     mesh.material = material;
-    mesh.parent = root;
+    mesh.isVisible = false; // only its instances are drawn
     mesh.isPickable = false;
+    sources.push(mesh);
   });
-  return root;
+  return sources;
 }
 
 export interface BuiltWorld {
@@ -155,24 +155,35 @@ export interface BuiltWorld {
 export function buildWorld(scene: Scene, canvas: HTMLCanvasElement, world: WorldData): BuiltWorld {
   registerShaders();
   if (world.terrain) buildTerrain(scene, world.terrain);
-  const textures = new Map<string, RawTexture>();
-  // Frame the lot and its facilities: the centre of their positions, seen from the road side (south), looking north.
-  let fx = 0, fz = 0, count = 0;
-  for (const model of world.models) {
-    const node = buildModel(scene, model, textures);
-    if (model.asset.cls === "CLot" || model.asset.source.startsWith("facility/")) {
-      fx += node.position.x;
-      fz += node.position.z;
-      count++;
-    }
-  }
-  const focus = count ? new Vector3(fx / count, 2, fz / count) : Vector3.Zero();
+  const caches: Caches = { textures: new Map(), materials: new Map() };
+  const sources = new Map<MeshAsset, Mesh[]>();
+  for (const mesh of world.meshes) sources.set(mesh, buildSources(scene, mesh, caches));
 
-  const camera = new ArcRotateCamera("camera", -Math.PI / 2, 1.0, 80, focus, scene);
+  // Frame the lot and its facilities: the centre of their positions, seen from the road side (south), looking north.
+  const framed: [number, number][] = [];
+  for (const { asset, mesh } of world.placements) {
+    const [x, y, z] = asset.position;
+    for (const [i, source] of sources.get(mesh)!.entries()) {
+      const inst = source.createInstance(`${asset.source}#${asset.id}/${i}`);
+      // The lot's z is 0 in the fresh-studio save but 1000 in the Quick Start saves (what it means is unknown); its meshes belong on the ground either way.
+      inst.position.set(x, asset.cls === "CLot" ? 0 : z, y);
+      inst.rotation.y = -asset.angle; // counter-clockwise seen from above in the game = this in the mirrored space
+      inst.isPickable = false;
+      inst.freezeWorldMatrix(); // placed objects do not move
+    }
+    if (asset.cls === "CLot" || asset.source.startsWith("facility/")) framed.push([x, y]);
+  }
+  let cx = 0, cy = 0;
+  for (const [x, y] of framed) { cx += x; cy += y; }
+  if (framed.length) { cx /= framed.length; cy /= framed.length; }
+  const spread = framed.reduce((m, [x, y]) => Math.max(m, Math.hypot(x - cx, y - cy)), 0);
+  const focus = new Vector3(cx, 2, cy);
+
+  const camera = new ArcRotateCamera("camera", -Math.PI / 2, 1.0, Math.max(80, spread * 2.4), focus, scene);
   camera.minZ = 1; // a larger near plane (and shorter far plane) keeps depth precision for distant surfaces
   camera.maxZ = 1200;
   camera.lowerRadiusLimit = 5;
-  camera.upperRadiusLimit = 400;
+  camera.upperRadiusLimit = 500;
   camera.upperBetaLimit = Math.PI / 2 - 0.03; // stay above the ground
   camera.wheelPrecision = 5;
   camera.panningSensibility = 60;

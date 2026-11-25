@@ -1,8 +1,9 @@
 # The web version (`web/`)
 
-Status: loads a saved game and draws its ground and buildings. A splash screen, a main menu, a Load Game screen, and a world view of the fresh 1920
-studio: the textured terrain with its road and sidewalk, the lot's front gate (arch, pillars, flag, walls), the gatehouse building and the billboard.
-Nothing simulates yet: the world is a still picture you can orbit.
+Status: loads a saved game and draws its ground and buildings. A splash screen, a main menu, a Load Game screen, and a world view: the textured terrain
+with its road and sidewalk, the lot's front gate (arch, pillars, flag, walls), the gatehouse and every other placed facility and prop. Shown on the fresh
+1920 studio (3 placed assets) and on a Quick Start 1960 studio (285 placements, 53 distinct models). Nothing simulates yet: the world is a still picture you
+can orbit.
 
 ## Goal and approach
 
@@ -37,7 +38,7 @@ Requires Node 20.19 or 22.12 or newer (Vite's requirement; the tests run `.ts` f
 
 **Try it quickly:** `npm run dev`, open `http://localhost:5173/?autoload`. In dev the server also serves the game archives and one save from this machine
 (`vite.config.ts`, `/__local/...`, read-only, byte ranges; paths from `OTM_PAK_DIR` and `OTM_SAVE`, defaulting to the CrossOver install and the
-1920 "wine studios" save the tools use). `?autoload` uses them and skips the menus; the Load Game screen has a "Use local files" button for the same.
+1920 "wine studios" save the tools use). `?autoload` uses them and skips the menus; `?autoload=quick` (any part of a file name, case-insensitive) picks another `.jad` from the same folder (the server lists them all); the Load Game screen has a "Use local files" button for the same.
 This endpoint exists only under `npm run dev`; the production build has none.
 
 **Run the dev server from a terminal.** The desktop app's `preview_start` server (`.claude/launch.json`, entry `web`) cannot read files under
@@ -98,21 +99,42 @@ Things worth knowing before extending it:
   weights of up to 8 ground textures, stored as two 256 x 256 RGBA8 images (one texel per terrain vertex). The shader interpolates them bilinearly and
   blends the tiled textures. The 8 KB path bitmap becomes a nearest-filtered mask that shows the sidewalk texture on paved cells.
   Ground textures tile every **12 world units** and the sidewalk every **2** (both from `docs/SAVE_FORMAT.md`; the 12 is assumed, not confirmed).
-- **Models** (`WorldScene.buildModel`). One mesh per primitive, one unlit shader per material: diffuse texture, times the lightmap (second UV set) times
+- **Models** (`WorldData.loadWorldData`, `WorldScene.buildSources`). A model file is loaded and decoded once however many times the save places it
+  (`MeshAsset`; a `Placement` points at one), and textures are decoded once per name. In the scene each model has one hidden source mesh per primitive, and every
+  placed object is a frozen **hardware instance** of those (the shader includes Babylon's instancing chunks), so a hedge placed 40 times is one draw call per
+  material. Materials are shared by (diffuse, lightmap) pair. One unlit shader per material: diffuse texture, times the lightmap (second UV set) times
   255/127 when the material has one, alpha below 0.5 discarded. This is `jad_dump.py --roofs` done on the GPU. Textures use REPEAT wrapping
   (Babylon's `RawTexture` clamps by default, and the models' UVs run far outside 0..1).
-- **The lot.** `lot.ini` names no mesh, so the lot's gate is hard-coded as `lot_gate.msh` at the lot's origin. It lines up with the sidewalk and the driveway
-  patch in the terrain and looks like the in-game gate, but how the game picks and places the lot's meshes (`lot_road_mark`, `lot_wall_*`) is not read yet.
-- **Textures** are found in `data\textures\`, `data\textures\lightmap\` and `data\textures\ui\logos\`. DDS images are decoded on the CPU to RGBA and
+- **The lot's height.** The lot's z is 0 in the fresh-studio save but **1000** in all the Quick Start saves (every other object has z 0); the meaning is unknown, so the
+  lot's meshes are placed on the ground whatever it says. (With z taken literally the gate floated 1,000 units up and was invisible.)
+- **The lot's fence** (`src/world/Perimeter.ts`, test `perimeter.test.ts`). `lot.ini` names no mesh; the game loads `lot_gate.msh`, `lot_wall_concrete.msh` and
+  `lot_wallcorner.msh` by name (`CLot_LoadPerimeterAssets`) and builds the fence in `CLot_BuildPerimeterWallAndGate` (0x469290). The decompile loses that function's
+  arguments, so the arithmetic comes from its disassembly (`objdump -d -M intel` on `MoviesSE.exe`, which also gave the constants 20.0, 0.5 and 0.05):
+  the lot is `width x depth`: `lot.ini [size]` (tier 2 = 300,224, the constructor's default and what the saves use) snapped to the wall grid by `CLot_LoadSizeTiers`
+  (0x4675f0; `lotSize()`), which gives **313.35 x 220** (the width is the gate gap plus whole 20-unit segments, the depth a whole number of segments; using the ini's raw
+  300 x 224 left the left side one segment short); the gate is at the lot's origin; two
+  anchors, A = (-44.6, 2.2) and B = (28.75, 2.2) (the constructor's defaults at 0x468f2d; they are the ends of the gate mesh, which spans x -45.7 to 28.4), start
+  the front wall, which runs left of A and right of B in 20-unit segments (`round((313.35 - (B.x - A.x) + 0.5) / 20)` = 12, six each side); a side wall of
+  `round((220 + 0.5) / 20)` = 11 segments rises from each end, turned a quarter turn; a corner post sits at the far right; the back wall grows from both ends and a
+  filler closes it if needed. In all: 50 wall segments, 1 corner, 1 gate, spanning x -164.6 to 148.75 and y 2.2 to 222.2. A segment is 20 units long with its origin at its left end (`lot_wall_concrete.msh` spans x 0 to 20).
+  Check: the footprints of everything the Quick Start save places span x -162.1 to 145.9, inside the fence with about 2.5 to 3 units to spare on each side
+  (`set_bombedstreet` on the left, a palm and the research building on the right), which is what the bounds in `CLot_ComputeWorldBoundsFromTier` are for. **Caveats:** A and B are the fields the save calls `SL_CamFoc` and `SL_CamZoo` (the saved
+  camera), which the game also writes at save time, so a loaded game might rebuild the fence from other values; the constructor's defaults give the geometry that fits
+  the terrain, so they are used. The size tier is assumed to be 2 (a lot field that may hold it, tag `1db455c9`, is 2 in every save but is not decoded).
+  The lot's z is 0 in the fresh-studio save but **1000** in the Quick Start saves; its meshes go on the ground whatever it says.
+- **Textures** are found under `data\textures\` (`WorldData.findTexture`): the main folder plus subfolders such as `lightmap\`, `props\`, `backdrops\` and `ui\logos\`;
+  same-named thumbnails under `thumbs\` are never picked. DDS images are decoded on the CPU to RGBA and
   uploaded with generated mipmaps, so S3TC support in the GPU or browser is not needed. (Memory: 4 bytes per pixel instead of 0.5 to 1. Fine at this size.)
 - **Camera.** A plain orbit camera placed south of the lot looking north. The game's own camera (limits, edge scrolling, zoom, cutaway) has not been read.
 
 ## Checked
 
-- `npm test` (7 tests): the case-folding hash; the ini reader; the pak index (the patched `facility_gatehouse.ini` comes from the Addon archive, thumbnails are
+- `npm test` (11 tests): the case-folding hash; the ini reader; the pak index (the patched `facility_gatehouse.ini` comes from the Addon archive, thumbnails are
   not picked for textures); DDS decoding of DXT1, DXT3 against `tools/dds.py` (sums over every pixel); the gatehouse mesh against `tools/msh_dump.py` (31
   textures, 30 materials, 22,773 vertices, 10,997 triangles, the collision chunks and room parts, vertex sums); the save (the three placed assets, the
   landscape's texture names, 8,897 path cells, layer sums); the world loader (every ground texture found, blend weights sum to 255, no warnings).
+- A Quick Start save (`quick film studios22 January 1960…`, 285 placements): every ini, mesh and texture is found with no warnings, and the 285 placements share fewer than 60 models
+  (test 8; skipped when the save is absent).
 - In the browser (Chromium in the desktop app, with the dev-server files): the world loads in a few seconds; the top-down view has the same layout as
   `jad_dump.py --terrain` for the same save; the gatehouse, gate, flag, walls and billboard are solid and textured; orbit works.
   Not compared pixel by pixel with the original game, and not tried: Safari, Firefox, the folder pickers (they open native dialogs), other saves,
@@ -127,13 +149,14 @@ Things worth knowing before extending it:
 - **Ground.** `land_alpha.dds` (probably the edge mask for blends) is not used. The terrain is flat because no height data was found.
 - **Not drawn:** facility interiors and room floors, the other lot meshes, anything but the assets in the save (no people, litter, cars).
 - **Saves:** only the placed assets and the landscape are read. Money, staff, films and everything else in `.jad` is ignored.
-- **Performance:** every primitive is its own mesh and material (about 90 draw calls for this scene); fine now, merge by material when the lot fills up.
+- **Performance:** the Quick Start lot is 1,621 instances of about 300 source meshes and 1 M vertices; loading takes about 3 s in Node (decoding is the cost) and the
+  scene ran at about 30 fps in the desktop app's software-rendered browser pane (not a measure of a real GPU). Not profiled. Possible next steps: merge static geometry per
+  material, thin instances, and caching decoded textures.
 
 ## Next steps
 
 1. Compare with the original: run the same save in the game under Wine, have the debugger DLL log the camera matrix, and diff screenshots from that viewpoint.
-2. Read how the game picks and places the lot's meshes; draw the rest of the lot (`lot_road_mark`, walls), then the other facilities and ornaments (`facility/*`,
-   `ornament/*` use the same path as the gatehouse and billboard; a Quick Start save has dozens).
+2. Draw the rest of the lot: `lot_road_mark.msh` (how the game uses it is not read), then check the other facilities and ornaments against the original.
 3. The game camera, once its code is read.
 4. Decide where the simulation lives (`HANDOVER.md` item 9): the C++ in `src/` compiled to WASM, or a TypeScript port (which needs `Math.fround` to stay
    comparable with the original's 32-bit floats). Either way it should run headless at the original's 10 Hz tick (`MAIN_LOOP.md`).

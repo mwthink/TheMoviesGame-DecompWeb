@@ -138,6 +138,17 @@ export class PakIndex {
     return fallback;
   }
 
+  /** Every file of that name, newest archive first, with its directory. */
+  findAll(name: string): PakFile[] {
+    const list = this.byName.get(name.toLowerCase()) ?? [];
+    const out: PakFile[] = [];
+    for (let i = list.length - 1; i >= 0; i--) {
+      const { archive, entry } = list[i]!;
+      out.push({ archive, entry, dir: archive.resolveDir(entry) });
+    }
+    return out;
+  }
+
   async read(file: PakFile): Promise<Uint8Array> {
     return file.archive.read(file.entry);
   }

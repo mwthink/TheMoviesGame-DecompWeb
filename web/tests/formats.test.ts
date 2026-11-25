@@ -1,6 +1,8 @@
 // The expected numbers come from the Python tools (tools/msh_dump.py, tools/dds.py, tools/jad_dump.py, tools/pak_extract.py) run on the same files.
 import assert from "node:assert/strict";
+import { readdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { decodeDds } from "../src/formats/Dds.ts";
 import { Ini } from "../src/formats/Ini.ts";
@@ -137,8 +139,21 @@ test("world data: splat weights and the gatehouse model load from the real files
     assert.ok(Math.abs(sum - 255) <= 4, `weights at ${i} sum to ${sum}`);
   }
   assert.equal(t.path.reduce((n, b) => n + (b ? 1 : 0), 0), 8897);
-  const gate = world.models.find((m) => m.asset.source === "facility/facility_gatehouse")!;
+  const gate = world.placements.find((m) => m.asset.source === "facility/facility_gatehouse")!;
   assert.ok(gate, `no gatehouse; warnings: ${world.warnings.join("; ")}`);
-  assert.ok(gate.textures.has("lm_1940gates_00.dds"));
+  assert.ok(gate.mesh.textures.has("lm_1940gates_00.dds"));
   console.log("world warnings:", world.warnings);
+});
+
+const QS = (() => {
+  const dir = dirname(SAVE_PATH);
+  try { const f = readdirSync(dir).find((n) => n.startsWith("quick film studios22 January")); return f ? join(dir, f) : null; } catch { return null; }
+})();
+
+test("a Quick Start save loads completely: every model and texture found, models shared between placements", { skip: haveGame && QS ? false : "needs the game archives and a Quick Start save" }, async () => {
+  const { loadWorldData } = await import("../src/world/WorldData.ts");
+  const world = await loadWorldData(await pakIndex(), parseSave(new Uint8Array(await readFile(QS!))));
+  assert.deepEqual(world.warnings, []);
+  assert.equal(world.placements.length, 284 + 52); // everything but the lot, plus its fence: 50 walls, a corner post and the gate
+  assert.ok(world.meshes.length < 60, `${world.meshes.length} distinct meshes`); // 285 placements share about 50 models
 });

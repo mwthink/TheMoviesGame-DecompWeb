@@ -28,13 +28,13 @@ const screens: Record<ScreenId, () => Screen> = {
   game: () => gameView,
 };
 
-// Dev shortcut: /?autoload skips the splash and menus and opens the world from the dev server's local files.
+// Dev shortcut: /?autoload (or /?autoload=<part of a save's file name>) skips the splash and menus and opens the world from the dev server's local files.
 async function devAutoload(): Promise<void> {
   const { localDevSources } = await import("./assets/sources.ts");
   const { PakIndex } = await import("./assets/Pak.ts");
   const { parseSave } = await import("./formats/Jad.ts");
   const { loadWorldData } = await import("./world/WorldData.ts");
-  const local = await localDevSources();
+  const local = await localDevSources(new URLSearchParams(location.search).get("autoload") || undefined); // /?autoload=quick picks a save by name
   if (!local?.save) throw new Error("autoload: the dev server has no local game files");
   const world = await loadWorldData(await PakIndex.open(local.paks), parseSave(await local.save.read(0, local.save.size)));
   for (const w of world.warnings) console.warn(w);

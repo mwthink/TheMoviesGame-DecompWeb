@@ -1,12 +1,12 @@
 import { createReadStream, existsSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 
 /**
  * Dev only: serve the game's archives and one saved game from this machine, so the app can be tried without picking files in a dialog.
  * Nothing is bundled or copied; the files are read from disk on request (with Range support, as the pak reader asks for slices).
- * Paths: OTM_PAK_DIR and OTM_SAVE, defaulting to the CrossOver install and Saved Games folder used by the Python tools and the tests.
+ * Paths: OTM_PAK_DIR and OTM_SAVE (every .jad next to it is also offered), defaulting to the CrossOver install and Saved Games folder used by the Python tools and the tests.
  */
 function localGameFiles(): Plugin {
   const pakDir = process.env.OTM_PAK_DIR ?? join(homedir(), "Library/Application Support/CrossOver/Bottles/tmovies/drive_c/Games/TheMovies/Data/pak");
@@ -20,10 +20,16 @@ function localGameFiles(): Plugin {
         if (url.pathname === "/manifest.json") {
           const paks = existsSync(pakDir) ? readdirSync(pakDir).filter((n) => n.toLowerCase().endsWith(".pak")) : [];
           res.setHeader("content-type", "application/json");
-          res.end(JSON.stringify({ paks, save: existsSync(savePath) ? savePath.split("/").pop() : null }));
+          const saveDir = dirname(savePath);
+          const saves = existsSync(saveDir) ? readdirSync(saveDir).filter((n) => n.toLowerCase().endsWith(".jad")).sort() : [];
+          res.end(JSON.stringify({ paks, save: existsSync(savePath) ? savePath.split("/").pop() : null, saves }));
           return;
         }
         if (url.pathname === "/save") file = savePath;
+        else if (url.pathname.startsWith("/save/")) {
+          const name = decodeURIComponent(url.pathname.slice(6));
+          if (!name.includes("/") && !name.includes("..") && name.toLowerCase().endsWith(".jad")) file = join(dirname(savePath), name);
+        }
         else if (url.pathname.startsWith("/pak/")) {
           const name = decodeURIComponent(url.pathname.slice(5));
           if (!name.includes("/") && !name.includes("..")) file = join(pakDir, name);

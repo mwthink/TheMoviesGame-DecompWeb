@@ -1,4 +1,6 @@
 import { Effect } from "@babylonjs/core/Materials/effect";
+import "@babylonjs/core/Shaders/ShadersInclude/instancesDeclaration"; // registers the #include<instancesDeclaration> chunk
+import "@babylonjs/core/Shaders/ShadersInclude/instancesVertex";
 
 /**
  * The game's materials are fixed-function Direct3D 9 texture stages, so these are small unlit shaders that do the same arithmetic
@@ -40,18 +42,20 @@ export function registerShaders(): void {
       gl_FragColor = vec4(mix(c, paved, path), 1.0);
     }`;
 
-  // Static models: diffuse texture, optionally multiplied by a lightmap on the second UV set, doubled (lightmaps are dark: 0.5 is neutral).
+  // Static models (drawn as hardware instances: one draw call per model and material, however often the save places it): diffuse texture, optionally multiplied by a lightmap on the second UV set, doubled (lightmaps are dark: 0.5 is neutral).
   Effect.ShadersStore["otmStaticVertexShader"] = `
     attribute vec3 position;
     attribute vec2 uv;
     attribute vec2 uv2;
-    uniform mat4 worldViewProjection;
+    #include<instancesDeclaration>
+    uniform mat4 viewProjection;
     varying vec2 vUV;
     varying vec2 vUV2;
     void main() {
+      #include<instancesVertex>
       vUV = uv;
       vUV2 = uv2;
-      gl_Position = worldViewProjection * vec4(position, 1.0);
+      gl_Position = viewProjection * finalWorld * vec4(position, 1.0);
     }`;
   Effect.ShadersStore["otmStaticFragmentShader"] = `
     precision highp float;
