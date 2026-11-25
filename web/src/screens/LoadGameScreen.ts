@@ -2,7 +2,7 @@ import type { ByteSource } from "../assets/ByteSource.ts";
 import { PakIndex } from "../assets/Pak.ts";
 import { recallGameFolder, rememberGameFolder } from "../assets/remembered.ts";
 import {
-  canPickDirectory, ensureReadable, localDevSources, pakSourcesFromDirectory, pakSourcesFromFiles,
+  canPickDirectory, ensureReadable, localDevSources, pakSourcesFromDirectory, pakSourcesFromFiles, readStrings, stringSourcesFromDirectory, stringSourcesFromFiles,
 } from "../assets/sources.ts";
 import { parseSave } from "../formats/Jad.ts";
 import { loadWorldData, type WorldData } from "../world/WorldData.ts";
@@ -15,6 +15,7 @@ import { mountScreen, unmountScreen, type Screen } from "./Screen.ts";
 export class LoadGameScreen implements Screen {
   private el: HTMLElement | null = null;
   private paks: ByteSource[] = [];
+  private text: ByteSource[] = [];
   private saveBytes: (() => Promise<Uint8Array>) | null = null;
   private saveLabel = "";
   private remembered: FileSystemDirectoryHandle | null = null;
@@ -70,7 +71,7 @@ export class LoadGameScreen implements Screen {
     });
     $<HTMLInputElement>("dirinput")!.addEventListener("change", (e) => {
       const files = (e.target as HTMLInputElement).files;
-      if (files) this.setPaks(pakSourcesFromFiles(files));
+      if (files) { this.text = stringSourcesFromFiles(files); this.setPaks(pakSourcesFromFiles(files)); }
     });
     $("file")!.addEventListener("click", () => $<HTMLInputElement>("fileinput")!.click());
     $<HTMLInputElement>("fileinput")!.addEventListener("change", (e) => {
@@ -107,6 +108,7 @@ export class LoadGameScreen implements Screen {
 
   private async useFolder(dir: FileSystemDirectoryHandle): Promise<void> {
     if (!(await ensureReadable(dir))) { this.status("Read access to that folder was not granted.", true); return; }
+    this.text = await stringSourcesFromDirectory(dir);
     this.setPaks(await pakSourcesFromDirectory(dir));
     if (this.paks.length) void rememberGameFolder(dir);
   }
@@ -115,6 +117,7 @@ export class LoadGameScreen implements Screen {
     const local = await localDevSources();
     if (!local) { this.status("The dev server has no local files configured.", true); return; }
     this.paks = local.paks;
+    this.text = local.text;
     if (local.save) {
       const save = local.save;
       this.saveLabel = esc(save.name);
@@ -132,7 +135,8 @@ export class LoadGameScreen implements Screen {
       const pak = await PakIndex.open(this.paks);
       this.status("Reading the saved game");
       const save = parseSave(await this.saveBytes());
-      const world = await loadWorldData(pak, save, (t) => this.status(t));
+      this.status("Reading the text database");
+      const world = await loadWorldData(pak, save, (t) => this.status(t), await readStrings(this.text));
       for (const w of world.warnings) console.warn(w);
       this.onLoaded(world);
     } catch (e) {

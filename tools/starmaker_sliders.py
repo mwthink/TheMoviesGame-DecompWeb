@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Reproduce the StarMaker advanced face sliders (docs/STARMAKER.md section 7) from the game's own data and check them against a saved star.hd.
 
-    python3 tools/starmaker_sliders.py <sm_assets dir with mannequin_sm.anm, sm_generic.msh> <starmaker.ini> <Baseline star.hd> <test star.hd> <info.sm of the test>
+    python3 tools/starmaker_sliders.py <sm_assets dir with mannequin_sm.anm, sm_generic.msh> <starmaker.ini> <star.hd of an all-default star> <test star.hd> <info.sm of the test>
 
 Model: the head (sm_generic.msh, 996 vertices, 108 face bones) is skinned with 4 weights per vertex to the pose of mannequin_sm.anm at frame
 (a + 1.99 * value), a = the first number of the slider's starmaker.ini line (NOT 1 + 3 * index: the ini has gaps), for each slider in starmaker.ini order, applied one after another; frame 0 is the base pose.

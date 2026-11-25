@@ -99,7 +99,22 @@ The slots are `*_GetHealth` (`0x1E4`) and `*_ApplyHealthDelta` (`0x1E8`); the pr
 * The take-quality score (`ShootController_ComputeTakeScore`) and the `[performance]` factors in `QualityCalc_LoadTuningData` (how stunt skill/level/likeness/injury/success scale the movie quality).
 * Who sets the stunt state's difficulty at +0x248 (probably the stunt slider channel, `sld_fall`/`sld_timebomb`) and whether a mid-take slider change re-rolls (it does not: the roll is in `StartTake`).
 
-The roll, injuries, XP and training formulas are reimplemented in `src/game/staff/Stunts` (with tests of the numbers in this document); not yet verified against the running game.
+The roll, injuries, XP and training formulas are reimplemented in `web/src/sim/staff/Stunts.ts` (with tests of the numbers in this document); not yet verified against the running game.
 
 ## 8. See also
 `TRAITS_AND_EXPERIENCE.md`: trait container (`Stunts`, `Movies`, genre traits and the diminishing-returns gain `new = old + (1-old)*delta`), the experience table (`experience.ini`), the stunt performance factors and take-score normalisation, and the movie-quality tuning (`releasing_movies.ini`).
+
+## Stunt shots: success roll, injuries and performance (decoded; stunts unlock around 1960) **[code + `Data/stunts.ini`]**
+**Success roll** (`ShootController_RollStuntOutcome` 0x4EA1D0, config in `stunts.ini [successfailure]`, globals renamed `Stunt_*`). For every performer of the shot (the stunt double if there is one, otherwise the actor):
+```
+ability  = ((maxhealthability - minhealthability) * health + minhealthability)      // 1.0, 0.5 -> 0.5 + 0.5*health
+ability *= (health < healththreshold(0.01)) ? stuntabilityinjurymodifier(0.7) : 1   // badly injured performers
+performer score = ability * traits["Stunts"]                                        // clamped 0..1
+shot score      = mean of the performers' scores          (stored at shoot controller +0xF8; the release screen's "take score")
+diff            = shot score - StuntState difficulty      (scene difficulty, 0.4/0.6/1.0 style values)
+chance          = diff >= 0 ? 0.80 + (1.10 - 0.80) * diff : 0.80 - (-0.40 - 0.80) * diff     // = 0.80 + 0.3*diff  or  0.80 + 1.2*diff
+if Lucky Charm (bonus 14) active: chance += luckycharmbonus (0.10)
+chance = clamp(chance, stuntchancemin 0.05, stuntchancemax 0.98)
+success = rand01 < chance   -> channel "ai_stunt_fail" = !success
+```
+So at equal skill and difficulty a stunt succeeds 80% of the time; being 0.1 above the difficulty gives 83%, 0.1 below gives 68%, and the chance is bounded to 5..98%. Lucky Charm adds a flat 10 points. **Injuries** (`ShootController_ApplyStuntConsequences` 0x4E2240, `[injuries]`): per performer `k = clamp01(difficulty - 0.3 * Stunts)` and health loss = `lerp(min, max, k)` with failure 0.1..0.8 and success 0.1..0.2 (so even a perfect success costs 10% health, a failed hard stunt by an unskilled performer 80%); `TANNOY_STUNT_SCENE_SUCCESS/FAILURE` is announced. **Quality contribution** (`QualityCalc_StuntPerformance`): `skillFactor * healthFactor * likenessFactor * levelFactor * successFactor` where `skillFactor = skillmin + (skillmax-skillmin)*Stunts` (0.9..1.1 from `[performance]`), `levelFactor = stuntlevelminimum + (max-min)*difficulty` (0.9..1.4), and `successFactor` is the success multiplier (0.8 failed, 1.25 succeeded - mapping of the table constants to `[performance]` keys is by order and not verified); likeness 0.9..1.0 (x1.1 `likenessbonus` for a double that looks like the actor), health 0.9..1.1 with `injurymultiplier` 0.9. Experience for stunt performers: `stuntxpsuccessmin/max` 0.02..0.06, failure 0.01..0.04 (`[experience]`), applied by `CStaff_AddStuntExperience`. The tracker's `REL_PLAYER_BARS` line (`meanStuntTake`, `stuntCount`) will give the actual shot scores once stunts exist.

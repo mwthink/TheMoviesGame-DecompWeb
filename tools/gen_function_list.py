@@ -18,7 +18,7 @@ TEXT_LO, TEXT_HI = 0x401000, 0xD16000
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--repo', default=REPO_ROOT)
-    ap.add_argument('--out', default=r'F:\DecompilingTheMovies\The Movies\coverage_functions.txt')
+    ap.add_argument('--out', default=os.path.join(REPO_ROOT, 'tools', 'coverage_functions.txt'))
     ap.add_argument('extra', nargs='*')
     a = ap.parse_args()
 

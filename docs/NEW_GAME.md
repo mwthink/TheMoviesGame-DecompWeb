@@ -1,7 +1,7 @@
 # Starting a new game: how the starting world is built
 
 Status: read from the decompile, the disassembly and the game's own data files. The call chain and the file format are solid; what is *not* known is listed in section 7. Evidence is marked
-**[read]** (in the code), **[data]** (in the game files) or **[inferred]**. Ported, with tests: `src/game/sandbox/StartingLayout.*`.
+**[read]** (in the code), **[data]** (in the game files) or **[inferred]**. Ported, with tests: `web/src/sim/sandbox/StartingLayout.ts`.
 
 ## 1. The short version
 
@@ -67,7 +67,7 @@ analysis were read from their `operator_new` size and strings, not from their bo
 
 The player's studio (`Studios_Initialize`, 0x512C50, formerly `StudioReputation_Constructor`) creates the `CStudio`, and, when the profile screen has been confirmed (`DAT_0104DCF8`), sets its
 **name, icon and owner name** from the profile screen's data; it then loads the `studio` tuning (reputation inertia and half-life, the prestige factors, the star-rating factors that
-`src/game/studio/StudioRating` uses, `capital0star`...) and calls `AIStudios_LoadRuleCsv` (0x512510) for **`data/rule/aistudios.csv`**.
+`web/src/sim/studio/StudioRating.ts` uses, `capital0star`...) and calls `AIStudios_LoadRuleCsv` (0x512510) for **`data/rule/aistudios.csv`**.
 
 ## 4. The layout files **[data]**
 
@@ -127,7 +127,7 @@ So the starter studio grows by about one or two facilities a decade, and 1960's 
 - **There is no starting staff** **[data]**. No new-game layout (`<year>.ini`, `tutorial.ini`, any `_clean`) has a `hired_staff` section; only `movielot.ini` does, and no new-game path names it.
   A new studio starts with buildings and props only.
 - **Applicants** **[read, partly]**. The wannabes (hopeful actors, crew) are an object pool of 10 dormant `CWannabe` objects made at construction. What fills the pool is a virtual on `CSubFacility`
-  (`FUN_0084E5C0`) that scales the applicant supply by the studio star rating (`CStudio_ComputeStarRating`, ported in `src/game/studio/StudioRating`). The earlier `Applicant_*` names in the project
+  (`FUN_0084E5C0`) that scales the applicant supply by the studio star rating (`CStudio_ComputeStarRating`, ported in `web/src/sim/studio/StudioRating.ts`). The earlier `Applicant_*` names in the project
   (the costume fiddler's window spawner) have nothing to do with this and should not be relied on.
 
 ## 8. Not known

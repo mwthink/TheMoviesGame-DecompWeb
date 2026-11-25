@@ -1,8 +1,8 @@
 # The gameplay camera
 
-What the camera the player has while managing the studio does, read from `MoviesSE.exe` (decompile plus disassembly) and ported twice: C++ in
-`src/game/camera/GameCamera.{hpp,cpp}` (tests: `src/tests/CameraTest.cpp`) and TypeScript in `web/src/camera/GameCamera.ts` (tests:
-`web/tests/camera.test.ts`). Both carry `orig: 0x...` addresses; the web app uses the TypeScript one (the dev menu selects it, `docs/WEB.md`).
+What the camera the player has while managing the studio does, read from `MoviesSE.exe` (decompile plus disassembly) and ported to TypeScript in
+`web/src/camera/GameCamera.ts` (tests: `web/tests/camera.test.ts`), with `orig: 0x...` addresses on every function. The web app's dev menu selects it
+(`docs/WEB.md`).
 
 Status: the **normal** state (the in-lot camera) is ported. Nothing has been compared with the running game frame by frame; what *is* checked against
 the game's own numbers is listed under "Checked".
@@ -155,5 +155,5 @@ The wheel unit of `DAT_00f87aac` was not traced; 120 per notch (Windows) is assu
 0x9A6070, `View_LookAt` 0x9A2830, `View_ScreenToWorldPoint` 0x9A1A20; input: `Input_IsKeyDown` 0x553F70, `Input_WasKeyPressed` 0x553FA0, `Input_IsActionDown` 0x554090,
 `Input_SetDefaultKeyBindings` 0x5547E0, `Input_InitScancodeTable` 0xA95B30, `InputState_SetKey` 0xA0A790. Already named: `Camera_StateMachine_Transition` 0x41A610,
 `Camera_RegisterDebugStates` 0x41C240, `TMInWorld_RayToPlane` 0x538EF0, `CLot_ComputeWorldBoundsFromTier` 0x467260. The CSVs have the names; they have **not** been applied to the
-live Ghidra project (back it up first, `DECOMP_PIPELINE.md`: `ApplyNames.java`). Code labels that Ghidra did not make functions (0x412750 apply pan, 0x4128A0 zoom callback, 0x414BF0
+live Ghidra project (back it up first, `ANALYSIS_TOOLS.md`: `ApplyNames.java`). Code labels that Ghidra did not make functions (0x412750 apply pan, 0x4128A0 zoom callback, 0x414BF0
 rotate callback, 0x4167B0 keep inside lot) can only be read with `objdump -d -M intel --start-address=... MoviesSE.exe`.

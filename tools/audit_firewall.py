@@ -15,7 +15,7 @@ FUN_BODY = re.compile(r"^\s*(?:undefined\d?|int|uint|void|char|float)\b[^;\n]*\b
 HEX_RUN = re.compile(r"(?:\b(?:0x)?[0-9a-fA-F]{2}\b[ ,]+){32,}")
 SELF = pathlib.Path(__file__).resolve()
 ALLOWED_DECOMPILED = ROOT / "data" / "identified_organized"
-TEXT_EXT = {".c", ".cpp", ".h", ".hpp", ".py", ".md", ".txt", ".json", ".csv", ".ps1"}
+TEXT_EXT = {".c", ".cpp", ".h", ".hpp", ".py", ".md", ".txt", ".json", ".csv", ".ps1", ".ts", ".js", ".html"}
 
 def files(all_):
     if all_:

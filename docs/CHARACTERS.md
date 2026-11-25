@@ -6,7 +6,7 @@
 ## What a save stores about a person (`tools/save_cast.py`)
 * `CStar` and `CWannabe`: `Head[0]` = a length-prefixed head file name (`head_f_japanese_girl.hd`); `Head[1]` and `HeadMix` blend a second head in (not used yet); `PCurrentCostume` and `PNormalCostume` = object ids of `CCostume` objects.
 * `CCostume`: no tagged variables; the object body is a blob with the costume name (`f_cheerleader_1`), the `.cos` file name, the makeup textures (`mup_eyes_v00.dds`, `mup_feyebrow_v00.dds`) and the hair mesh (`hair_20s_f12.msh`), found by scanning for strings (the layout is not decoded).
-* In `quick film studios22 January 19600114Tuesday24November2026.jad` 49 people are saved (33 `CStar`, 16 `CWannabe`); 7 have a head, 10 a costume blob. The others have neither (the game probably builds them when they are first needed; not checked).
+* In the 22 January 1960 Quick Start save 49 people are saved (33 `CStar`, 16 `CWannabe`); 7 have a head, 10 a costume blob. The others have neither (the game probably builds them when they are first needed; not checked).
 
 ## `.cos` costumes (`tools/cos_dump.py`)
 Records of 0x78 bytes after a 0xa8 header: the body mesh name, then texture layers (`com_m_50s_shoes_1_v00.dds`, slot `cos_shoes`) and attached meshes (hat, glasses, watch, ring: `hat_m_gen_v04.msh`, slot `cos_hat`), told apart by a kind field (1 = texture, 2 = mesh).

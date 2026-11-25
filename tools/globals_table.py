@@ -57,10 +57,13 @@ def classify(secs, va):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--exe', default=r'F:\DecompilingTheMovies\The Movies\MoviesSE.exe')
+    from local_paths import game_exe
+    ap.add_argument('--exe', default=game_exe(), help='MoviesSE.exe (default: OTM_GAME_DIR, see local.env.example)')
     ap.add_argument('--repo', default=REPO_ROOT)
     ap.add_argument('--out', default=os.path.join(REPO_ROOT, 'docs', 'generated'))
     a = ap.parse_args()
+    if not a.exe:
+        ap.error('no game: pass --exe or set OTM_GAME_DIR (local.env)')
     os.makedirs(a.out, exist_ok=True)
     secs = sections(a.exe)
 

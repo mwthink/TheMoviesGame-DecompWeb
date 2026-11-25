@@ -1,8 +1,8 @@
 # `.msh` models
 
 `tools/msh_dump.py <file.msh>...` prints what is decoded below. Meshes are in `meshscene0000/0001.pak`
-(`tools/pak_extract.py extract "<game>/Data/pak" <dir> <name>.msh`). The layout comes from `LH_LoadMeshBinary` (`009deb10`) and
-`FINDINGS.md` "`.msh` mesh format"; this note records what was **checked against real files**: 15 meshes (4 facilities, 7 ornaments, the lot gate,
+(`tools/pak_extract.py extract "<game>/Data/pak" <dir> <name>.msh`). The layout comes from `LH_LoadMeshBinary` (`009deb10`)
+and the functions it calls (listed at the end); this note records what was **checked against real files**: 15 meshes (4 facilities, 7 ornaments, the lot gate,
 the billboard, a hedge block) all parse to the end of the named parts with the layout below.
 
 ```
@@ -100,3 +100,12 @@ legend (`1=room_ss_extras, ...`). The unnamed `room_` part is the union of the w
 removes roofs and shows what is under them. Observed on the tutorial save: the stage school has five rooms (extras, actors, directors, fire, starmaker); the gatehouse three (fire, hire janitor, hire builder);
 the trailer two (window, trailer_assign). The catering building's mesh has no named room parts. The facility shells are **empty** under the roof (grass shows through): the interiors are the sets the player
 builds in the rooms, which is why a save with player-built sets is needed to see them (`docs/SAVE_FORMAT.md`).
+
+## The loader functions
+
+`LH_LoadMeshBinary` (`009deb10`) reads the file; `LH_LoadMeshHeader` (`009dadd0`) the header (the caller aborts unless the version is 10),
+`LH_LoadMeshMaterial` (`009daeb0`) each material, `LH_LoadMeshPrimitiveHeader` (`009dcb40`) each primitive, `LH_LoadVertexQuantizationBounds` (`009dad00`)
+the 14-float block, `LH_BuildPrimitiveIndexBuffer` the indices and `LH_DequantizeVertex` (`00a39e80`) the compact vertices. In memory a material becomes a
+0x24-byte entry holding a "type code" (seen: 0, 3, 5, 7, 0xB, 0x18, 0x1B; meaning not known), and the second texture is resolved only when the global
+`DAT_0105be08` is set. Also: collision hulls (`LH_LoadMeshCollisionHullSet` `00a76060`, `LH_LoadCollisionHullPiece` `00a73d40`), extra polygon data
+(`LH_LoadAuxPolygonChunk` `009e7270`) and a debug text exporter (`LH_ExportMeshDebugText` `009dc3e0`).

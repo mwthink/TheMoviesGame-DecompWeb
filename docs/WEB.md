@@ -30,7 +30,8 @@ Decisions so far:
 cd web
 npm install
 npm run dev        # http://localhost:5173 (port is fixed; the dev server fails if it is taken)
-npm test           # parser tests (need the game archives and a save, see below; they skip when absent)
+npm test           # the simulation and parser tests (the ones that need the game archives or a save skip when absent)
+npm run movie-calc -- --help   # the movie quality / success / box-office calculator (REIMPLEMENTATION.md)
 npm run typecheck  # tsc --noEmit, strict
 npm run build      # typecheck, then the production bundle in web/dist/
 ```
@@ -38,12 +39,12 @@ npm run build      # typecheck, then the production bundle in web/dist/
 Requires Node 20.19 or 22.12 or newer (Vite's requirement; the tests run `.ts` files directly, which needs Node 22.18 or newer; developed on 24).
 
 **Try it quickly:** `npm run dev`, open `http://localhost:5173/?autoload`. In dev the server also serves the game archives and one save from this machine
-(`vite.config.ts`, `/__local/...`, read-only, byte ranges; paths from `OTM_PAK_DIR` and `OTM_SAVE`, defaulting to the CrossOver install and the
-1920 "wine studios" save the tools use). `?autoload` uses them and skips the menus; `?autoload=quick` (any part of a file name, case-insensitive) picks another `.jad` from the same folder (the server lists them all); the Load Game screen has a "Use local files" button for the same.
+(`vite.config.ts`, `/__local/...`, read-only, byte ranges; paths from `local.env` or the environment, `web/localPaths.ts`: the archives of `OTM_GAME_DIR`,
+and `OTM_SAVE` or else the first save in the game's Saved Games folder). `?autoload` uses them and skips the menus; `?autoload=quick` (any part of a file name, case-insensitive) picks another `.jad` from the same folder (the server lists them all); the Load Game screen has a "Use local files" button for the same.
 This endpoint exists only under `npm run dev`; the production build has none.
 
-**Run the dev server from a terminal.** The desktop app's `preview_start` server (`.claude/launch.json`, entry `web`) cannot read files under
-`~/Documents` or the CrossOver bottle: its reads hang. A server started from a terminal can, so use `npm run dev` there for anything that loads game files.
+**Run the dev server from a terminal** when it has to read game files. Some sandboxed launchers (an editor's or an agent's preview server) cannot read
+`~/Documents` or a CrossOver bottle and their reads hang; a server started from a terminal can.
 
 In a normal browser, **Load Game** asks for the game folder (the one with `Data/pak` inside; Chromium's folder picker, which remembers the choice, or the
 older `webkitdirectory` fallback elsewhere) and a `.jad` saved game. The archives are read in slices from disk, never uploaded.
@@ -74,11 +75,14 @@ web/
   src/style.css         all styling; body[data-screen="game"] shows the canvas, the other screens are .screen overlays
   src/screens/          Screen interface + splash, menu, load game, game view
   src/assets/           ByteSource (File, HTTP range), Pak (archives + index), inflate (fflate), hash, sources (folder pickers), remembered (IndexedDB)
-  src/formats/          Ini, Dds (DXT1/3/5 decode), Msh (static models), Jad (saved game: placed assets, landscape)
+  src/formats/          Ini, Csv, Dds (DXT1/3/5 decode), Msh (static models), Jad (saved game: placed assets, landscape), Rob (outside-the-lot scenery)
+  src/sim/              the simulation, ported from the game (docs/REIMPLEMENTATION.md): movie, staff, studio, ai, boot, frontend, sandbox, character
   src/world/            WorldData (loads and prepares everything; no engine types), WorldScene (builds the Babylon scene), shaders
-  src/camera/           GameCamera (the game's gameplay camera, no engine or DOM types: port of src/game/camera, docs/CAMERA.md), CameraInput (DOM events -> its per-frame input)
+  src/camera/           GameCamera (the game's gameplay camera, no engine or DOM types, docs/CAMERA.md), CameraInput (DOM events -> its per-frame input)
   src/ui/               DOM overlays above the canvas: MenuBar (fixed to the top; `toolbar` is the empty slot for the game's toolbar), DevMenu (fixed bottom right)
-  tests/                node:test files and helpers; they read the real game files
+  tests/                node:test files and helpers; tests/sim/ for the simulation; the ones that read the real game files skip without them
+  tools/                command-line tools run with node (movie-calc)
+  localPaths.ts         this machine's game install and saves, from local.env (Node only)
 ```
 
 Things worth knowing before extending it:
@@ -133,25 +137,31 @@ Things worth knowing before extending it:
   same-named thumbnails under `thumbs\` are never picked. DDS images are decoded on the CPU to RGBA and
   uploaded with generated mipmaps, so S3TC support in the GPU or browser is not needed. (Memory: 4 bytes per pixel instead of 0.5 to 1. Fine at this size.)
 - **Cameras.** Two, switched in the dev menu (the default is the first). The **default** is a plain Babylon orbit camera placed south of the lot looking north. The **game camera**
-  is `src/camera/GameCamera.ts`, a port of the original's normal-state camera (`docs/CAMERA.md`; the C++ twin with the tests is `src/game/camera/`): it starts where the save had
+  is `src/camera/GameCamera.ts`, a port of the original's normal-state camera (`docs/CAMERA.md`): it starts where the save had
   the camera (`SL_CamFoc` / `SL_CamRot` / `SL_CamZoo`, read in `Jad.ts`; the eye it computes matches the saved `SL_CamPos`), scrolls with acceleration, maximum velocity and damping
   from `data\ui\camera.ini`, zooms along the game's curve, rotates, and is kept inside the lot rectangle (`lotBounds` in `Perimeter.ts`) by testing where the screen's corners and top
   centre land on the ground. `GameView` runs it every frame and copies its eye, focus, horizontal field of view and near plane (far is 300) into a Babylon `FreeCamera` (game (x, y, z) -> Babylon (x, z, y)).
   Not ported: the other camera states (plan, follow, ...), pivot compensation while rotating, ground-grab dragging, the cutaway; see `docs/CAMERA.md`. Pointer limits in a browser:
   the original reads relative device motion, a page cannot, so an edge "shove" is the pointer's motion on arriving at the window edge (`CameraInput`).
+- **Hover cutaway and room labels.** Pointing at a building that has named rooms (`room_*` mesh parts whose name has a key in the string database) swaps it for a cutaway copy that drops everything above 2.5 units
+  (`CUT_HEIGHT`, the value `jad_dump.py --cutaway` uses; the game's own is not read) and writes each room's text on its floor (`GameView`: DOM labels projected each frame). Each such model is built twice
+  (`WorldScene.buildSources(..., cut)`: its own materials with a `cutHeight` uniform), the cutaway instances start disabled, and hover (a throttled pick, 100 ms) swaps the enabled sets. The text comes from
+  `Data/text/<language>/stringdatabase.lhts` (+ the add-on's), read by `src/formats/Lhts.ts` (a port of `tools/lhts.py`) from the game folder the player picked (or the dev server's `/__local/text/`); without it rooms have no labels.
+  Fire rooms show their three possible texts joined ("Fire/Can It/Reject"); the game picks one at run time (`SAVE_FORMAT.md`). Labels are plain white text at each floor polygon's area-weighted centre. Shader gotcha: Babylon splits shader text at
+  semicolons, so a `//` comment containing one breaks the line and the shader fails to compile.
 - **Dev menu and menu bar.** `DevMenu` (bottom right, collapsible) holds the camera selector and read-only state: fps, the camera in use, and for the game camera its eye, focus, zoom,
   angle, fov, near/far, scroll velocities, edge-scroll state, the lot clamp's push and the lot rectangle. New controls and state rows go there (`DevMenu.show()` takes sections of
   name -> text). `MenuBar` is the 32 px bar fixed to the top of the game view; the toolbar will go into its `toolbar` element. Both are plain DOM in a `.hud` layer, shown only on the game screen.
 
 ## Checked
 
-- `npm test` (19 tests; the camera tests are `tests/camera.test.ts`): the case-folding hash; the ini reader; the pak index (the patched `facility_gatehouse.ini` comes from the Addon archive, thumbnails are
+- `npm test` (91 tests; the simulation's are in `tests/sim/`, listed in REIMPLEMENTATION.md; the camera's in `tests/camera.test.ts`). The world view's: the case-folding hash; the ini reader; the pak index (the patched `facility_gatehouse.ini` comes from the Addon archive, thumbnails are
   not picked for textures); DDS decoding of DXT1, DXT3 against `tools/dds.py` (sums over every pixel); the gatehouse mesh against `tools/msh_dump.py` (31
   textures, 30 materials, 22,773 vertices, 10,997 triangles, the collision chunks and room parts, vertex sums); the save (the three placed assets, the
   landscape's texture names, 8,897 path cells, layer sums); the world loader (every ground texture found, blend weights sum to 255, no warnings).
-- A Quick Start save (`quick film studios22 January 1960…`, 285 placements): every ini, mesh and texture is found with no warnings, and the 285 placements share fewer than 60 models
+- A Quick Start save (22 January 1960, 285 placements): every ini, mesh and texture is found with no warnings, and the 285 placements share fewer than 60 models
   (test 8; skipped when the save is absent).
-- In the browser (Chromium in the desktop app, with the dev-server files): the world loads in a few seconds; the top-down view has the same layout as
+- In the browser (Chromium, with the dev-server files): the world loads in a few seconds; the top-down view has the same layout as
   `jad_dump.py --terrain` for the same save; the gatehouse, gate, flag, walls and billboard are solid and textured; orbit works.
   Not compared pixel by pixel with the original game, and not tried: Safari, Firefox, the folder pickers (they open native dialogs), other saves,
   the production build, touch input.
@@ -166,7 +176,7 @@ Things worth knowing before extending it:
 - **Not drawn:** facility interiors and room floors, the other lot meshes, anything but the assets in the save (no people, litter, cars).
 - **Saves:** only the placed assets and the landscape are read. Money, staff, films and everything else in `.jad` is ignored.
 - **Performance:** the Quick Start lot is 1,621 instances of about 300 source meshes and 1 M vertices; loading takes about 3 s in Node (decoding is the cost) and the
-  scene ran at about 30 fps in the desktop app's software-rendered browser pane (not a measure of a real GPU). Not profiled. Possible next steps: merge static geometry per
+  scene ran at about 30 fps in a software-rendered Chromium (not a measure of a real GPU). Not profiled. Possible next steps: merge static geometry per
   material, thin instances, and caching decoded textures.
 
 ## Next steps
@@ -175,7 +185,7 @@ Things worth knowing before extending it:
 2. Draw the rest of the lot: `lot_road_mark.msh` (how the game uses it is not read), then check the other facilities and ornaments against the original.
 3. The rest of the game camera (`docs/CAMERA.md`, "Not ported"): the plan, follow and move-asset states, pivot compensation, ground-grab dragging, and the cutaway; confirm the mouse button
    mapping, the wheel unit and the rotation sign against the running game (the dev menu shows angle and zoom to compare).
-4. Decide where the simulation lives (`HANDOVER.md` item 9): the C++ in `src/` compiled to WASM, or a TypeScript port (which needs `Math.fround` to stay
-   comparable with the original's 32-bit floats). Either way it should run headless at the original's 10 Hz tick (`MAIN_LOOP.md`).
+4. The simulation, ported to TypeScript (`STATUS.md`, `REIMPLEMENTATION.md`; `Math.fround` keeps it comparable with the original's 32-bit floats), run headless at the
+   original's 10 Hz tick (`MAIN_LOOP.md`), then driven from the world view.
 5. UI: rebuild the Flash menus as DOM using the decoded movies as the spec (`FRONTEND.md`), or try Ruffle on the `.mfl` files first.
 6. Caching decoded assets (OPFS/IndexedDB) so a reload does not re-read and re-decode, if load time starts to matter.

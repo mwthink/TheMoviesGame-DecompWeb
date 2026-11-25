@@ -6,7 +6,7 @@ Class of a function, in order of confidence:
   address  its neighbours in the .text section (methods of one class are compiled together) belong to one class
 Outputs docs/generated/rename_priority.md and rename_priority.csv.
 
-Usage: python rename_priority.py
+Usage: python3 tools/rename_priority.py [data/runtime/<run>/coverage_log.csv]
 """
 import bisect
 import collections
@@ -17,7 +17,8 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 REPO = REPO_ROOT
 GEN = os.path.join(REPO_ROOT, 'docs', 'generated')
-LOG = r'F:\DecompilingTheMovies\The Movies\coverage_log.csv'
+import sys
+LOG = sys.argv[1] if len(sys.argv) > 1 else os.path.join(REPO_ROOT, 'data', 'runtime', 'coverage_log.csv')  # a coverage_log.csv pulled from a traced run
 
 names = {}
 CUR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ghidra_names.csv')

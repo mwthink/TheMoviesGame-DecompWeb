@@ -355,7 +355,7 @@ through `SceneEventCommand_Dispatch` (0xa3e560), otherwise it creates a delayed-
 
 ## 5e. Time base (measured at runtime) **[runtime-verified; AI scenes 30 Hz, movie shoots 10 Hz - see 5g]**
 
-A runtime hook on `Scene_Step` (session 2026-10-03, hook #28) measured **about 30 `Scene_Step` calls per second per scene** (297 of 805 one-second samples are 30.0 +/- 0.5; the maximum is 31.06;
+A runtime hook on `Scene_Step` (hook #28) measured **about 30 `Scene_Step` calls per second per scene** (297 of 805 one-second samples are 30.0 +/- 0.5; the maximum is 31.06;
 lower samples are scenes that started or stopped inside the sampling second or frame-rate dips). So **one scene step = 1/30 s (about 33 ms)** and the hard cap of 6000 frames = **200 seconds**.
 Over a few minutes of play with a handful of characters 112 distinct scene objects ran (almost all short AI interactions: scenes that lived 2-3 samples; the longest ones reached frame 833, about 28 s, which are crowd/idle scenes).
 The accumulator in the real-time driver (`Scene_UpdateRealtime`) therefore advances 100 units per step with the sub-step remainder (0..99) used only for render interpolation. Box `w11` durations are in **steps (1/30 s)**; the `*100` in the duration getters converts steps to 1/100-step units.
@@ -374,7 +374,7 @@ The accumulator in the real-time driver (`Scene_UpdateRealtime`) therefore advan
 
 ## 5g. A real movie shoot, captured at runtime **[runtime-verified]**
 
-Capture: one scene shot on the spaceship-bridge set (`023_chair_sit_down.flm`), with the director menu used to change the mood slider mid-take (session 2026-10-03, hooks on `Scene_LoadFlm`, `Scene_SetChannel`, `Scene_ReleaseMarker`, `Scene_Step`).
+Capture: one scene shot on the spaceship-bridge set (`023_chair_sit_down.flm`), with the director menu used to change the mood slider mid-take.
 
 **Scene set.** Loading one shot scene loads a *bundle*: the main scene plus its **linked crew scene** and **extras/mechanism sub-scenes**:
 `023_chair_sit_down.flm` (main) + `023_crew_00.flm` (linked crew scene; header string idx [3]) + `023_x_E_coms.flm` + `023_x_F_robot.flm` (children, `NNN_x_*`). Earlier captures:
@@ -414,7 +414,7 @@ bursts of 233, 217, 457, 902 and 1,348 steps were logged (all marker fires durin
 
 ## 5h. Stunt scenes and the rest of a filming session (second capture, successful stunt shoot) **[runtime-verified]**
 
-Capture: Alien-world set, a movie whose script contains stunt scenes, one successful stunt shot (session 2026-10-03, 11:00-11:09).
+Capture: Alien-world set, a movie whose script contains stunt scenes, one successful stunt shot .
 
 **Session flow, as seen through `Scene_LoadFlm`:**
 1. **Script preload (11:00:31, ~300 ms):** when filming starts the game loads the **whole movie's scene list at once**, each main scene together with its linked crew scene and extras:
@@ -457,7 +457,7 @@ The "re-simulation" at the start of each take is why most markers appear in one 
 
 ## 7. Tool / reproduction
 * `tools\FlmDump.py file.flm` – header, strings, entities, channels, object list; `--graph` prints a compact node graph.
-* Validation: run it across the extracted corpus (`F:\DecompilingTheMovies\flm_all`); expected 0 failures.
+* Validation: run it across every extracted `.flm` (`data/game_data/flm_all`); expected 0 failures.
 * Relevant Ghidra names: `Scene_LoadFlm` 0x97c450, `Scene_SetPlacement` 0x978350, `Scene_BindParent` 0x978310,
   `TMCharacter_PlayInteractionScene` 0x599480, `Prop_GetPuppetSceneName` 0x4043a0, `CAssetActionExplainer_CreateActivity` 0x8bca40,
   scene parser `Scene_ParseFlm` (0x97b6a0), object factory `FlmObject_CreateByType`, header reader `FlmHeader_Read`.

@@ -25,6 +25,8 @@
   "include": [
     "src",
     "tests",
-    "vite.config.ts"
+    "vite.config.ts",
+    "localPaths.ts",
+    "tools"
   ]
 }

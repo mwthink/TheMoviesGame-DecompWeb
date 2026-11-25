@@ -4,7 +4,7 @@
 Rebuilds desire/score from the logged successDiff values (AI_DECIDE, AI_MAKE_MOVIE) and prints the score at each logged release
 and the highest score at a decision that did not release. The model says a studio releases when score > 0.5.
 
-Usage: tools/check_ai_decide.py data/runtime/run4/decade_log.csv
+Usage: tools/check_ai_decide.py data/runtime/<run>/decade_log.csv
 Result on run4 (2026-11-21): release scores 0.463-0.513, highest non-release decision 0.477 -> consistent with the threshold
 but not exact. The log has no mean/rms/desire, so it cannot be called verified (needs a hook on 0x5154A0 logging them).
 """

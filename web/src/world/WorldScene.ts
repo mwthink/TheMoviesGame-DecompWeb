@@ -6,6 +6,7 @@ import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { CreateGround } from "@babylonjs/core/Meshes/Builders/groundBuilder";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
+import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh";
 import "@babylonjs/core/Meshes/instancedMesh"; // side effect: adds Mesh.createInstance
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData";
 import type { Scene } from "@babylonjs/core/scene";
@@ -86,6 +87,11 @@ function buildTerrain(scene: Scene, t: TerrainData): Mesh {
   return ground;
 }
 
+/** No cutaway: every fragment is below this world height. */
+export const NO_CUT = 1e6;
+/** Height above the ground at which a hovered building's shell is cut away. A first value (docs/MSH_FORMAT.md: the offline cutaway view uses 2.5); the game's own is not read. */
+export const CUT_HEIGHT = 2.5;
+
 /** Engine objects shared by every model: textures and materials are created once per file, not once per placed object. */
 interface Caches {
   textures: Map<string, RawTexture>;
@@ -96,7 +102,8 @@ interface Caches {
  * Build the geometry of one model file: one hidden source mesh per primitive. Placed objects are drawn as instances of these, so a model the save
  * places 40 times (a hedge, a lamp) costs one draw call per material rather than 40.
  */
-function buildSources(scene: Scene, m: MeshAsset, caches: Caches): Mesh[] {
+function buildSources(scene: Scene, m: MeshAsset, caches: Caches, cut = false): Mesh[] {
+  const suffix = cut ? "|cut" : ""; // the cutaway variant of a model has its own materials, which drop everything above CUT_HEIGHT
   const tex = (name: string) => {
     const key = name.toLowerCase();
     let t = caches.textures.get(key);
@@ -112,8 +119,25 @@ function buildSources(scene: Scene, m: MeshAsset, caches: Caches): Mesh[] {
     const mat = m.msh.materials[index];
     const diffuseName = mat ? m.msh.textures[mat.tex[0]] : undefined;
     if (!mat || !diffuseName || NOT_DIFFUSE.some((p) => diffuseName.toLowerCase().startsWith(p))) return null;
+    // A material whose second slot is not a lightmap (lm_*) is two-layer: slot 2 is the base (the gate's flag cloth) and slot 0 is laid over it by alpha (the logo).
+    const slot2 = m.msh.textures[mat.tex[2]];
+    if (slot2 && !slot2.toLowerCase().startsWith("lm_")) {
+      const dkey = `decal|${slot2.toLowerCase()}|${diffuseName.toLowerCase()}${suffix}`;
+      if (caches.materials.has(dkey)) return caches.materials.get(dkey)!;
+      const base = tex(slot2), decal = tex(diffuseName);
+      let dm: ShaderMaterial | null = null;
+      if (base && decal) {
+        dm = new ShaderMaterial(dkey, scene, "otmDecal", { attributes: ["position", "uv", "uv2"], uniforms: ["world", "viewProjection", "cutHeight"], samplers: ["base", "decal"] });
+        dm.setTexture("base", base);
+        dm.setTexture("decal", decal);
+        dm.setFloat("cutHeight", cut ? CUT_HEIGHT : NO_CUT);
+        dm.backFaceCulling = false; // cloth is seen from both sides
+      }
+      caches.materials.set(dkey, dm);
+      return dm;
+    }
     const lmName = hasUv2 ? m.msh.textures[mat.tex[2]] : undefined;
-    const key = `${diffuseName.toLowerCase()}|${lmName?.toLowerCase() ?? ""}`;
+    const key = `${diffuseName.toLowerCase()}|${lmName?.toLowerCase() ?? ""}${suffix}`;
     if (caches.materials.has(key)) return caches.materials.get(key)!;
     let result: ShaderMaterial | null = null;
     const diffuse = tex(diffuseName);
@@ -121,12 +145,13 @@ function buildSources(scene: Scene, m: MeshAsset, caches: Caches): Mesh[] {
     if (diffuse) {
       result = new ShaderMaterial(key, scene, "otmStatic", {
         attributes: ["position", "uv", "uv2"],
-        uniforms: ["world", "viewProjection", "useLightmap"],
+        uniforms: ["world", "viewProjection", "useLightmap", "cutHeight"],
         samplers: ["diffuse", "lightmap"],
       });
       result.setTexture("diffuse", diffuse);
       result.setTexture("lightmap", lightmap ?? diffuse);
       result.setFloat("useLightmap", lightmap ? 1 : 0);
+      result.setFloat("cutHeight", cut ? CUT_HEIGHT : NO_CUT);
     }
     caches.materials.set(key, result);
     return result;
@@ -144,7 +169,7 @@ function buildSources(scene: Scene, m: MeshAsset, caches: Caches): Mesh[] {
       normals.set([p.normals[v * 3]!, p.normals[v * 3 + 2]!, p.normals[v * 3 + 1]!], v * 3);
     }
     // The mirror reverses winding, and so does Babylon's front-face convention: the triangle order stays as in the file.
-    const mesh = new Mesh(`${m.name}/${i}`, scene);
+    const mesh = new Mesh(`${m.name}/${i}${cut ? "/cut" : ""}`, scene);
     const data = new VertexData();
     data.positions = positions;
     data.normals = normals;
@@ -160,8 +185,11 @@ function buildSources(scene: Scene, m: MeshAsset, caches: Caches): Mesh[] {
   return sources;
 }
 
+
 export interface BuiltWorld {
   camera: ArcRotateCamera;
+  /** The buildings that have rooms, by `<source>#<id>`: the normal instances (enabled) and the cutaway ones (disabled until the building is hovered). */
+  instances: Map<string, { full: InstancedMesh[]; cut: InstancedMesh[] }>;
 }
 
 /** Draw a loaded world into a scene: the ground and every placed model, with an orbit camera framing the lot and its facilities. */
@@ -173,18 +201,28 @@ export function buildWorld(scene: Scene, canvas: HTMLCanvasElement, world: World
   for (const mesh of world.meshes) sources.set(mesh, buildSources(scene, mesh, caches));
 
   // Frame the lot and its facilities: the centre of their positions, seen from the road side (south), looking north.
+  const cutSources = new Map<MeshAsset, Mesh[]>();
+  for (const mesh of world.meshes) if (mesh.rooms.length) cutSources.set(mesh, buildSources(scene, mesh, caches, true));
+  const instances = new Map<string, { full: InstancedMesh[]; cut: InstancedMesh[] }>();
   const framed: [number, number][] = [];
   for (const { asset, mesh, scale } of world.placements) {
     const [x, y, z] = asset.position;
-    for (const [i, source] of sources.get(mesh)!.entries()) {
-      const inst = source.createInstance(`${asset.source}#${asset.id}/${i}`);
+    const key = `${asset.source}#${asset.id}`;
+    const place = (source: Mesh, name: string, cutaway: boolean) => {
+      const inst = source.createInstance(name);
       // The lot's z is 0 in the fresh-studio save but 1000 in the Quick Start saves (what it means is unknown); its meshes belong on the ground either way.
       inst.position.set(x, asset.cls === "CLot" ? 0 : z, y);
       if (scale && scale !== 1) inst.scaling.setAll(scale);
       inst.rotation.y = -asset.angle; // counter-clockwise seen from above in the game = this in the mirrored space
-      inst.isPickable = false;
+      inst.isPickable = true; // the dev menu reports the last object clicked
+      inst.metadata = { cls: asset.cls, id: asset.id, source: asset.source, model: mesh.name, position: asset.position, angle: asset.angle, key, rooms: mesh.rooms };
       inst.freezeWorldMatrix(); // placed objects do not move
-    }
+      if (cutaway) inst.setEnabled(false); // shown while the building is hovered
+      return inst;
+    };
+    const full = sources.get(mesh)!.map((source, i) => place(source, `${key}/${i}`, false));
+    const cuts = cutSources.get(mesh);
+    if (cuts) instances.set(key, { full, cut: cuts.map((source, i) => place(source, `${key}/${i}/cut`, true)) });
     if (asset.cls === "CLot" || asset.source === "outside/lot_gate" || asset.source.startsWith("facility/")) framed.push([x, y]);
   }
   let cx = 0, cy = 0;
@@ -202,5 +240,5 @@ export function buildWorld(scene: Scene, canvas: HTMLCanvasElement, world: World
   camera.wheelPrecision = 5;
   camera.panningSensibility = 60;
   camera.attachControl(canvas, true);
-  return { camera };
+  return { camera, instances };
 }

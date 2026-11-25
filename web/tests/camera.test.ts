@@ -1,4 +1,4 @@
-// The gameplay camera port (src/camera/GameCamera.ts) against the same numbers as src/tests/CameraTest.cpp: the camera the game itself stored in
+// The gameplay camera port (src/camera/GameCamera.ts) against the game's own numbers: the camera the game itself stored in
 // saves (CLot SL_CamPos / SL_CamFoc / SL_CamZoo), hand-worked helpers, and the real data\ui\camera.ini.
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -6,7 +6,9 @@ import { clampPush, emptyInput, GameCamera, MAX_ZOOM, parseCameraIni, rotateAbou
 import { lotBounds, lotSize } from "../src/world/Perimeter.ts";
 import { readFile } from "node:fs/promises";
 import { parseSave } from "../src/formats/Jad.ts";
-import { haveGame, haveSave, pakIndex, SAVE_PATH } from "./helpers.ts";
+import { findSave, haveGame, pakIndex } from "./helpers.ts";
+
+const FRESH = findSave("FRESH");
 
 const INI = `wheelscale = 10
 pushdistance = 10
@@ -114,11 +116,19 @@ test("the real data\\ui\\camera.ini", { skip: !haveGame }, async () => {
   near(n.startFocus.y, 13.165312); near(n.heading.z, -70); near(n.zoomCurve, 2); near(n.maxVelocity, 40); near(n.startZoom, 0.25);
 });
 
-test("the camera stored in a save is read, and the eye the code computes from it is the saved one", { skip: !(haveGame && haveSave) }, async () => {
-  const save = parseSave(new Uint8Array(await readFile(SAVE_PATH)));
+test("the camera stored in a save is read, and the eye the code computes from it is the saved one", { skip: !(haveGame && FRESH) }, async () => {
+  const save = parseSave(new Uint8Array(await readFile(FRESH!)));
   const sc = save.lotCamera;
   assert.ok(sc, "the save's CLot has a camera");
   const c = make();
   c.restore({ x: sc.focus[0], y: sc.focus[1], z: sc.focus[2] }, sc.angle, sc.zoom);
   near(c.eye.x, sc.eye[0]); near(c.eye.y, sc.eye[1]); near(c.eye.z, sc.eye[2]);
+});
+
+test("a wheel turned over a window does not zoom", () => {
+  const c = make();
+  const input = emptyInput(); input.dt = 1 / 60; input.wheel = 120; input.wheelOverUi = true;
+  const z = c.zoom;
+  c.tick(input);
+  near(c.zoom, z);
 });

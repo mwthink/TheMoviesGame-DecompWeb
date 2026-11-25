@@ -1,9 +1,9 @@
 """Reimplementation progress tracker.
 
 Joins tools/ghidra_names.csv (address,name for every function in Ghidra) with the `// orig: 0xVA` tags found in
-src/ and writes docs/generated/progress.csv + progress.md (gitignored: it contains game-derived names).
+web/src/ (the reimplementation) and writes docs/generated/progress.csv + progress.md (gitignored: it contains game-derived names).
 
-Status per function:  unnamed (FUN_*)  ->  named  ->  reimplemented (an `orig:` tag exists in src/).
+Status per function:  unnamed (FUN_*)  ->  named  ->  reimplemented (an `orig:` tag exists in web/src/).
 Add `verified` by putting `// orig: 0x004A1230 verified` in the source.
 
 Usage: python tools/progress.py
@@ -33,11 +33,13 @@ UNNAMED = re.compile(r'^FUN_[0-9a-fA-F]{8}$')
 
 def scan_src():
     tags = {}
-    for base, _, files in os.walk(os.path.join(ROOT, 'src')):
+    for base, _, files in os.walk(os.path.join(ROOT, 'web', 'src')):
         for f in files:
-            if f.endswith(('.cpp', '.hpp', '.h', '.c')):
+            if f.endswith('.ts'):
                 for m in TAG.finditer(open(os.path.join(base, f), encoding='utf-8', errors='ignore').read()):
-                    tags[m.group(1).upper().zfill(8)] = 'verified' if m.group(2) else 'reimplemented'
+                    addr = m.group(1).upper().zfill(8)
+                    if tags.get(addr) != 'verified':  # a function tagged in several places counts as verified once any tag says so
+                        tags[addr] = 'verified' if m.group(2) else 'reimplemented'
     return tags
 
 

@@ -1,17 +1,21 @@
 # Saved-game format (`.jad`)
 
-What we can read out of a The Movies save, from three saves made on the Wine/CrossOver test setup
-(`~/Documents/The Movies/Saved Games/`, i.e. `%USERPROFILE%\Documents\The Movies\Saved Games\` on Windows):
+What we can read out of a The Movies save. The game writes saves to `Documents\The Movies\Saved Games\` (under CrossOver, the Mac's
+`~/Documents/The Movies/Saved Games/`) and names them `<studio name><in-game date><time><weekday><real date>.jad`. The saves this was worked out on
+were made under CrossOver; they are referred to by what they are:
 
 | Save | State |
 |---|---|
-| `crossover… 2354` | tutorial, first star hired, no facility yet |
-| `crossover… 2355` | tutorial, a facility (catering) queued/pending |
-| `wine studios… 2357` | straight after the tutorial: blank lot, $150,000, 1 Jan 1920 |
-| `quick film studios… 0114` | Quick Start after loading in (added 2026-11-24): 1 Jan 1960, $1,247,923, state label `QUICKSTART`, 24 placed facilities, 252 ornaments, 7 `CSet` sets, ~30 `*Room` classes, 3,845 objects, 1.19 MB |
+| tutorial, early | 1 Jan 1920, first star hired, no facility yet |
+| tutorial, later | 1 Jan 1920, a facility (catering) queued |
+| fresh studio | straight after the tutorial: blank lot (the lot, its billboard and the gatehouse), $150,000, 1 Jan 1920 |
+| Quick Start | just after a Quick Start loads: 22 Jan 1960, $1,247,923, 24 placed facilities, 252 ornaments, 7 `CSet` sets, ~30 `*Room` classes, 3,845 objects, 1.19 MB |
+| Quick Start, later | the same studio played on: 7 April 1960 (a script being written, `SCRIPTS.md`), 3 May, 6 June, 13 June, 25 June, 4 July 1960 (18 released films) |
+
+The web tests find the fresh-studio and Quick Start saves by this description (`web/localPaths.ts`, `SAVE_ROLES`).
 
 Tool: [tools/jad_dump.py](../tools/jad_dump.py) (summary, `--class`, two-save diff). Everything here is **observed from
-saves and cross-checked against the decompiled save code** (see `FINDINGS.md` and `docs/MOVIE_SUCCESS.md` "Save mechanics");
+saves and cross-checked against the decompiled save code** (see "Where the save code sits" below, and `CLASS_NOTES.md` 3ag and 3ai);
 anything marked *unverified* is a guess.
 
 ## Container
@@ -158,7 +162,7 @@ bits 4-5 = blend weight `(value + 1) * 0.25` (from `TMLandscape_GetPaintLayerWei
 paint over it (grass, earth, tarmac). In the tutorial save most of the lot is grass with a dirt border, and the road is tarmac; the blank-lot save
 has the same lot with different painting, and its own path bits.
 
-The bitmap is the **path mask** (found 2026-11-24, see "The 8 KB bitmap is the path mask" at the end): a set bit means the 2 x 2 unit cell is paved path, drawn with the sidewalk texture. 9,305 of 65,536 cells are set in the tutorial save, 8,897 in the blank-lot save and 9,420 in the Quick Start save (the city's sidewalks and the lot's paths). Placed buildings are not in it; the lot building code (`CLot_RefreshOccupancyGridForBounds`, `00465a50`) turns every set bit into blocked sub-cells of the finer placement grid.
+The bitmap is the **path mask** (see "The 8 KB bitmap is the path mask" at the end): a set bit means the 2 x 2 unit cell is paved path, drawn with the sidewalk texture. 9,305 of 65,536 cells are set in the tutorial save, 8,897 in the blank-lot save and 9,420 in the Quick Start save (the city's sidewalks and the lot's paths). Placed buildings are not in it; the lot building code (`CLot_RefreshOccupancyGridForBounds`, `00465a50`) turns every set bit into blocked sub-cells of the finer placement grid.
 
 ## From save names to game files
 
@@ -299,7 +303,7 @@ python3 tools/jad_dump.py <save>.jad --terrain out.png --footprints <ini+msh dir
 python3 tools/jad_dump.py <a>.jad <b>.jad                                               # diff
 ```
 
-## Quick Start save (2026-11-24)
+## Quick Start save
 
 `CSet` objects are in the save with the same placed-asset base (`SourcePath` such as `set/set_stagecoach`), so `jad_dump.py --map` and the renders include them. Each set's mesh has one floor
 room (`room_wood`, `room_1_carpet`, `room_1_sand`, `room_earth`, `room_1_tile`, `room_5_earth`). Room names per building (from the meshes, drawn by `--rooms`): the stage school's five
@@ -326,7 +330,7 @@ Fields: `RoomName`, `PParentAsset` (object id of the placed facility or set), `M
 
 `tools/fetch_assets.py <save> "<game>/Data/pak"` extracts everything a save needs for rendering (inis, meshes, textures, ground textures; about 2 minutes for this save).
 
-## Where room names and floor text come from (2026-11-24)
+## Where room names and floor text come from
 
 **The room list is data, not code.** No table of rooms is in the executable. A facility's rooms are the named parts (`room_*`) of its model, found through the asset's `.ini` (`mesh = ...`); the loader keeps them
 as a room table on the mesh (`LH_LoadMeshBinary`, table at mesh + 0x70, 0x90 bytes per entry: 32-byte name + polygon; `RoomPart_InitDrawingData` initialises each part's drawing data). The facility's creation code picks
@@ -347,7 +351,7 @@ stunt school (`stuntschool_create`, `_fire`), the 4-star script office, trailers
 
 `jad_dump.py --rooms --strings <stringdatabase.lhts[,addon]>` draws these texts. The string database is game content: it stays local (the repo only has the reader).
 
-### The 8 KB bitmap is the path mask (2026-11-24; corrected, see the end of this section)
+### The 8 KB bitmap is the path mask (corrected, see the end of this section)
 
 The beige paved paths between the buildings (and the sidewalks of the city streets) are the set bits of the 256 x 256 bitmap that follows the terrain cells. Evidence: rendering the bits (`jad_dump.py --terrain ... --occupancy`) reproduces
 the in-game path network (the spine up the lot, the cross paths, paths round each building and the plaza, the street sidewalk) against screenshots of the Quick Start lot; the sidewalk texture (index 6) has no terrain cell in any save, so
@@ -367,7 +371,7 @@ paving is not stored as paint. In the code:
 
 Not checked: what the pavement tags are for (see above), how the sidewalk is drawn at path edges, the meaning of the `DAT_0105f8dc` transient bitmap while the player is painting, the `_sp_grass` / `_sp_sand` stamps (no building in these saves has one).
 
-### Corrections to the path-mask section, from the draw code (2026-11-24)
+### Corrections to the path-mask section, from the draw code
 
 Reading how the terrain is drawn (`FUN_009e3ff0` chunk refresh, `FUN_009e16b0` mask builder, `FUN_00a79a30` / `FUN_00a797d0` mesh builder, `TMLandscape_SetPathCell`, `ReadTerrainBlob`) corrected some of what is written above.
 
@@ -390,7 +394,7 @@ Reading how the terrain is drawn (`FUN_009e3ff0` chunk refresh, `FUN_009e16b0` m
   a fresh game's terrain is the file as shipped. The pristine files already contain path bits well outside the lot (`1960_clean.lnd`: 3,782 bits left of x = -166, 904 right of x = 150), so those are the game's own
   data, not something our decoding adds. Playing adds more: the Quick Start save has 1,828 bits that `1960_clean.lnd` lacks, including 409 outside the lot (lines at x = 192 and the like, next to the city boundary
   objects of `outsidelot_high.rob`), probably stamped by those objects' pavement tags.
-* **The draw routine and its conditions** (found 2026-11-24; Ghidra did not decompile it: the code at `0x9e6360` lies after the noreturn call that cuts `OccupancyGrid_InitGlobals` short, so read it with
+* **The draw routine and its conditions** (Ghidra did not decompile it: the code at `0x9e6360` lies after the noreturn call that cuts `OccupancyGrid_InitGlobals` short, so read it with
   `objdump -d -M intel --start-address=0x9e6360 --stop-address=0x9e6680 MoviesSE.exe`). One call draws the whole terrain:
   1. Nothing happens unless the byte at `0x105f8cc` is non-zero (a "render requested" flag set from `0x543410`, `0x543445` and `0x9c5c2d`); the routine clears it.
   2. `FUN_009e2d70` culls the 64 chunks against the camera frustum (chunk flag bit 0 = visible).
@@ -404,9 +408,9 @@ Reading how the terrain is drawn (`FUN_009e3ff0` chunk refresh, `FUN_009e16b0` m
   Path bits outside that rectangle, such as the ones near x = 192 to 254 or the 3,782 left of x = -166 in the shipped data, are in the file but are not drawn by the game.
 * **Still open:** the callbacks at `0x105f8ec` / `0x105f8f0`, the "extra objects" per chunk (`FUN_009e1de0`, only built when `DAT_0105be08` is set), `FUN_009e3cf0`, and the use of `land_alpha.dds`.
 
-## Gameplay objects: relationships, performance, costs, legacy, credits (2026-11-24)
+## Gameplay objects: relationships, performance, costs, legacy, credits
 
-Decoded from the Quick Start save `quick film studios4 July 1960…` (4 stars, 47 `CStaffCosts`, 18 released films). Cross-checked against the
+Decoded from the 4 July 1960 Quick Start save (4 stars, 47 `CStaffCosts`, 18 released films). Cross-checked against the
 decompile (`ChemistryManager.cpp` functions near `ChemistryEntry_GetClampedValue`, `FUN_0042cf..`) and `relationships.ini` (extract with `pak_extract.py`; it is in
 `Addon_2704_0000.pak`, not in `data/game_data`). Object ids in the tables are examples; ids are renumbered every save.
 
@@ -452,7 +456,7 @@ Python's `date.toordinal()`**: 701143.75 = 31 Aug 1920; it increases with the fi
 (star or extra), 3 = director, 7 = camera operator, 8 = sound recordist, 12 = clapperboard (the numeric kinds are crew role types; only these five seen). The project lists its credits in a `Credits` reference list.
 The 7 credits belong to the released film `McGun In The Ninetieth Century` (project 1579): director Allison Coles, actors Jeremie Texier ("The Sarge"), Helen Farrer ("Mrs. Kowalski"), extra Kevin Storrie ("Roy Dent"), and three crew.
 
-## Where the save code sits (call graph, 2026-11-24)
+## Where the save code sits (call graph)
 
 `tools/callgraph.py <name|addr> --down N --up N` prints direct callees/callers from the decompiled export (virtual calls are invisible). Entry points and what the unnamed
 neighbours turned out to be (31 names added in `renames.csv`, evidence there):

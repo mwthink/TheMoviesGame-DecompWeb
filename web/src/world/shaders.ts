@@ -45,7 +45,7 @@ export function registerShaders(): void {
     }`;
 
   // Static models (drawn as hardware instances: one draw call per model and material, however often the save places it): diffuse texture, optionally multiplied by a lightmap on the second UV set, doubled (lightmaps are dark: 0.5 is neutral).
-  Effect.ShadersStore["otmStaticVertexShader"] = `
+  const staticVertex = `
     attribute vec3 position;
     attribute vec2 uv;
     attribute vec2 uv2;
@@ -53,24 +53,48 @@ export function registerShaders(): void {
     uniform mat4 viewProjection;
     varying vec2 vUV;
     varying vec2 vUV2;
+    varying float vY;
     void main() {
       #include<instancesVertex>
       vUV = uv;
       vUV2 = uv2;
+      vY = (finalWorld * vec4(position, 1.0)).y;
       gl_Position = viewProjection * finalWorld * vec4(position, 1.0);
     }`;
+  Effect.ShadersStore["otmStaticVertexShader"] = staticVertex;
+  Effect.ShadersStore["otmDecalVertexShader"] = staticVertex;
   Effect.ShadersStore["otmStaticFragmentShader"] = `
     precision highp float;
     varying vec2 vUV;
     varying vec2 vUV2;
+    varying float vY;
+    uniform float cutHeight;
     uniform sampler2D diffuse;
     uniform sampler2D lightmap;
     uniform float useLightmap;
     void main() {
+      if (vY > cutHeight) discard;
       vec4 d = texture2D(diffuse, vUV);
       if (d.a < 0.5) discard;
       vec3 c = d.rgb;
       if (useLightmap > 0.5) c *= texture2D(lightmap, vUV2).rgb * (255.0 / 127.0);
       gl_FragColor = vec4(min(c, vec3(1.0)), 1.0);
+    }`;
+  // Two-layer material (the gate's flag): a base texture (the cloth) with a second texture (the studio logo) laid over it by its alpha. The cloth uses the second UV set, the logo the first (clamped).
+  Effect.ShadersStore["otmDecalFragmentShader"] = `
+    precision highp float;
+    varying vec2 vUV;
+    varying vec2 vUV2;
+    varying float vY;
+    uniform float cutHeight;
+    uniform sampler2D base;
+    uniform sampler2D decal;
+    void main() {
+      if (vY > cutHeight) discard;
+      vec4 b = texture2D(base, vUV2);
+      vec4 d = texture2D(decal, vUV);
+      if (vUV.x < 0.0 || vUV.x > 1.0 || vUV.y < 0.0 || vUV.y > 1.0) d.a = 0.0;
+      // flag.dds is mid-grey (mean about 0.44): like a lightmapped surface the cloth is doubled (255/127, as in otmStatic), which makes the cloth near white.
+      gl_FragColor = vec4(mix(min(b.rgb * (255.0 / 127.0), vec3(1.0)), d.rgb, d.a), 1.0); // the gain is on the cloth only: doubled, the logo washes out
     }`;
 }

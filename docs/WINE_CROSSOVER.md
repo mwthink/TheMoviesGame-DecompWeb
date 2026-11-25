@@ -1,6 +1,6 @@
 # Running the game under Wine (CrossOver on an Apple-silicon Mac)
 
-Status (2026-11-24): **works.** `MoviesSE.exe` (patch 1.2) starts, shows the menu, Quick Start loads a studio, the game plays, sound and mouse
+Status: **works.** `MoviesSE.exe` (patch 1.2) starts, shows the menu, Quick Start loads a studio, the game plays, sound and mouse
 work. Loading is slow (see "Performance"). The debugger DLL (`debugger/`) loads and its hooks and first-call coverage work (section "The debugger DLL under Wine"); the `this`-class mode crashes. The Windows test box
 (`WINDOWS_TEST_BOX.md`) stays the reference for anything that gets tagged `verified`.
 
@@ -16,7 +16,7 @@ Four things were needed. Only the third was a surprise.
    Keep the original; every address in the docs refers to it. Not strictly proven necessary under Wine (the unpatched exe was never run there), kept to
    match the box.
 2. **Registry**: `HKCU\Software\Lionhead Studios Ltd\TheMovies`, value `Fullscreen` = `"0"` (REG_SZ), so the game runs windowed. The stale
-   `Game running:` and `OpenDx` flags (see `HANDOVER.md`) did not come up in these runs; delete them if the "improper shutdown" dialog appears.
+   `Game running:` and `OpenDx` flags (see `WINDOWS_TEST_BOX.md`) did not come up in these runs; delete them if the "improper shutdown" dialog appears.
 3. **The Windows Media ASF writer.** Without it the game stops at start-up with the dialog `Missing Windows Media Component`. Cause (from a Wine
    trace, `err:ole:com_get_class_object no class object {7c23220e-55bb-11d3-8b16-00c04fb6bd3d}`): that CLSID is the *WM ASF Writer* DirectShow filter,
    which the game creates on start-up (the executable also imports `wmvcore.dll`: `WMCreateProfileManager`, `WMCreateSyncReader`). Wine's builtin
@@ -36,23 +36,24 @@ Not needed: a no-CD or modified exe, DirectInput tweaks (the mouse behaved), msy
 
 ## Steps, as run
 
-`CX` below is `/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin`. Work outside the repo (the game and the bottle must never be
-committed; `tools/audit_firewall.py` checks).
+`CX` below is CrossOver's `bin` folder (`/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin` for a standard install), `BOTTLE` the bottle's name
+and `WORK` a scratch folder outside the repository (the game and the bottle must never be committed; `tools/audit_firewall.py` checks). Once it runs, set
+`OTM_GAME_DIR` in `local.env` to the game folder inside the bottle (`~/Library/Application Support/CrossOver/Bottles/$BOTTLE/drive_c/Games/TheMovies`).
 
 ```
 # 1. a patched copy of the game
-python3 tools/wine/patch_laa.py "<game>/MoviesSE.exe" ~/wine_test/TheMovies/MoviesSE.exe      # then copy the rest of the install next to it
+python3 tools/wine/patch_laa.py "<game>/MoviesSE.exe" $WORK/TheMovies/MoviesSE.exe      # then copy the rest of the install next to it
 # 2. a bottle (win7 template = 32-bit WoW64 prefix; there is no win10_32 template), game inside it
-$CX/cxbottle --bottle tmovies --create --template win7
-rsync -a ~/wine_test/TheMovies/ ~/Library/Application\ Support/CrossOver/Bottles/tmovies/drive_c/Games/TheMovies/
-# 3. windowed mode: import  [HKEY_CURRENT_USER\Software\Lionhead Studios Ltd\TheMovies] "Fullscreen"="0"   with  $CX/wine --bottle tmovies regedit file.reg
+$CX/cxbottle --bottle $BOTTLE --create --template win7
+rsync -a "$WORK/TheMovies/" ~/Library/Application\ Support/CrossOver/Bottles/$BOTTLE/drive_c/Games/TheMovies/
+# 3. windowed mode: import  [HKEY_CURRENT_USER\Software\Lionhead Studios Ltd\TheMovies] "Fullscreen"="0"   with  $CX/wine --bottle $BOTTLE regedit file.reg
 # 4. OpenAL and Windows Media (downloads: see above, verify the SHA-256)
-$CX/wine --bottle tmovies oal/oalinst.exe /silent
-$CX/wine --bottle tmovies winecfg -v winxp && $CX/wine --bottle tmovies wmp11.exe /q
+$CX/wine --bottle $BOTTLE oal/oalinst.exe /silent
+$CX/wine --bottle $BOTTLE winecfg -v winxp && $CX/wine --bottle $BOTTLE wmp11.exe /q
 # 5. native overrides (regedit file with the four DllOverrides above), then
-$CX/wine --bottle tmovies regsvr32 'C:\windows\system32\qasf.dll'
+$CX/wine --bottle $BOTTLE regsvr32 'C:\windows\system32\qasf.dll'
 # 6. run
-$CX/wine --bottle tmovies --workdir 'C:\Games\TheMovies' 'C:\Games\TheMovies\MoviesSE.exe'
+$CX/wine --bottle $BOTTLE --workdir 'C:\Games\TheMovies' 'C:\Games\TheMovies\MoviesSE.exe'
 ```
 Stop it with `pkill -f MoviesSE` (and `$CX/wineserver -k`).
 
@@ -72,12 +73,12 @@ Gameplay is reasonable; **loading is very slow**. Measured (Quick Start, startup
 
 ## The debugger DLL under Wine
 
-Tried 2026-11-24 with the DLL and injector built on the Windows box (`TheMoviesDebugger.dll`, `minhook.x32.dll`, `TheMoviesInjector.exe`; copy them
-from `C:\dev\OpenTheMoviesGame\debugger\build\RelWithDebInfo` with `scp`, e.g. into `~/wine_test/dbg/`, then into the bottle's game folder; nothing built here).
+Tried with the DLL and injector built on the Windows box (`TheMoviesDebugger.dll`, `minhook.x32.dll`, `TheMoviesInjector.exe`; copy them
+from the box's `debugger\build\RelWithDebInfo` with `scp` into the bottle's game folder; nothing is built on the Mac).
 Run it like the box does, with the injector's `--launch` mode (starts the game suspended, parks the main thread, loads the DLL, releases it):
 
 ```
-$CX/wine --bottle tmovies --workdir 'C:\Games\TheMovies' 'C:\Games\TheMovies\TheMoviesInjector.exe' --launch 'C:\Games\TheMovies\MoviesSE.exe' 'C:\Games\TheMovies\TheMoviesDebugger.dll'
+$CX/wine --bottle $BOTTLE --workdir 'C:\Games\TheMovies' 'C:\Games\TheMovies\TheMoviesInjector.exe' --launch 'C:\Games\TheMovies\MoviesSE.exe' 'C:\Games\TheMovies\TheMoviesDebugger.dll'
 ```
 Output lands in the game folder inside the bottle (`.../drive_c/Games/TheMovies/`): `sessions/session_*/` (`debug.log`, `events.jsonl`, `strings.jsonl`), `decade_log.csv`,
 `coverage_*.csv/txt`. For coverage, put `tools/coverage_functions.txt` next to the exe first.
@@ -100,4 +101,4 @@ box's 9,458 over two game years; a comparable run (Quick Start, F9 per step, sam
 
 ## What this does and does not give the project
 
-See "Next steps" in `HANDOVER.md`. Short version: a free local way to run, play and create save games; a way to run the debugger's hooks and first-call coverage tracer (not the `this`-class mode). It does not replace the Windows box for verification: Wine's timing and threading differ, and the box has native x86 speed.
+See `STATUS.md`. Short version: a free local way to run, play and create save games; a way to run the debugger's hooks and first-call coverage tracer (not the `this`-class mode). It does not replace the Windows box for verification: Wine's timing and threading differ, and the box has native x86 speed.
