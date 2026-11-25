@@ -82,3 +82,14 @@ body[data-screen="game"] .hud { display: block; }
 .devmenu .row .k { color: var(--muted); }
 .devmenu .row .v { text-align: right; }
 .devmenu [hidden] { display: none; }
+
+/* Loading screen: a plain progress bar under the heading. */
+.loading .progress { position: relative; width: min(360px, 70vw); height: 8px; border: 1px solid #25252f; background: #14141c; overflow: hidden; }
+.loading .fill { height: 100%; width: 0; background: var(--accent); transition: width 0.25s ease; }
+.loading .progress.indeterminate .fill { position: absolute; width: 35%; left: -35%; animation: loading-sweep 1.2s ease-in-out infinite; }
+@keyframes loading-sweep { to { left: 100%; } }
+.loading .label { color: var(--muted); margin: 1rem 0 0; font-size: 0.8rem; letter-spacing: 0.1em; min-height: 1.2em; }
+.loading .error { color: #e07070; margin: 1rem 0 0; max-width: 360px; text-align: center; }
+.loading .actions { margin-top: 1.5rem; }
+.loading .actions button { font: inherit; background: none; color: var(--fg); border: 1px solid #3a3a48; padding: 0.5rem 1.2rem; cursor: pointer; }
+.loading .actions button:hover, .loading .actions button:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }

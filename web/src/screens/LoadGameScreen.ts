@@ -6,6 +6,7 @@ import {
 } from "../assets/sources.ts";
 import { parseSave } from "../formats/Jad.ts";
 import { setGameArchives } from "./frontEndArt.ts";
+import type { LoadTask } from "./LoadingScreen.ts";
 import { loadWorldData, type WorldData } from "../world/WorldData.ts";
 import { mountScreen, unmountScreen, type Screen } from "./Screen.ts";
 
@@ -20,12 +21,11 @@ export class LoadGameScreen implements Screen {
   private saveBytes: (() => Promise<Uint8Array>) | null = null;
   private saveLabel = "";
   private remembered: FileSystemDirectoryHandle | null = null;
-  private loading = false;
-  private readonly onLoaded: (world: WorldData) => void;
+  private readonly onStart: (task: LoadTask<WorldData>) => void;
   private readonly onBack: () => void;
 
-  constructor(onLoaded: (world: WorldData) => void, onBack: () => void, private readonly container: HTMLElement) {
-    this.onLoaded = onLoaded;
+  constructor(onStart: (task: LoadTask<WorldData>) => void, onBack: () => void, private readonly container: HTMLElement) {
+    this.onStart = onStart;
     this.onBack = onBack;
   }
 
@@ -57,7 +57,7 @@ export class LoadGameScreen implements Screen {
           <button type="button" data-id="file">Choose .jad…</button></div>
         ${dev ? `<div class="row"><span>Development</span><em>files from the dev server</em><button type="button" data-id="dev">Use local files</button></div>` : ""}
         <div class="row actions"><button type="button" data-id="back">Back</button>
-          <button type="button" data-id="load" ${this.paks.length && this.saveBytes && !this.loading ? "" : "disabled"}>Load</button></div>
+          <button type="button" data-id="load" ${this.paks.length && this.saveBytes ? "" : "disabled"}>Load</button></div>
         <p class="status" data-id="status"></p>
       </div>
       <input type="file" accept=".jad" hidden data-id="fileinput">
@@ -84,7 +84,7 @@ export class LoadGameScreen implements Screen {
       }
     });
     $("dev")?.addEventListener("click", () => void this.useDev());
-    $("load")!.addEventListener("click", () => void this.load());
+    $("load")!.addEventListener("click", () => this.load());
   }
 
   private status(text: string, isError = false): void {
@@ -129,25 +129,24 @@ export class LoadGameScreen implements Screen {
     this.render();
   }
 
-  private async load(): Promise<void> {
-    if (this.loading || !this.saveBytes) return;
-    this.loading = true;
-    this.render();
-    try {
-      this.status("Reading archives");
-      const pak = await PakIndex.open(this.paks);
-      this.status("Reading the saved game");
-      const save = parseSave(await this.saveBytes());
-      this.status("Reading the text database");
-      const world = await loadWorldData(pak, save, (t) => this.status(t), await readStrings(this.text));
+  /** Hands the work to the loading screen, which shows the progress and then the world. */
+  private load(): void {
+    if (!this.saveBytes) return;
+    const paks = this.paks;
+    const text = this.text;
+    const saveBytes = this.saveBytes;
+    this.onStart(async (progress) => {
+      progress.report(0.05, "Reading archives");
+      const pak = await PakIndex.open(paks);
+      progress.report(0.3, "Reading the saved game");
+      const save = parseSave(await saveBytes());
+      progress.report(0.4, "Reading the text database");
+      const strings = await readStrings(text);
+      progress.report(0.45, "Building the world");
+      const world = await loadWorldData(pak, save, (t) => progress.report(null, t), strings);
       for (const w of world.warnings) console.warn(w);
-      this.onLoaded(world);
-    } catch (e) {
-      console.error(e);
-      this.loading = false;
-      this.render();
-      this.status(e instanceof Error ? e.message : String(e), true);
-    }
+      return world;
+    });
   }
 }
 
