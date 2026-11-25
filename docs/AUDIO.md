@@ -48,7 +48,7 @@ The audio manager (`Audio_GetInstance`, `DAT_0104B0E4`) is a small state machine
   (`00541AE0`) and applies each with `Audio_SetChannelVolume` (`009B1000`); channel 1 is music and 2 is sound effects (`FRONTEND.md`), 0 is not identified. Then `DJLevel`.
 
 The web port: `AUDIO_STATES` and `AudioStateMachine` (pure, tested), `AudioManager` (Web Audio: a music bus and a sound bus at the settings' volumes, a voice per music
-state with a 1.2 s fade). The screens hold the states above (`main.ts`). The radio and front-end players are not built, so states 2 and 4 are silent (the menu's soundtrack is a WMA stream a browser cannot play, see "Not known"); a browser
+state with a 1.2 s fade). The screens hold the states above (`main.ts`), except that the menu screens hold state 6 instead of 4. The radio and front-end players are not built, so states 2 and 4 are silent (the menu's soundtrack is a WMA stream a browser cannot play, see "Not known"); a browser
 only allows sound after a click or key press, so the splash music starts on the first click, which also leaves the splash.
 
 ## `.lug` sound banks
@@ -164,8 +164,9 @@ match calls `FUN_007a3110` on the event's icon.
 
 - How the radio and front-end players pick tracks, and what the front end plays in state 4 (the `frontend_loop.wmv` soundtrack is the likely source).
 - **Menu music does not work in the web app, because of the format:** `frontend_loop.wmv` and `frontend_intro.wmv` hold WMV3 video with WMA (`wmav2`) stereo audio, which
-  browsers cannot decode. The only way in is to transcode the soundtrack (for example `ffmpeg` to Ogg Vorbis) into gitignored storage; that is not done, so state 4
-  (menu, options, load, gallery, viewer) is silent. The same applies to the tutorial `.wmv` clips in `Data/Tutorials/`.
+  browsers cannot decode. The only way in is to transcode the soundtrack (for example `ffmpeg` to Ogg Vorbis) into gitignored storage; that is not done, so state 4 is
+  silent. As a stand-in the web app keeps the splash's music (state 6, looped) playing through the menu, options, load, gallery and viewer screens until a game loads.
+  (The tutorial `.wmv` clips in `Data/Tutorials/` have the same format problem.)
 - How the DJ for an era is chosen, and where the clip-name to event-name mapping is loaded from.
 - The META Data `.lug` route, the RLM parameters, the rest of the sample record.
 - Which banks the game loads when, and the game-side engine classes (`LHAudioSystem_*`, `CEngine`, event triggers, atmosphere groups, the driver classes

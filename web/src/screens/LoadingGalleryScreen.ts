@@ -1,6 +1,7 @@
 import type { Rgba } from "../formats/Dds.ts";
 import type { Strings } from "../formats/Lhts.ts";
 import { gamePak, gameStrings, loadingPictures, type LoadingPicture } from "./frontEndArt.ts";
+import { decodeCharacter, encodeCharacter } from "../sim/character/CharacterCode.ts";
 import { DEFAULT_CHARACTER, LoadingCharacter, type CharacterSettings } from "./LoadingCharacter.ts";
 import { DEFAULT_LOADING_LAYOUT, LoadingView, logoFromPicture, type LoadingLayout } from "./LoadingView.ts";
 import { parseTip, pickTip, tipKeys, type Tip } from "./loadingTips.ts";
@@ -313,7 +314,7 @@ export class LoadingGalleryScreen implements Screen {
       fillSel(costumeSel, names("data\\costume\\datas\\", /\.cos$/i), this.character.costume);
       fillSel(clipSel, names("data\\animations\\high\\", /^(idle|wait|talk|wave|stand|clap|think|actor_|dir_|coach_)[a-z0-9_]*\.anm$/i).slice(0, 250), this.character.clip);
     });
-    costumeSel.addEventListener("change", () => { this.character.costume = costumeSel.value; void applyCharacter(); });
+    costumeSel.addEventListener("change", () => { this.character.costume = costumeSel.value; this.character.look = undefined; void applyCharacter(); });
     clipSel.addEventListener("change", () => { this.character.clip = clipSel.value; void applyCharacter(); });
     row(ch, "Costume", costumeSel);
     row(ch, "Animation", clipSel);
@@ -322,8 +323,32 @@ export class LoadingGalleryScreen implements Screen {
       if (!opts.length) return;
       costumeSel.value = opts[Math.floor(Math.random() * opts.length)]!.value;
       this.character.costume = costumeSel.value;
+      this.character.look = undefined;
       void applyCharacter();
     }));
+    const pasteNote = Object.assign(document.createElement("p"), { className: "info" });
+    ch.append(button("Copy character from clipboard", () => {
+      void (async () => {
+        let text = "";
+        try { text = (await navigator.clipboard.readText()) ?? ""; } catch { pasteNote.textContent = "The browser did not allow reading the clipboard."; return; }
+        const look = decodeCharacter(text);
+        if (!look) { pasteNote.textContent = "The clipboard does not hold a character (copy one with Copy character to clipboard in the Character viewer)."; return; }
+        const pak = await pakPromise;
+        if (!pak?.find(look.cos)) { pasteNote.textContent = `This game has no costume ${look.cos}.`; return; }
+        this.character.costume = look.cos;
+        this.character.look = look;
+        this.character.enabled = true;
+        chOn.checked = true;
+        if ([...costumeSel.options].some((o) => o.value === look.cos)) costumeSel.value = look.cos;
+        pasteNote.textContent = `Pasted ${look.cos}.`;
+        await applyCharacter();
+      })();
+    }), button("Copy character to clipboard", () => {
+      const l = this.character.look;
+      const text = encodeCharacter(l ?? { cos: this.character.costume, head: "", hair: "", ageYears: 30, weightKg: 70, layers: {}, accessories: {} });
+      void navigator.clipboard?.writeText(text);
+      pasteNote.textContent = "Copied.";
+    }), pasteNote);
     slider(ch, "Size", 0.3, 1.2, 0.01, this.character.size, (v) => { this.character.size = v; void applyCharacter(); });
     slider(ch, "Nudge across", -0.3, 0.3, 0.005, this.character.nudgeX, (v) => { this.character.nudgeX = v; void applyCharacter(); });
     slider(ch, "Nudge up", -0.2, 0.3, 0.005, this.character.nudgeY, (v) => { this.character.nudgeY = v; void applyCharacter(); });

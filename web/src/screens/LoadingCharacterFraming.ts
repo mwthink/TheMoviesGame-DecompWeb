@@ -1,5 +1,7 @@
 // Where the loading screen's 3D character stands: settings and camera framing, with no engine types so Node tests can run them (docs/LOADING_SCREENS.md).
 
+import type { CharacterLook } from "../sim/character/CharacterCode.ts";
+
 /** What the loading screen's 3D character looks like and where it stands (docs/LOADING_SCREENS.md, "The 3D character"). */
 export interface CharacterSettings {
   enabled: boolean;
@@ -16,6 +18,8 @@ export interface CharacterSettings {
   /** The costume file (`m_50s_2.cos`) and the animation clip (`idle_male.anm`). */
   costume: string;
   clip: string;
+  /** A whole look pasted from a character string (head, hair, age, weight, costume variants); when set its costume is the one drawn. */
+  look?: CharacterLook;
 }
 
 export const DEFAULT_CHARACTER: Readonly<CharacterSettings> = { enabled: false, side: "left", size: 0.8, nudgeX: 0, nudgeY: 0, turn: 0, costume: "m_50s_2.cos", clip: "idle_male.anm" };

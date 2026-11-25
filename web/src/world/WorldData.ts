@@ -3,6 +3,7 @@ import { decodeDds, type Rgba } from "../formats/Dds.ts";
 import { Ini } from "../formats/Ini.ts";
 import type { Landscape, PlacedAsset, Save, SaveHeader, SavedPerson, SavedStaff } from "../formats/Jad.ts";
 import { parseCos } from "../formats/Cos.ts";
+import { compositeLayers, isAlphaMap, variantOf, withVariant } from "../sim/character/CostumeLayers.ts";
 import { firstAnimation, parseFlm } from "../formats/Flm.ts";
 import { parseFloorplanRevealing, type RevealRules } from "../sim/ui/FloorplanReveal.ts";
 import { parseSeq } from "../formats/Seq.ts";
@@ -160,6 +161,23 @@ export interface PersonSpec {
   hair: string;
   ageYears: number;
   weightKg: number;
+  /** Costume looks (docs/CHARACTER_VIEWER.md). Without them the body is drawn with its own atlas and no accessories, as in the world view. */
+  look?: CostumeLook;
+}
+
+/**
+ * Choices of a costume's variable parts, by position in the `.cos` (`Cos.textures`, `Cos.meshes`). A texture layer's number picks `_vNN`; an entry not given keeps
+ * the file's own variant. An accessory is left out unless it is given a variant number.
+ */
+export interface CostumeLook {
+  layers?: Record<number, number>;
+  accessories?: Record<number, number>;
+}
+
+/** What can be changed in a costume: its variable texture layers and accessories, with how many variants each has and which the `.cos` names. */
+export interface CostumeOptions {
+  layers: { index: number; slot: string; file: string; variants: number[]; current: number }[];
+  accessories: { index: number; slot: string; file: string; variants: number[]; current: number }[];
 }
 
 /** A person's model in the bind pose: body, head and hair parts, the skeleton they share and the textures they use. */
@@ -168,6 +186,9 @@ export interface PersonModel {
   skeleton: MshBone[];
   textures: Map<string, Rgba>;
 }
+
+/** The most variant numbers looked for per layer. */
+const MAX_VARIANTS = 40;
 
 /**
  * Builds people's models from the archives, caching what many people share (meshes, heads, the generic head). Used by the world loader and the character viewer.
@@ -196,6 +217,28 @@ export class PersonModelBuilder {
     return h;
   }
 
+  /** The variable layers and accessories of a costume and the variant numbers that exist in the archives (at most `MAX_VARIANTS` are looked for). */
+  async costumeOptions(cosName: string): Promise<CostumeOptions> {
+    const bytes = await this.pak.readByName(cosName);
+    if (!bytes) throw new Error(`no ${cosName}`);
+    const cos = parseCos(bytes);
+    const list = (recs: { file: string; slot: string }[], exists: (file: string) => boolean, skip: (file: string) => boolean) => {
+      const out: CostumeOptions["layers"] = [];
+      recs.forEach((r, index) => {
+        const current = variantOf(r.file);
+        if (current === undefined || skip(r.file)) return;
+        const variants: number[] = [];
+        for (let v = 0; v < MAX_VARIANTS; v++) if (exists(withVariant(r.file, v))) variants.push(v);
+        if (variants.length) out.push({ index, slot: r.slot, file: r.file, variants, current });
+      });
+      return out;
+    };
+    return {
+      layers: list(cos.textures, (f) => findTexture(this.pak, f) !== undefined, isAlphaMap),
+      accessories: list(cos.meshes, (f) => this.pak.find(f) !== undefined, () => false),
+    };
+  }
+
   /** Throws when the costume or its body mesh is missing; a missing head or hair is reported through `warn` and left out. */
   async build(spec: PersonSpec, warn: (text: string) => void = () => {}): Promise<PersonModel> {
     const cosBytes = await this.pak.readByName(spec.cos);
@@ -216,7 +259,38 @@ export class PersonModelBuilder {
       if (hair) for (const p of meshParts(hair)) parts.push({ ...p, cutout: true });
       else warn(`no hair ${spec.hair}`);
     }
-    const textures = new Map<string, Rgba>();
+    const look = spec.look;
+    const extra = new Map<string, Rgba>();
+    if (look?.layers && Object.keys(look.layers).length) {
+      const bodyKey = parts[0]?.texture.toLowerCase() ?? "";
+      const atlas = bodyKey ? await this.texture(bodyKey) : null;
+      if (atlas) {
+        const layers: Rgba[] = [];
+        for (let i = 0; i < cos.textures.length; i++) {
+          const rec = cos.textures[i]!;
+          if (isAlphaMap(rec.file) || variantOf(rec.file) === undefined) continue;
+          const img = await this.texture(withVariant(rec.file, look.layers[i] ?? variantOf(rec.file)!));
+          if (img) layers.push(img);
+        }
+        const name = `${bodyKey}+${Object.entries(look.layers).map(([i, v]) => `${i}:${v}`).join(",")}`;
+        extra.set(name, compositeLayers(atlas, layers));
+        for (const p of parts) if (p.texture.toLowerCase() === bodyKey) p.texture = name;
+      }
+    }
+    const headBone = body.skeleton.findIndex((b) => b.name.toLowerCase() === "head");
+    for (const [i, v] of Object.entries(look?.accessories ?? {})) {
+      const rec = cos.meshes[Number(i)];
+      if (!rec) continue;
+      const acc = await this.msh(variantOf(rec.file) === undefined ? rec.file : withVariant(rec.file, v));
+      if (!acc) { warn(`no accessory ${rec.file}`); continue; }
+      for (const p of meshParts(acc)) {
+        // a static accessory (a hat) follows the head
+        const n = p.positions.length / 3;
+        const skin = p.skin ?? (headBone >= 0 ? { weights: new Float32Array(n * 4).map((_, k) => (k % 4 === 0 ? 1 : 0)), bones: new Uint8Array(n * 4).map((_, k) => (k % 4 === 0 ? headBone : 0)) } : null);
+        parts.push({ ...p, skin, cutout: true });
+      }
+    }
+    const textures = new Map<string, Rgba>(extra);
     for (const part of parts) {
       const key = part.texture.toLowerCase();
       if (!key || textures.has(key)) continue;

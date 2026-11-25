@@ -59,8 +59,10 @@ const settings = new SettingsStore(typeof localStorage === "undefined" ? null : 
 const audio = new AudioManager(settings, (file) => (import.meta.env.DEV ? `/__local/audio/music/${encodeURIComponent(file)}` : null));
 /** The (state, owner) pairs each screen holds, in the order the original sets them: a game's radio goes in before the loading music that covers it. */
 const AUDIO_FOR: Record<ScreenId, ReadonlyArray<readonly [number, string]>> = {
-  splash: [[6, "splash"]],
-  menu: [[4, "frontEnd"]], load: [[4, "frontEnd"]], options: [[4, "frontEnd"]], gallery: [[4, "frontEnd"]], viewer: [[4, "frontEnd"]],
+  // Deviation: the original stops the splash music (state 6) when the splash ends and plays the front end's own soundtrack (state 4, a WMA video track a browser
+  // cannot play, docs/AUDIO.md). Here the same pair stays held through the menu screens, so the intro music carries on and loops until a game starts loading.
+  splash: [[6, "intro"]],
+  menu: [[6, "intro"]], load: [[6, "intro"]], options: [[6, "intro"]], gallery: [[6, "intro"]], viewer: [[6, "intro"]],
   loading: [[2, "game"], [1, "loading"]],
   game: [[2, "game"]],
 };

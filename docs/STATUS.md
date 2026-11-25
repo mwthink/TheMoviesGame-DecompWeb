@@ -56,7 +56,7 @@ the details and its open questions.
 | Tooltips | `TOOLTIPS.md` | the single tooltip window, its delay and sizing | yes (bubble at the bottom right, hover stillness exact) | no |
 | People in the world | `PEOPLE.md`, `CHARACTERS.md` | placement (world POSITION and MyAngle, z = floor height), the idle call | yes (saved people stand at their saved places and play their room scene's idle or a fallback idle; walk to a point on a route round the footprints at the speed of the gait clip, idle wandering as a stand-in, drag drops; `MOVEMENT.md`) | by eye only |
 | Options | `OPTIONS.md`, `FRONTEND.md` | the original's video, audio, game and online option screens (strings and registry keys) | yes (graphics: render size, sharpness, FXAA, FPS counter, full screen; game: level of help) | no |
-| Character viewer | `CHARACTER_VIEWER.md`, `CHARACTERS.md`, `ANM_FORMAT.md` | costume, head, hair, skeleton, clips | yes (viewer screen in the app; face sliders / editing not yet) | by eye only |
+| Character viewer | `CHARACTER_VIEWER.md`, `CHARACTERS.md`, `ANM_FORMAT.md` | costume, head, hair, skeleton, clips | yes (viewer screen in the app, costume layer variants and accessories; face sliders / editing not yet) | by eye only |
 | Room floors on hover | `ROOM_DISPLAY.md`, `SAVE_FORMAT.md` | text placement and size, the room colours, the reveal rules (`floorplanrevealing.csv`) | yes (text per the game's rules, game colour, reveal delay; not the drop-in animation or highlight states) | no |
 | Dragging people | `DRAGGING.md`, `CLASS_NOTES.md` | click vs hold, the carry target, bob, the return motion | yes (carry anywhere on the ground; no rooms, sound or held clip) | by eye only |
 | Sky | `SKY.md` | `Sky_box.msh`, its three time-of-day variants and the hour rule | yes (walls, cap, sand plane, variant from the dev menu) | by eye only |
@@ -66,7 +66,7 @@ the details and its open questions.
 | Saved games | `SAVE_FORMAT.md`, `CHARACTERS.md` | container, terrain, placement, many classes | the web app reads placement, landscape and camera | against the Python tools |
 | Models, textures, animation | `MSH_FORMAT.md`, `ANM_FORMAT.md`, `PAK_FORMAT.md` | static models, DDS, `.anm`, skinning | the web app draws static models | by eye against the game |
 | StarMaker / character looks | `STARMAKER.md` | the star file, sliders, expressions, makeup, hair, iris | geometry and plans (no texture compositing yet) | against stars saved in the editor |
-| Audio | `AUDIO.md` | the `.lug` bank layout (read from all six banks), the audio-state stack, the radio's clip queues | partly (`.lug` reader; audio states; music for the splash, loading and release states; volumes; no menu music: its source is a WMA video track browsers cannot decode) | no |
+| Audio | `AUDIO.md` | the `.lug` bank layout (read from all six banks), the audio-state stack, the radio's clip queues | partly (`.lug` reader; audio states; music for the splash, loading and release states; volumes; the menu's own music is a WMA video track browsers cannot decode, so the splash music loops through the menu instead) | no |
 | Networking | `NETWORK.md` | mapped, to be left out | — | — |
 
 ## Next steps

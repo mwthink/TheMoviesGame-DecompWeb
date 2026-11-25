@@ -60,6 +60,8 @@ A real-time character drawn on a transparent canvas **between the background and
 
 - **Show a 3D character**, **Side of the screen** (Left or Right: the character stands at a quarter or three quarters of the way across), **Costume** (any `.cos`; a plain hair by the costume's sex),
   **Animation** (the idle, wait, talk, wave and similar clips that fit the skeleton), **Random costume**.
+- **Copy character from clipboard** / **Copy character to clipboard**: a whole look as one string (`OTMCHAR1:...`, `CharacterCode.ts`, `CHARACTER_VIEWER.md`) made in the character viewer. A pasted character
+  keeps its head, hair, age, weight and costume variants until another costume is chosen.
 - **Size** (the share of the picture's height the character fills), **Nudge across** and **Nudge up**, **Turn** (degrees about the vertical axis; 0 faces the viewer, a guess to check by eye).
 - The character has its own Babylon engine on its own canvas (the page canvas belongs to the game view), an orthographic camera, and the same person pipeline as the world and the character viewer
   (`PersonModelBuilder`, `PersonMeshes`, `poseBones`). People are unlit by their texture, as in the world.

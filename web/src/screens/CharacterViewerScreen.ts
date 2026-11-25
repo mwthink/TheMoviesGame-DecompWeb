@@ -10,8 +10,9 @@ import { decodeDds, type Rgba } from "../formats/Dds.ts";
 import { anmDurationMs, anmFramePosition, parseAnm, type Anm } from "../formats/Anm.ts";
 import { parseSave, type SavedPerson } from "../formats/Jad.ts";
 import { clipFits, poseBones, skinTransforms } from "../sim/anim/AutoAnimation.ts";
+import { decodeCharacter, encodeCharacter } from "../sim/character/CharacterCode.ts";
 import { ageYears } from "../sim/character/PersonModel.ts";
-import { findTexture, PersonModelBuilder, type PersonModel } from "../world/WorldData.ts";
+import { findTexture, PersonModelBuilder, type CostumeLook, type CostumeOptions, type PersonModel } from "../world/WorldData.ts";
 import { PersonMeshes } from "../world/PersonMeshes.ts";
 import { sharedEngine } from "../world/sharedEngine.ts";
 import { findGameArchives } from "./frontEndArt.ts";
@@ -45,6 +46,12 @@ export class CharacterViewerScreen implements Screen {
   private token = 0;
   private people: SavedPerson[] = [];
   private saveToday: number | undefined;
+  /** The variable parts of the chosen costume and what is picked for them (empty = the costume's own). */
+  private options: CostumeOptions = { layers: [], accessories: [] };
+  private look: CostumeLook = {};
+  private optionsFor = "";
+  /** Variant choices from a pasted character, applied when the costume's options have been read. */
+  private pending: CostumeLook | null = null;
   private readonly textureCache = new Map<string, Promise<Rgba | null>>();
   private readonly onResize = () => sharedEngine(this.canvas).resize();
   private readonly onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && (e.target as HTMLElement).tagName !== "INPUT") this.onBack(); };
@@ -58,10 +65,12 @@ export class CharacterViewerScreen implements Screen {
       <p class="note" role="status">Looking for the game files</p>
       <div class="controls" hidden>
         <label>Costume <select data-f="cos"></select></label>
+        <div data-costume></div>
         <label>Head <select data-f="head"></select></label>
         <label>Hair <select data-f="hair"></select></label>
         <label>Age <input type="range" data-f="age" min="18" max="80" step="1" value="30"><output data-o="age"></output></label>
         <label>Weight <input type="range" data-f="weight" min="50" max="120" step="1" value="70"><output data-o="weight"></output></label>
+        <div class="actions"><button type="button" data-copy-to>Copy character to clipboard</button> <button type="button" data-copy-from>Copy character from clipboard</button></div>
         <label>Saved game <input type="file" data-f="save" accept=".jad"></label>
         <label data-people hidden>Person <select data-f="person"></select></label>
         <hr>
@@ -155,7 +164,8 @@ export class CharacterViewerScreen implements Screen {
 
   private wire(): void {
     const rebuild = () => void this.rebuild();
-    for (const name of ["cos", "head", "hair"]) this.f(name).addEventListener("change", rebuild);
+    this.f("cos").addEventListener("change", () => void this.rebuild());
+    for (const name of ["head", "hair"]) this.f(name).addEventListener("change", rebuild);
     for (const name of ["age", "weight"]) this.f(name).addEventListener("change", rebuild);
     this.f("age").addEventListener("input", () => this.showNumbers());
     this.f("weight").addEventListener("input", () => this.showNumbers());
@@ -170,6 +180,8 @@ export class CharacterViewerScreen implements Screen {
     });
     const look = () => this.meshes?.setLook({ wireframe: this.f<HTMLInputElement>("wire").checked, textured: this.f<HTMLInputElement>("textured").checked, doubleSided: this.f<HTMLInputElement>("double").checked });
     for (const name of ["textured", "wire", "double"]) this.f(name).addEventListener("change", look);
+    this.el!.querySelector("[data-copy-to]")!.addEventListener("click", () => void this.copyTo());
+    this.el!.querySelector("[data-copy-from]")!.addEventListener("click", () => void this.copyFrom());
     this.f<HTMLInputElement>("save").addEventListener("change", () => void this.loadSave());
     this.f("person").addEventListener("change", () => this.pickPerson());
     this.showNumbers();
@@ -231,9 +243,19 @@ export class CharacterViewerScreen implements Screen {
     const hair = this.f<HTMLSelectElement>("hair").value;
     const cos = this.f<HTMLSelectElement>("cos").value;
     try {
+      if (cos !== this.optionsFor) {
+        // a new costume: its own variants, and no accessories until one is asked for
+        this.optionsFor = cos;
+        this.look = this.pending ?? {};
+        this.pending = null;
+        this.options = await this.builder.costumeOptions(cos);
+        if (mine !== this.token) return;
+        this.showCostumeOptions();
+      }
       const model = await this.builder.build({
         cos, head: head.startsWith("(") ? "" : head, hair: hair.startsWith("(") ? "" : hair,
         ageYears: Number(this.f<HTMLInputElement>("age").value), weightKg: Number(this.f<HTMLInputElement>("weight").value),
+        look: this.look,
       });
       if (mine !== this.token || !this.scene) return;
       this.meshes?.dispose();
@@ -246,6 +268,65 @@ export class CharacterViewerScreen implements Screen {
       const info = this.el?.querySelector<HTMLElement>("[data-info]");
       if (info) info.textContent = e instanceof Error ? e.message : String(e);
     }
+  }
+
+  private say(text: string): void {
+    const info = this.el?.querySelector<HTMLElement>("[data-info]");
+    if (info) info.textContent = text;
+  }
+
+  private async copyTo(): Promise<void> {
+    const head = this.f<HTMLSelectElement>("head").value, hair = this.f<HTMLSelectElement>("hair").value;
+    const text = encodeCharacter({
+      cos: this.f<HTMLSelectElement>("cos").value, head: head.startsWith("(") ? "" : head, hair: hair.startsWith("(") ? "" : hair,
+      ageYears: Number(this.f<HTMLInputElement>("age").value), weightKg: Number(this.f<HTMLInputElement>("weight").value),
+      layers: this.look.layers ?? {}, accessories: this.look.accessories ?? {},
+    });
+    try { await navigator.clipboard.writeText(text); this.say("Character copied to the clipboard."); } catch { this.say("The browser did not allow writing to the clipboard."); }
+  }
+
+  private async copyFrom(): Promise<void> {
+    let text = "";
+    try { text = await navigator.clipboard.readText(); } catch { this.say("The browser did not allow reading the clipboard."); return; }
+    const c = decodeCharacter(text);
+    if (!c) { this.say("The clipboard does not hold a character."); return; }
+    const set = (name: string, value: string) => { const sel = this.f<HTMLSelectElement>(name); if ([...sel.options].some((o) => o.value === value)) { sel.value = value; return true; } return false; };
+    if (!set("cos", c.cos)) { this.say(`This game has no costume ${c.cos}.`); return; }
+    set("head", c.head || "(default for the costume)");
+    set("hair", c.hair || "(none)");
+    this.f<HTMLInputElement>("age").value = String(Math.round(Math.min(80, Math.max(18, c.ageYears))));
+    this.f<HTMLInputElement>("weight").value = String(Math.round(Math.min(120, Math.max(50, c.weightKg))));
+    this.showNumbers();
+    this.optionsFor = ""; // the costume's variable parts are rebuilt, then the pasted choices put back
+    this.pending = { layers: c.layers, accessories: c.accessories };
+    await this.rebuild();
+  }
+
+  /** A select per variable texture layer and per accessory of the costume; a change rebuilds the person. */
+  private showCostumeOptions(): void {
+    const box = this.el!.querySelector<HTMLElement>("[data-costume]")!;
+    box.textContent = "";
+    const add = (kind: "layers" | "accessories", o: CostumeOptions["layers"][number]) => {
+      const label = document.createElement("label");
+      label.append(`${o.slot ? o.slot.replace(/^cos_/, "") : o.file} `);
+      const sel = document.createElement("select");
+      if (kind === "accessories") sel.add(new Option("(none)", ""));
+      for (const v of o.variants) sel.add(new Option(`variant ${v}`, String(v)));
+      const chosen = this.look[kind]?.[o.index];
+      sel.value = chosen !== undefined && o.variants.includes(chosen) ? String(chosen) : kind === "accessories" ? "" : String(o.current);
+      sel.addEventListener("change", () => {
+        const group = (this.look[kind] ??= {});
+        if (sel.value === "") delete group[o.index];
+        else group[o.index] = Number(sel.value);
+        void this.rebuild();
+      });
+      label.append(sel);
+      box.append(label);
+    };
+    if (this.options.layers.length) box.append(Object.assign(document.createElement("h4"), { textContent: "Costume layers" }));
+    for (const o of this.options.layers) add("layers", o);
+    if (this.options.accessories.length) box.append(Object.assign(document.createElement("h4"), { textContent: "Accessories" }));
+    for (const o of this.options.accessories) add("accessories", o);
   }
 
   private describe(): void {

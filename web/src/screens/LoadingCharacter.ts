@@ -104,7 +104,7 @@ export class LoadingCharacter {
     this.canvas.hidden = !s.enabled;
     if (this.meshes) this.meshes.node.rotation.y = (s.turn * Math.PI) / 180;
     if (!s.enabled) return;
-    if (!this.model || s.costume !== old.costume) await this.build();
+    if (!this.model || s.costume !== old.costume || s.look !== old.look) await this.build();
     if (!this.clip || s.clip !== old.clip) await this.loadClip();
   }
 
@@ -112,8 +112,12 @@ export class LoadingCharacter {
     const mine = ++this.token;
     try {
       // a plain hair mesh by the costume's sex (the costume names the body only)
-      const hair = this.settings.costume.toLowerCase().startsWith("f_") ? "hair_20s_f1.msh" : "hair_20s_m1.msh";
-      const model = await this.builder.build({ cos: this.settings.costume, head: "", hair, ageYears: 30, weightKg: 70 });
+      const l = this.settings.look;
+      const hair = l ? l.hair : this.settings.costume.toLowerCase().startsWith("f_") ? "hair_20s_f1.msh" : "hair_20s_m1.msh";
+      const model = await this.builder.build({
+        cos: this.settings.costume, head: l?.head ?? "", hair, ageYears: l?.ageYears ?? 30, weightKg: l?.weightKg ?? 70,
+        look: l ? { layers: l.layers, accessories: l.accessories } : undefined,
+      });
       if (mine !== this.token) return;
       this.meshes?.dispose();
       this.model = model;
