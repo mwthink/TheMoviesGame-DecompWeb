@@ -10,12 +10,14 @@ has the rules for ported code (`orig:` tags, `verified`, `quirk:`, `Math.fround`
   (assets, ini files, text), decompiler output (function bodies, listings), logs and saves from the running game.
 - **Goes into git:** addresses, sizes and other facts about the binary; identifiers (function, class and config-key names, whether recovered from
   the binary or made up here); numbers and formulas, written in our own words and code; short strings quoted as evidence for a name.
-- Another project's output (such as the Fable decomp's labels) goes in only if its license allows it, and the file names its source.
+- Another project's output (such as the Fable decomp's labels) goes in only if its license allows it, with its source and license in `THIRD_PARTY_NOTICES.md`.
+- **Exception, test stars:** the two StarMaker stars made for testing (`info.sm` files saved in the editor, "DaveJohn" and "Baseline") may be
+  committed, names included, as hex fixtures in `web/tests/sim/characterFixtures.ts`. The audit allows long hex strings in that file only.
 - Commit only when the user asks.
 - Stay on current branch unless user says otherwise.
 - Avoid taking screenshots when reasonably possible because screenshots require lots of processing power (tokens). Prefer asking the user if you need visual analysis of something being rendered on the screen.
 - Machine paths come from `local.env` (`local.env.example`), read by `web/localPaths.ts` and `tools/local_paths.py`. Never write a path from this
-  machine, a save's file name or a star's name into code, tests or docs: refer to saves by what they are (`web/localPaths.ts`, `SAVE_ROLES`).
+  machine, a save's file name or a star's name (other than the two test stars above) into code, tests or docs: refer to saves by what they are (`web/localPaths.ts`, `SAVE_ROLES`).
 
 ## Documents
 

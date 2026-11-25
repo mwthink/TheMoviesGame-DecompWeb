@@ -9,7 +9,10 @@ The `.gitignore` is a safety net, not a substitute for checking.
 Facts about the binary (addresses, sizes), identifiers (function, class and
 config-key names, recovered or made up), numbers and formulas in our own words,
 and short strings quoted as evidence for a name may be committed. Another project's
-output goes in only if its license allows it, and the file names its source.
+output goes in only if its license allows it, with its source and license in
+the root `THIRD_PARTY_NOTICES.md`. The one exception to the no-saves rule is the
+two StarMaker stars made for testing, kept as hex fixtures in
+`web/tests/sim/characterFixtures.ts`.
 
 ## Evidence for names and types
 Every function name, struct, field or enum added must have recorded evidence
