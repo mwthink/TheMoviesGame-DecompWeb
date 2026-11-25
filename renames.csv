@@ -2619,3 +2619,8 @@ address,old_name,new_name,evidence
 004aaea0,FUN_004aaea0,PathAgent_BaseConstructor,"sets the vtable, speed (+4) = 0 and acceleration (+8) = 0.01 units per tick squared (0x3C23D70A)"
 00406c00,FUN_00406c00,TMProp_Constructor,"TMInWorld-derived prop (vtable 00D16814, 0x2B4 bytes): defaults include +0x2B3 = 1, the flag PathAgent_UpdateSpeed reads to slow people down on approach"
 00462670,FUN_00462670,Prop_CreatePuppetActivityForAction,"makes a temporary prop at a point for the actions propinteract, task_janitor, sniff and a default, each with its scene (ai_tidy.flm, ai_dog_sniff.flm, ai_banana_slip.flm), and wraps it in a CActivity; clears +0x2B3 (the slow-approach flag) in one branch (not read closely)"
+0053c420,FUN_0053c420,SimObject_Constructor,"base of the simulation objects (desires, characters, props): links the object into the global list at 0104C5EC..0104C5F8 that SimObjectQueue_TickPending walks"
+0053c5b0,FUN_0053c5b0,SimObjectQueue_TickEnabled,like SimObjectQueue_TickPending but calls the tick slot (+0x0C) only for objects whose slot +0x10 returns true; called from Game_TickState1
+00976530,FUN_00976530,Scene_GetChannelValueByIndex,"(string index): the value of the channel of that index, 0 when the index is not one of the first channelCount strings; FSChoiceBox_Execute uses it"
+009732d0,FUN_009732d0,Scene_PickBranchByWeights,"(weights, random number, n, stride): the first i with random <= weight[i], else a random branch; for ChoiceBox selector -1"
+008bc6c0,FUN_008bc6c0,Explainer_GetProp,returns the explainer's prop (+0x1D4); CActivity_Tick reads its vtable slot +0xB8 to decide to send ai_stop

@@ -191,17 +191,18 @@ curve tangent**). **[code]**
 
 ### 4.5 `ChoiceBox` (type 3) - branch / switch  **[code]**  (earlier notes called this "MoveToBox waypoints"; the RTTI name is `FS::ChoiceBox`)
 Layout: common header; `w15` = **selector** (int, may be a string index or one of the negative selector codes below); `w16` = {byte, flags byte, u16}
+**Layout, checked on all 580 `ai_*.flm`** [code + data]: `w16`'s low byte is the number of branches **N** (the constructor stores it at `+0x64`); `w17`, `w18` hold the optional string indices; the box's own trailer triples start at `w19`; the **branches and weights are the very end of the record**: N groups of `b0` triples, then N floats, so a record is `19 + 3*b0 + N*(3*b0 + 1)` words (plus any link lists). That holds for every choice box in the 580 AI scenes (3,888).
 and the number of branches **N**; optional ints `+0x44/+0x48` when flag bit0 of the flags byte is set (two more string indices used by selector -2); then
 **N groups of `b0` triples** (each group = the per-actor "next box" links of that branch), then **N float weights**.
 `FSChoiceBox_Execute` (0xa41970) picks branch index `i` and copies that group's triples into the box's active trailer, then reports "done" (returns 2). Selector `w15`:
 
 | w15 | meaning | how `i` is chosen |
 |---|---|---|
-| **-1** | random | weighted random using the N float weights (typical weights 0.5, 0.2, 0.25, 0.125 ...) with the scene's random value (`Scene_RandomFloat`) |
+| **-1** | random | the first branch `i` whose weight is **not below** the scene's random number in 0..1 (`FUN_009732D0`: `random <= weight[i]`, scanned in order); when none is, a random branch. The weights are therefore thresholds, not shares |
 | **-2** | compare two scene variables | strings at `+0x74/+0x78` look up two scene variables (`Scene_GetChannelValue`): `i = 1` if equal, `2` if first > second, `0` if first < second |
 | **-3** | by an actor attribute | `i = Object_IsFemaleCostume(actor0.object)` (an attribute of the first actor's 3D object - likely gender/variant) |
 | **-4** | by a prop attribute | reads the key `proptype` from the actor object's description and picks a random branch among N |
-| >= 0 | named command (string index) | the name is looked up: `ai_no_3d_obj` (flag 1), `ai_linked_no_3d_obj` (flag 4), `ai_set_variance` (flag 2: reads `[variance:x]` / `[count variance:x]` tags from the actor object's description, used for crowd variance); the literal string `endshoot` increments a scene counter (+0x1cc) |
+| >= 0 | **a channel** (string index; read by `FUN_00976530`, 0 when the string is not one of the first `channelCount`) | **`i = round(N * clamp01(value))`, halves to even, kept under N** (`FSChoiceBox_Execute`, read from the instructions: the value times N, the FPU's round-to-nearest). A choice on `ai_stop` with 2 branches is the loop test (0 = go round again, 1 = leave); on `ai_boredom` with 3, the mood picks the variant. Three string names set a flag at resolve time instead (`ai_no_3d_obj` 1, `ai_linked_no_3d_obj` 4, `ai_set_variance` 2) and then do not read a channel |
 
 ### 4.6 `SettingsBox` (type 4, 144 bytes) / `CSettingsBox2` (type 9, 124 bytes) - property setters **[code layout, [guess] semantics]**
 Instant boxes (their `Execute` returns 2 = complete at once) that change properties of actor slot 0 (the box's first actor) and of the scene:
@@ -325,6 +326,9 @@ Because frame 0 starts every actor on its `Character` start box (section 4.7) an
   It is what the engine calls for `ai_stop`, `ai_ended_by_user`, `ai_action`, `endshoot`, `ai_crane`, `ai_dolly`, `ai_cg`, ... - the "events" I listed earlier are just channel writes.
 * `ChoiceBox` selector -2 compares two channels (read with `Scene_GetChannelValue`); a `SettingsBox` "set channel" command writes one (below).
 * Channel values drive the movie editor's per-scene controls (director mood, actor mood, miniature, blue ground ...).
+
+**Channel values and the AI events** [code]. `SceneChannel_SetValue` clamps every channel to 0..1. In a `SettingsBox` record the **channel-set command sits at words 22 and 23**: word 22 is `u16 channel index | u16 mode << 16` (`0xFFFF` = none) and word 23 the value as a float; the modes are 0 set, 1 add, 2 random from 0 to the value (a value of 0 meaning 1) (`SceneCommand_ApplyChannelSet`). In the bench scene those boxes write `ai_ai_seat = 1.0`; the engine then runs `TMActivityManager_DispatchAiChannelEvents` after every `Scene_Step`: for each channel whose value is exactly 1 and whose name is a slider set of the prop (`[aisliders/ai_ai_seat]` in the explainer ini), it applies that slider set once (`FUN_008AC9E0`) and writes the channel back to 0. So **a slider set fires each time the scene passes through a box that sets its channel**.
+The character feeds the scene's inputs when it starts (`TMActivityManager_SetupCharacterChannels`, `00405040`): `ai_male` 1 for a man, `ai_star` 1 for a star, `ai_drunk` the star's drunk level, `ai_happiness` and `ai_celebrity` from a star's mood and rating, `ai_boredom` 1 for a bored star, `ai_stressed`; `ai_stop` is written by the activity (`CActivity_Tick` when the prop is worn out, `CActivity_SendAiStopToProp` when a better desire starts).
 
 **SettingsBox / CSettingsBox2 are COMMAND boxes.** Their sub-structs are *scene event commands* `{ int commandNameIdx; int argIdx; int delay; int extra; ... }` (strings from the table). `SceneEventCommand_Run(cmd, scene, actor)` runs a command: if `delay < 1` it dispatches at once
 through `SceneEventCommand_Dispatch` (0xa3e560), otherwise it creates a delayed-command object (0x20 bytes, `FSDelayedCommand_Init`) that fires `delay` steps later. Other sub-struct types in the same boxes:

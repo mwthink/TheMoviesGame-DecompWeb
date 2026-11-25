@@ -22,8 +22,7 @@ is therefore exponential or linear by its class, not by its row.
 **Cadence** [read]. `TMBaseDesire_TickShared` (`00837B90`) calls the update every time when `AdaptiveDesires` is 0. When it is on (the file has 1), a per-desire countdown (`+0x108`) is decremented
 and the update runs only when it reaches 0, after which it is reloaded with `interval * AdaptiveMultiplier`, at most `MaxDesireInterval` (`desires.ini`: 3 and 20). **The interval is the desire's rank**: 
 `TMCharacter_SortResidentDesires` (`0059B170`) sorts the person's desires by urgency and stores each one's index in its `+0x104`. So the most urgent desire updates on every call, the second every 3rd,
-the third every 6th, and from the eighth on every 20th: a desire the person does not want grows slowly. The increment of an update does not depend on the interval. That the call is made once per tick
-for every desire (10 a second) is **[inferred]**: the caller of the update slot was not found, but desires derive from the engine's object base class, whose per-tick call this would be.
+the third every 6th, and from the eighth on every 20th: a desire the person does not want grows slowly. The increment of an update does not depend on the interval. The call is made once per game tick for every desire (10 a second) [read]: desires derive from the simulation object base class (`FUN_0053C420`, which links each object into a global list) and `SimObjectQueue_TickPending` (`0053C550`, called from `Game_TickActiveGameplay` and `Game_TickPaused`) calls the tick slot (`+0x0C`) of every live object in it.
 `DesireCrap_ResetUrgency` sets the level to 0.
 
 **Starting level** [read]. A character with a saved value (`MyDesireMap`, `CLASS_NOTES.md` 3ar) starts from it. Otherwise: crap a random level between 0.2 and 0.5, buyfood between about 0.15 and
@@ -39,7 +38,7 @@ for every desire (10 a second) is **[inferred]**: the caller of the update slot 
    the first desire above the threshold, here with no cost ceiling).
 3. `TMCharacter_TryReplaceActionWithBetterDesire` (`0059B050`) re-checks the running action every 10 to 30 s (a random countdown at `+0x46C`) and swaps it for a cheaper way to satisfy the same desire
    ("Found a better way to do desire").
-Where the two timers' intervals come from is **not read**.
+The two timers are `Timer_IsElapsed` objects in the character: the sort timer (`+0x700`) is set to **5 ticks (0.5 s)** in the constructor (2 for a star), the start timer (`+0x710`) takes its interval from `+0x720` every tick, which is **1 tick (0.1 s)** for everyone but staff in an attention state (`CStaff_UpdateAttentionState` sets 5 to 8) [read].
 
 **The finder** [read]. A desire's finder is a `CMetaExplainer` (`CMetaExplainer_RegisterExplainerForAction`, `008B94B0`, fills one per action name from every explainer that lists the action).
 `CMetaExplainer_StartCheapest` (`008B8C30`) asks each registered explainer for its cost and starts the cheapest one under a ceiling; `StartRandomUsable` (`008B8B90`) picks uniformly among the usable ones;
@@ -94,8 +93,8 @@ selection and the activity states enroute -> turning -> using, with waiting when
 desire table), wired in `web/src/world/WorldScene.ts` and `WorldData.ts`; tests `web/tests/sim/desires.test.ts`. Ported desires: `crap_male`, `crap_female`, `buyfood` (exponential growth, reset by a use) and `propinteract` (linear growth, adjusted by the prop's slider).
 On by default; the dev menu's Movement section ("Loose people act on desires") turns it off. A person given an order, or picked up, drops their activity and frees the prop.
 
-Choices that are **[guess]**: the interval between re-sorting the desires (1 s) and between start attempts (2 s), the length of a use (the scenes are not played; a fixed 8 s),
-a use resets the desire to 0 unless the prop has a slider for it, in which case the slider is added once at the end of the use, props with equal cost are picked at random, `niceness` is taken as 1 (no niceness cost), the turn is a plain heading change at the walker's turn rate, an occupied prop makes the next person wait at its goal (no
+Choices that are **[guess]**: the length of a use for a prop with no scene (a fixed 8 s, sliders applied at its end),
+a use that never touched the desire resets it to 0 (a toilet, a counter; the scene's sliders adjust it otherwise), props with equal cost are picked at random, `niceness` is taken as 1 (no niceness cost), the turn is a plain heading change at the walker's turn rate, an occupied prop makes the next person wait at its goal (no
 queue points), and the **idle threshold**: the game starts a desire when its urgency beats the running action's, which is 0 when nothing runs, so a reset desire would win again a tick later at level 0.0001. A
 character in the game usually has other desires running (`readyposition` for staff and stars, `play`, `gawp`, `follow boss` for the entourage); those are not ported, so a fixed 0.5 stands in.
 (The desires `roam` and `wander` are not the reason: see "Roam and wander".)
@@ -104,6 +103,27 @@ Measured in the port, on the Quick Start save [measured, ours, not the game's]: 
 3 parasols, a sun lounger and a gym bar), 51 of their goal points fall in grid cells the footprints block (the route ends at the nearest free cell and that counts as arrived), and the 17 people who are loose
 complete about 56 uses in 30 game minutes with desires that start between 0.3 and 0.6 (44 `propinteract`, 12 toilet and food trips); with the cadence above a bench desire that ranks low
 climbs slowly, which is what keeps them from sitting down continuously.
+
+## Who holds which desires
+
+[read] `CStaff_OnHired` (`0057A2E0`) gives hired staff smalltalk, be impressed, **buy food**, **crap**, dispose of litter, gawp, get autograph, info, **prop interact**, stay by base, unfulfilled and update costume. `CStar_PostSpawnSetup`
+(`0058DB40`) gives a star agony, do lunch, get changed, get drunk, heal, overdrink, overeat, sleep, talk, tantrum, trailer tantrum and named ones (`star`, `likehire`, `grudge_hire`, `forgethire`). A wannabe's setup (`FUN_0058CB00`) adds only
+`play`; an extra's (`FUN_00571080`) agony, get changed, heal and play; the entourage's (`FUN_0056E710`) follow boss, assist, panic, gawp and play; the first `readyposition` and the others in `DesireReadyPosition`'s constructor add themselves as
+the running action. The port gives staff and stars crap, buy food and prop interact (`desireActionsFor`) and a wannabe only `play`, which no prop offers, so a wannabe does not walk to a toilet or a bench.
+
+## Interaction scenes
+
+A use of a prop plays the prop's `interaction` scene (`FLM_FORMAT.md` 4.5, 5d). The activity places the scene on the person (`TMCharacter_PlayInteractionScene`, `00599480`: it loads the scene and binds it to the person's position and heading,
+`Scene_SetPlacement`), and from then on the scene moves and animates them: its boxes name the clips and the places [read]. `web/src/formats/FlmScene.ts` decodes the boxes (checked on all 580 `ai_*.flm`: 23,554 boxes, no
+dangling link) and `web/src/sim/scene/SceneRunner.ts` plays one actor through them at 30 steps a second.
+- **The anchor.** The scene's own frame is turned and moved so that its start box (the `Character` record's place and heading) is where the person stands facing their way: the explainer's `LocalPosition` / `LocalAngle` equal the
+  scene's start offset (checked on the bench and the swing bin). A scene may walk the person away from there and back (the portaloo, the burger counter) [read]; the port follows the same frame.
+- **Length.** A looping scene (a bench, a sun lounger, the gym bar) runs until `ai_stop`; the others (the portaloo 11 s, the burger counter 16 s, the blossom tree 17 s) end on their own [measured from the clips' lengths].
+- **Sliders** fire each pass of the scene through a box that sets the slider set's channel: about every 3 s on the bench [measured]. That replaces the earlier guess of applying them once at the end.
+- **Stopping a loop.** In the game a running action ends when a better desire starts (`CActivity_SendAiStopToProp` in `UpdateActionSelection`) or the prop is worn out. The port writes `ai_stop` when its own desire is used up (<= 0), another
+  desire is above both it and the idle threshold, or after 180 s [inferred, the last is a guess].
+- Not read: the move box's duration (the port uses the path length over the walk clip's speed), the compare choice (`-2`), the variance choices, a star's happiness and boredom values (the port gives stars `ai_star` only), the
+  sound and effect commands, multi-actor scenes.
 
 ## Roam and wander
 
@@ -123,5 +143,5 @@ is whichever other desire passes the threshold; the set a wannabe or extra holds
 
 ## Not read
 
-Who calls the desire update slot each tick (the once-per-tick call is inferred), when the two timers of `UpdateActionSelection` elapse, the other desires' starting levels and updates (`getdrunk`, `overeat`, `disposeoflitter`, `smalltalk`, `leave`, ...), when a long scene applies its sliders, the `override` cost functions, `niceness`, the queue geometry, how an interaction scene
+The other desires' starting levels and updates (`getdrunk`, `overeat`, `disposeoflitter`, `smalltalk`, `leave`, ...), when a long scene applies its sliders, the `override` cost functions, `niceness`, the queue geometry, how an interaction scene
 ends, and the use of `dropactions.ini`.

@@ -11,7 +11,8 @@ import { parseSeq } from "../formats/Seq.ts";
 import { FALLBACK_CLIP, type AnimationPlan } from "../sim/anim/PersonAnimation.ts";
 import { TURN_IDS, defaultGaits, gaitClipFile, parseGaitIni, turnSeconds } from "../sim/anim/Gaits.ts";
 import { NavGrid, type Point } from "../sim/nav/NavGrid.ts";
-import { loadPropData } from "./Props.ts";
+import { loadPropData, loadSceneClips } from "./Props.ts";
+import type { SceneGraph } from "../formats/FlmScene.ts";
 import type { PropExplainer } from "../sim/ai/Explainers.ts";
 import type { DesireDef } from "../sim/ai/Desires.ts";
 import type { MshBone } from "../formats/Msh.ts";
@@ -495,6 +496,8 @@ export interface WorldData {
   /** What the placed props offer people, and the desire table (`world/Props.ts`, docs/DESIRES.md). */
   props: PropExplainer[];
   desires: Map<string, DesireDef>;
+  /** The interaction scenes the props name, by lower-case file name (`FlmScene.ts`). */
+  scenes: Map<string, SceneGraph>;
   /** The sky box and the ground plane around the lot; null if the archives lack `Sky_box.msh`. */
   sky: SkyData | null;
   /** When each building's floor plan is revealed (`data\\floorplans\\floorplanrevealing.csv`); null if the archives lack it. */
@@ -738,13 +741,14 @@ export async function loadWorldData(
   const floorplanRules = rulesBytes ? parseFloorplanRevealing(new TextDecoder("latin1").decode(rulesBytes)) : null;
   const sky = await loadSky(pak, texture, warnings);
   const nav = buildNav(lot, placements);
-  const { props, desires } = await loadPropData(pak, placements, warnings);
+  const { props, desires, scenes } = await loadPropData(pak, placements, warnings);
   // outdoors: no room scene and standing on open ground (the others stay where their scene put them until sent somewhere)
   for (const p of people) p.outdoors = p.outdoors && !nav.isBlocked(p.person.position[0], p.person.position[1]);
+  await loadSceneClips(pak, scenes, people.filter((p) => p.outdoors)); // the loose people are the ones who use props
   let timelineEvents: TimelineEvent[] = [];
   try {
     const csv = await pak.readByName("timeline.csv");
     if (csv) timelineEvents = parseTimelineEvents(new TextDecoder("latin1").decode(csv));
   } catch { /* the radio just has no news */ }
-  return { nav, props, desires, sky, floorplanRules, people, camera, lot, terrain, meshes, placements, header: save.header, staff: save.staff, timelineEvents, warnings };
+  return { nav, props, desires, scenes, sky, floorplanRules, people, camera, lot, terrain, meshes, placements, header: save.header, staff: save.staff, timelineEvents, warnings };
 }

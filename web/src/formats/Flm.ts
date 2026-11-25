@@ -7,6 +7,10 @@ import { unwrapZcmp } from "../assets/inflate.ts";
 export interface Flm {
   strings: string[];
   objects: FlmObject[];
+  /** How many of the first strings name channels (the scene's named 0..1 variables, docs/FLM_FORMAT.md 5d). */
+  channelCount: number;
+  /** The file's per-channel extra word (present when the header's flag bit 1 is set): the channel's initial value as float bits. Null when the file has none. */
+  channelDefaults: Int32Array | null;
 }
 
 export interface FlmObject {
@@ -37,7 +41,12 @@ export function parseFlm(file: Uint8Array): Flm {
   }
   p = sb + sbSize + 8 * c34;
   for (let i = 0; i < chanCount; i++) p += 4 + 4 * i32(p);
-  if (flags & 2) p += 4 * chanCount;
+  let channelDefaults: Int32Array | null = null;
+  if (flags & 2) {
+    channelDefaults = new Int32Array(chanCount);
+    for (let i = 0; i < chanCount; i++) channelDefaults[i] = i32(p + 4 * i);
+    p += 4 * chanCount;
+  }
   const objects: FlmObject[] = [];
   for (let i = 0; i < u32 + c36 && p + 8 <= d.length; i++) {
     const type = i32(p), size = i32(p + 4);
@@ -47,7 +56,7 @@ export function parseFlm(file: Uint8Array): Flm {
     objects.push({ type, words });
     p += size;
   }
-  return { strings, objects };
+  return { strings, objects, channelCount: chanCount, channelDefaults };
 }
 
 /** Clip names that move a character about rather than hold a pose (walking, running, turning on the spot), plus the hiring celebration (`hired_*`, played at the moment of hiring, not by someone waiting in the hire room); a standing person is not shown in these. */

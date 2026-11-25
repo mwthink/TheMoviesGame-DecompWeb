@@ -27,6 +27,11 @@ export interface ExplainerDef {
    */
   desireSliders: Map<string, number>;
   /**
+   * The same sliders by the name of the slider set they sit in (`[aisliders/<set>]`, e.g. `ai_ai_seat`), each a map of desire name to amount. The interaction scene fires a set by
+   * writing a channel of that name (`TMActivityManager_DispatchAiChannelEvents`).
+   */
+  sliderSets: Map<string, Map<string, number>>;
+  /**
    * `typeinterval`, in seconds: after anyone chooses a prop of this kind, no prop of the kind is chosen for this long (a record shared by the whole type, checked in `Explainer_GetActionCost`).
    * [inferred] the file's number is game ticks, 10 to the second.
    */
@@ -52,12 +57,19 @@ export function parseExplainer(name: string, text: string): ExplainerDef {
     actions.set(m[1]!, { distance: num(ini, section, "distancecost", 0), queue: num(ini, section, "queuecost", 0), niceness: num(ini, section, "nicenesscost", 0) });
   }
   const desireSliders = new Map<string, number>();
+  const sliderSets = new Map<string, Map<string, number>>();
   for (const section of ini.sectionNames()) {
-    if (!/^aisliders\//.test(section)) continue;
+    const set = /^aisliders\/([^/]+)$/.exec(section);
+    if (!set) continue;
+    const own = new Map<string, number>();
     for (const [key, value] of ini.entries(section)) {
       const v = parseNumber(value);
-      if (key.startsWith("desire_") && v !== undefined) desireSliders.set(key.slice(7), (desireSliders.get(key.slice(7)) ?? 0) + v);
+      if (key.startsWith("desire_") && v !== undefined) {
+        own.set(key.slice(7), v);
+        desireSliders.set(key.slice(7), (desireSliders.get(key.slice(7)) ?? 0) + v);
+      }
     }
+    sliderSets.set(set[1]!.toLowerCase(), own);
   }
   const typeTicks = ini.getNumber("", "typeinterval");
   // the keys sit above the first section; the [pos] block repeats the local position (the game reads LocalPosition* from [pos])
@@ -71,6 +83,7 @@ export function parseExplainer(name: string, text: string): ExplainerDef {
     local: { x: num(ini, "pos", "localpositionx", 0), y: num(ini, "pos", "localpositiony", 0), z: num(ini, "pos", "localpositionz", 0), angle: wrapAngle(num(ini, "pos", "localangle", 0)) },
     actions,
     desireSliders,
+    sliderSets,
     typeInterval: typeTicks !== undefined && typeTicks > 0 ? typeTicks / TICKS_PER_SECOND : undefined,
     type: { chosenAt: -Infinity },
   };

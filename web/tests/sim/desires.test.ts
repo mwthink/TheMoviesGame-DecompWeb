@@ -1,7 +1,7 @@
 // Desires, explainers and the desire agent (docs/DESIRES.md).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DESIRE_UPDATE_SECONDS, DesireAgent, IDLE_THRESHOLD, TRY_START_SECONDS, USE_SECONDS, type Activity, type Actor } from "../../src/sim/ai/DesireAgent.ts";
+import { DESIRE_UPDATE_SECONDS, DesireAgent, desireActionsFor, IDLE_THRESHOLD, TRY_START_SECONDS, USE_SECONDS, type Activity, type Actor } from "../../src/sim/ai/DesireAgent.ts";
 import { ADAPTIVE_MULTIPLIER, Desire, MAX_DESIRE_INTERVAL, parseDesires } from "../../src/sim/ai/Desires.ts";
 import { PropExplainer, explainerGoal, parseExplainer, parsePlacedExplainers } from "../../src/sim/ai/Explainers.ts";
 import { PersonWalker, wrapAngle } from "../../src/sim/anim/Walker.ts";
@@ -350,7 +350,7 @@ test("a real world: toilets and counters are placed with reachable goals, and lo
       walkTo(x, y) { const path = world.nav.findPath(walker, { x, y }); if (!path) return false; walker.go(path, 0); return true; },
       turnTo: (h, dt) => walker.turnTo(h, dt), stop: () => walker.stop(),
     };
-    const agent = new DesireAgent(world.desires, [female ? "crap_female" : "crap_male", "buyfood", "propinteract"]);
+    const agent = new DesireAgent(world.desires, desireActionsFor(entry.person.cls, female));
     for (const d of agent.desires) d.level = 0.8;
     return { agent, actor, walker };
   });
@@ -471,4 +471,10 @@ test("an agent ranks its desires by level, so the wanted one grows fastest", () 
   agent.desires[2]!.level = 0.3;
   agent.update(1.01, actor, [], 0); // past the sort interval
   assert.deepEqual(agent.desires.map((d) => d.rank), [2, 0, 1]);
+});
+
+test("the desires a person holds depend on their class: staff and stars the prop desires, a wannabe only play", () => {
+  assert.deepEqual(desireActionsFor("CStaff", false), ["crap_male", "buyfood", "propinteract"]);
+  assert.deepEqual(desireActionsFor("CStar", true), ["crap_female", "buyfood", "propinteract"]);
+  assert.deepEqual(desireActionsFor("CWannabe", false), ["play"]);
 });
