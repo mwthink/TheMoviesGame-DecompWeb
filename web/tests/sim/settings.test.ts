@@ -44,3 +44,11 @@ test("damaged storage does not stop the app", () => {
   assert.deepEqual(new SettingsStore(storage).get(), DEFAULT_SETTINGS);
   assert.deepEqual(new SettingsStore(null).get(), DEFAULT_SETTINGS);
 });
+
+test("volumes are clamped to 0..1 and snapped to tenths", () => {
+  assert.equal(normalizeSettings({}).musicVolume, 1);
+  assert.equal(normalizeSettings({ musicVolume: 0.34 }).musicVolume, 0.3);
+  assert.equal(normalizeSettings({ soundVolume: -2 }).soundVolume, 0);
+  assert.equal(normalizeSettings({ soundVolume: 7 }).soundVolume, 1);
+  assert.equal(normalizeSettings({ musicVolume: "loud" }).musicVolume, 1);
+});

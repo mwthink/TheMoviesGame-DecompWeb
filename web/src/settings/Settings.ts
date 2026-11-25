@@ -22,12 +22,23 @@ export interface Settings {
   showFps: boolean;
   /** How much help the game gives; "none" turns the tooltips off. */
   helpLevel: HelpLevel;
+  /** Music level, 0 to 1 in steps of 0.1: the original's mixer channel 1 (`Audio_AdjustVolume`, registry `Volume 1`, default 1). */
+  musicVolume: number;
+  /** Sound-effects level, same steps: mixer channel 2 (`Volume 2`, default 1). */
+  soundVolume: number;
 }
 
-export const DEFAULT_SETTINGS: Readonly<Settings> = { renderScale: 1, anisotropy: 8, smoothEdges: false, showFps: false, helpLevel: "max" };
+export const DEFAULT_SETTINGS: Readonly<Settings> = { renderScale: 1, anisotropy: 8, smoothEdges: false, showFps: false, helpLevel: "max", musicVolume: 1, soundVolume: 1 };
 
 export const ANISOTROPY_CHOICES = [1, 2, 4, 8, 16] as const;
+/** The volume steps the original's buttons make (`ExternMusicVolUp` and friends: +-0.1). */
+export const VOLUME_STEP = 0.1;
 export const RENDER_SCALE_RANGE = { min: 0.5, max: 1.5, step: 0.25 } as const;
+
+/** A volume clamped to 0..1 and snapped to the tenths the original's buttons give. */
+function volume(v: number): number {
+  return Math.round(Math.min(1, Math.max(0, v)) / VOLUME_STEP) / Math.round(1 / VOLUME_STEP);
+}
 
 /** Read settings from untrusted stored data: unknown or out-of-range values fall back to the defaults, numbers are clamped and snapped to what the screen offers. */
 export function normalizeSettings(raw: unknown): Settings {
@@ -43,6 +54,8 @@ export function normalizeSettings(raw: unknown): Settings {
     smoothEdges: typeof o.smoothEdges === "boolean" ? o.smoothEdges : d.smoothEdges,
     showFps: typeof o.showFps === "boolean" ? o.showFps : d.showFps,
     helpLevel: HELP_LEVELS.includes(o.helpLevel as HelpLevel) ? (o.helpLevel as HelpLevel) : d.helpLevel,
+    musicVolume: volume(num(o.musicVolume, d.musicVolume)),
+    soundVolume: volume(num(o.soundVolume, d.soundVolume)),
   };
 }
 

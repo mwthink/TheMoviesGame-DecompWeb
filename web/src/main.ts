@@ -10,6 +10,7 @@ import { SettingsStore } from "./settings/Settings.ts";
 import { LoadGameScreen } from "./screens/LoadGameScreen.ts";
 import { LoadingScreen, type LoadTask } from "./screens/LoadingScreen.ts";
 import type { WorldData } from "./world/WorldData.ts";
+import { AudioManager } from "./audio/AudioManager.ts";
 
 type ScreenId = "splash" | "menu" | "load" | "loading" | "game" | "gallery" | "options" | "viewer";
 
@@ -22,6 +23,7 @@ function present(id: ScreenId, screen: Screen): void {
   current?.exit();
   current = screen;
   document.body.dataset.screen = id;
+  syncAudio(id);
   current.enter();
 }
 
@@ -43,14 +45,35 @@ function loadWorld(task: LoadTask<WorldData>): void {
     gameView.world = world;
     current = gameView;
     document.body.dataset.screen = "game";
+    syncAudio("game");
     gameView.enter();
     void gameView.ready.then(() => loading.exit());
   }, () => show("load"));
   present("loading", loading);
 }
 
-// Screens are built on demand so each visit starts fresh. GameView keeps its engine between visits.
 const settings = new SettingsStore(typeof localStorage === "undefined" ? null : localStorage);
+
+// Audio: each screen holds the audio states the original's matching window sets (docs/AUDIO.md, "Audio states"). Music files are read from the dev server's
+// local files; a build without them stays silent.
+const audio = new AudioManager(settings, (file) => (import.meta.env.DEV ? `/__local/audio/music/${encodeURIComponent(file)}` : null));
+/** The (state, owner) pairs each screen holds, in the order the original sets them: a game's radio goes in before the loading music that covers it. */
+const AUDIO_FOR: Record<ScreenId, ReadonlyArray<readonly [number, string]>> = {
+  splash: [[6, "splash"]],
+  menu: [[4, "frontEnd"]], load: [[4, "frontEnd"]], options: [[4, "frontEnd"]], gallery: [[4, "frontEnd"]], viewer: [[4, "frontEnd"]],
+  loading: [[2, "game"], [1, "loading"]],
+  game: [[2, "game"]],
+};
+let heldAudio: ReadonlyArray<readonly [number, string]> = [];
+function syncAudio(id: ScreenId): void {
+  const want = AUDIO_FOR[id];
+  const has = (list: ReadonlyArray<readonly [number, string]>, [state, owner]: readonly [number, string]) => list.some(([s, o]) => s === state && o === owner);
+  for (const held of [...heldAudio].reverse()) if (!has(want, held)) audio.removeState(held[0], held[1]);
+  for (const w of want) if (!has(heldAudio, w)) audio.setState(w[0], w[1]);
+  heldAudio = want;
+}
+
+// Screens are built on demand so each visit starts fresh. GameView keeps its engine between visits.
 /** The Options screen shown over the running game (from the pause menu); `done` runs when it is closed. */
 let overlayOptions: OptionsScreen | null = null;
 function showOptionsOverGame(done: () => void): void {

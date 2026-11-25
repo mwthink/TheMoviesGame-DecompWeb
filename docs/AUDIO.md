@@ -1,8 +1,55 @@
 # Audio: `.lug` sound banks, the radio and the timeline announcements
 
-Status: read from the decompile. Nothing here is checked against a running game yet, and no `.lug` reader exists in the tools or the web app.
+Status: read from the decompile. The `.lug` reader (`web/src/formats/Lug.ts`) is checked against the six shipped banks; the audio states and their stack are
+ported (`web/src/sim/audio/AudioStates.ts`) and drive the web app's music (`web/src/audio/AudioManager.ts`); nothing is checked against a running game yet.
 The codec libraries the audio engine is built on (libogg, libvorbis, zlib, the Lionhead `PK*` / `LLA` / `LHA` layers) are described in
 `LIBRARIES.md`; this page covers the game's own formats and logic.
+
+## The files
+
+`Data/Audio/` holds: six banks (`soundbank_01.lug`, 290 MB, 2,430 samples, mostly UI and gameplay effects; `MM_soundbank_02.lug`, 221; `add_on_soundbank_john.lug`, 99;
+`awards_ambience.lug`, 37; `starmaker.lug`, 11 UI clicks; `world.lug`, 277 ambience clips, grouped by era); `music/` (103 stereo Ogg Vorbis files, plain `.ogg`);
+`trackinfo.csv` (per track: first and last year it plays, volume about 0.45, a weight per genre, "Put on Radio", "Play in Random Mode", "Play these songs first in
+new game"); `radiostinginfo.csv` (the DJ for each era, with an intro and a random clip each); `radioeffect.ini` (the radio's band-pass: frequency 1548, Q 5, make-up
+gain 1.6; the tannoy's delay, wet and dry mix and filter; `fadetime = 1200`); and the folders `EN-UK/` (speech banks: DJ, news, tannoy, director, tutorial,
+lip sync), `Atmosphere/` (per-facility banks) and `LipsSync/`. File names are not consistently cased (`Tuning_Up.ogg` is `tuning_up.ogg` on disk). The menu's
+background movie `Data/intro/frontend_loop.wmv` (57 s) and `frontend_intro.wmv` carry stereo WMA audio.
+
+## Audio states
+
+The audio manager (`Audio_GetInstance`, `DAT_0104B0E4`) is a small state machine. `AudioStates_DefineAll` (`004F7890`) builds seven state records with
+`AudioState_Define` (`004F7550`); each is 0x164 bytes from manager `+0xEC`. A state holds an optional music file and the voices for it. Only the current state
+(`+0xAA8`) is audible; the (state, owner) pairs the callers registered are a list at `+0xAB0..+0xAB4`.
+
+| State | Music file | Set by |
+|---|---|---|
+| 0 | none | the game object's constructor (`Game_Constructor`), the front end's quiet moments; the fallback when the list is empty |
+| 1 | `Tuning_Up.ogg`, looped | loading: `Game_ConstructSystems` sets 2 (owner: the game) and then 1; `SaveLoad_PumpRequests` while loading or saving |
+| 2 | none: the in-game radio | a game in progress; `Game_DestroySystems` removes it |
+| 3 | none | the shot fiddler (`WShotFiddler_Constructor`); the trailer editor removes it |
+| 4 | none: the front end's own player | `WFrontEnd` (tier < 2), `WFrontEnd_Tick` |
+| 5 | `Relaxing_By_The_Sea.ogg`, looped | the release screens and the reviews page |
+| 6 | `Movies_Intro.ogg`, looped | the splash screen (`WSplashScreen_Tick` removes it) |
+
+- `Audio_SetState(state, owner, networked)` (`004F98F0`): if `state` is already current, nothing happens (the pair is not recorded either). Otherwise the previous
+  state is suspended (`AudioState_SetSuspended`, `004F9190`: fade out, pause its voices), the new one becomes current, is started (`AudioState_Start`, `004F77D0`)
+  and resumed, and the pair is pushed. The radio (state 2) is skipped while a game flag (`*(DAT_00F87B04 + 9)`) is set.
+- `Audio_RemoveState` (`004F9B70`): removes the pair; if it was the current state the one at the end of the list becomes current and is resumed (state 0 when the
+  list is empty); a state that was not current is stopped and its voice released. So loading music (1) sits over the radio (2) and removing it brings the radio back.
+- With `networked` set and a network game running, both calls record the request as a message instead of acting (`FUN_004F8E10`), and `Audio_Update` replays
+  recorded requests (`Audio_ReplayQueuedStateRequests`, `004F9EE0`) when no network game is on. The messages are not decoded.
+- `Audio_Update` (`004FB1C0`, once per frame from the main loop): unless audio is off (`DAT_0105CC29`), replays queued requests, releases a finished voice
+  (`AudioState_ReleaseFinishedVoice`, `004F3400`), runs the current state's music tick by its mode word (`+0x60 + state*0x14`; 1 `AudioState_UpdateRadioMusic`
+  `004F8AE0`, 2 `AudioState_UpdateFrontEndMusic` `004F5E80`), then the clip queues (`RadioChannel_SelectNextClip`, `FUN_004F6960`).
+- Two playlist players back states 2 and 4: `Audio_GetRadioPlayer` (`0049AB70`, `DAT_0104A718`) and `Audio_GetFrontEndPlayer` (`004465F0`, `DAT_00F87EF4`). The music
+  library is read from `data/audio/trackinfo.csv` by `TrackInfo_LoadDefault` / `TrackInfo_LoadCsv` (`00488E70`, `00487EF0`). How a player picks the next track
+  (year range, genre weights, volume, the first-songs flag) is not decoded.
+- Levels: `AudioOptions_LoadMixerLevels` (`004F52E0`) reads the registry values `Volume 0`, `Volume 1`, `Volume 2` (default 1.0) with `Config_GetOrCreateFloat`
+  (`00541AE0`) and applies each with `Audio_SetChannelVolume` (`009B1000`); channel 1 is music and 2 is sound effects (`FRONTEND.md`), 0 is not identified. Then `DJLevel`.
+
+The web port: `AUDIO_STATES` and `AudioStateMachine` (pure, tested), `AudioManager` (Web Audio: a music bus and a sound bus at the settings' volumes, a voice per music
+state with a 1.2 s fade). The screens hold the states above (`main.ts`). The radio and front-end players are not built, so states 2 and 4 are silent (the menu's soundtrack is a WMA stream a browser cannot play, see "Not known"); a browser
+only allows sound after a click or key press, so the splash music starts on the first click, which also leaves the splash.
 
 ## `.lug` sound banks
 
@@ -22,11 +69,11 @@ Each step checks `LH_CheckLoadStatus`.
 1. `LH_DecodeSegmentStructure`: builds the segment directory.
 2. `LH_LoadGlobalProperties` (`00bff9d0`): segment `LHAudioBankGlobalProps`, read with `LH_SerializeGlobalProperties`. A missing segment means defaults.
 3. `LH_ValidateFileBank` (`00bffb00`): the bank-info segment `LHFileSegmentBankInfo`. `LH_GetFileSegmentBankInfo` (`00bd1ef0`) seeks to **offset 0x208**
-   in it and reads a `u32` version, which must be 0 (a "normal LUG"). The 0x208 bytes before it are the bank title. `LH_IsNormalLUG` also requires the
-   wave-data and sample-table segments.
+   in it and reads a `u32` version, which must be 0 (a "normal LUG"). **[data]** The shipped segment is exactly 0x208 bytes: a 512-byte title (`Bank title/description`)
+   and nothing after it, so the version is not stored there; the reader does not check it. `LH_IsNormalLUG` also requires the wave-data and sample-table segments.
 4. `LH_OpenWavSegment`: opens `LHAudioWaveData` and gets its base offset.
 5. `LH_LoadSampleBankTable` (`00bffe70`): segment `LHAudioBankSampleTable`. A `u32` count masked to 16 bits (at most 65,535 samples), then `count`
-   records of **0x28c bytes**. (Fable's files have a second `u16` after the count that nobody has explained; the mask ignores it.)
+   records of **0x28c bytes**. (The second `u16` after the count is 0 in `starmaker.lug` and equals the count in `world.lug`; the mask ignores it.)
 6. `LH_ExtractResources` (`00c00480`): a 0x24-byte `LH_ResourceHeader` per sample record. Records with id 0 are skipped; a duplicate id logs
    `"Resource collision, id (...)"` and is dropped.
 7. `LH_BuildDriverTable` (`00c00660`): a driver entry per sample (below).
@@ -47,14 +94,18 @@ writes. The write side is `LH_BuildLUGAsset` (`00bd34d0`) with matching `LH_Save
 | 0x108 | wave id: equal to the id for a real clip; a different value makes the record an alias of another clip, and aliases are not extracted again |
 | 0x10c | uncompressed (RIFF) size |
 | 0x110 | data offset inside the wave-data segment (the loader adds the segment base) |
-| 0x124 | wave format tag (`u16`) |
+| 0x124 | wave format tag (`u16`; 1 = PCM in every shipped bank) |
 | 0x126 | channel count (`u16`) |
 | 0x128 | sample rate (`u32`) |
+| 0x12c | bytes per second (`u32`) |
+| 0x130, 0x132 | block align and bits per sample (`u16` each): 0x124..0x133 is a `WAVEFORMATEX` copy |
 | 0x138, 0x13c | loop start and end (-1 = no loop in Fable's files) |
 | 0x140 | group / category name, 256 bytes |
 | 0x240-0x27c | the parameter block, below |
 
-The clips are RIFF/WAVE files packed back to back in the wave-data segment.
+The clips are RIFF/WAVE files packed back to back in the wave-data segment. **[data]** In the six shipped banks every clip is mono 16-bit PCM (22,050 or 44,100 Hz);
+the RIFF size inside each clip plus 8 equals the record's size. Aliases (`world.lug`: one 1.8 MB bell clip under several era groups) share their target's data offset.
+Most banks also hold a `LHAudioBankMetaData` segment (the newer form, not decoded) and a `LHAudioBankRandomModulator` segment (8 bytes) next to the classic ones.
 
 ### Parameter block (`LH_BuildDriverTable`)
 
@@ -111,6 +162,10 @@ match calls `FUN_007a3110` on the event's icon.
 
 ## Not known
 
+- How the radio and front-end players pick tracks, and what the front end plays in state 4 (the `frontend_loop.wmv` soundtrack is the likely source).
+- **Menu music does not work in the web app, because of the format:** `frontend_loop.wmv` and `frontend_intro.wmv` hold WMV3 video with WMA (`wmav2`) stereo audio, which
+  browsers cannot decode. The only way in is to transcode the soundtrack (for example `ffmpeg` to Ogg Vorbis) into gitignored storage; that is not done, so state 4
+  (menu, options, load, gallery, viewer) is silent. The same applies to the tutorial `.wmv` clips in `Data/Tutorials/`.
 - How the DJ for an era is chosen, and where the clip-name to event-name mapping is loaded from.
 - The META Data `.lug` route, the RLM parameters, the rest of the sample record.
 - Which banks the game loads when, and the game-side engine classes (`LHAudioSystem_*`, `CEngine`, event triggers, atmosphere groups, the driver classes

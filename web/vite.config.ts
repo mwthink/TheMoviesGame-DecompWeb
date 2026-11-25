@@ -13,6 +13,21 @@ function localGameFiles(): Plugin {
   const savePath = defaultSave() ?? "";
   const textDir = join(dirname(pakDir), "text", "EN-UK");
   const saveDir = savePath ? dirname(savePath) : SAVE_DIR;
+  const audioDir = join(dirname(pakDir), "Audio");
+  /** A path under Data/Audio resolved case-insensitively (the game's file names are not consistent: `Tuning_Up.ogg` is `tuning_up.ogg` on disk). */
+  const audioFile = (rel: string): string | null => {
+    let dir = audioDir;
+    const parts = rel.split("/").filter(Boolean);
+    for (const [i, part] of parts.entries()) {
+      if (part === ".." || part.includes("\\")) return null;
+      if (!existsSync(dir)) return null;
+      const hit = readdirSync(dir).find((n) => n.toLowerCase() === part.toLowerCase());
+      if (!hit) return null;
+      dir = join(dir, hit);
+      if (i === parts.length - 1) return statSync(dir).isFile() ? dir : null;
+    }
+    return null;
+  };
   return {
     name: "otm-local-game-files",
     configureServer(server) {
@@ -25,7 +40,7 @@ function localGameFiles(): Plugin {
           const saves = existsSync(saveDir) ? readdirSync(saveDir).filter((n) => n.toLowerCase().endsWith(".jad")).sort() : [];
           // the string database (Data/text/EN-UK/stringdatabase*.lhts), for the room labels
           const text = ["stringdatabase.lhts", "stringdatabase_addon1.lhts"].filter((n) => existsSync(join(textDir, n)));
-          res.end(JSON.stringify({ paks, text, save: existsSync(savePath) ? savePath.split("/").pop() : null, saves }));
+          res.end(JSON.stringify({ paks, text, audio: existsSync(audioDir), save: existsSync(savePath) ? savePath.split("/").pop() : null, saves }));
           return;
         }
         if (url.pathname === "/save") file = savePath;
@@ -36,6 +51,11 @@ function localGameFiles(): Plugin {
         else if (url.pathname.startsWith("/text/")) {
           const name = decodeURIComponent(url.pathname.slice(6));
           if (!name.includes("/") && !name.includes("..") && name.toLowerCase().endsWith(".lhts")) file = join(textDir, name);
+        }
+        else if (url.pathname.startsWith("/audio/")) {
+          // music (.ogg) and the small tables beside it (.csv, .ini) under Data/Audio
+          const rel = decodeURIComponent(url.pathname.slice(7));
+          if (/\.(ogg|csv|ini)$/i.test(rel)) file = audioFile(rel);
         }
         else if (url.pathname.startsWith("/pak/")) {
           const name = decodeURIComponent(url.pathname.slice(5));
@@ -48,7 +68,7 @@ function localGameFiles(): Plugin {
         }
         const size = statSync(file).size;
         res.setHeader("accept-ranges", "bytes");
-        res.setHeader("content-type", "application/octet-stream");
+        res.setHeader("content-type", file.toLowerCase().endsWith(".ogg") ? "audio/ogg" : "application/octet-stream");
         const m = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range ?? "");
         if (m) {
           const start = Number(m[1]);

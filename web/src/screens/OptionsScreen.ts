@@ -1,4 +1,4 @@
-import { ANISOTROPY_CHOICES, DEFAULT_SETTINGS, HELP_LEVELS, RENDER_SCALE_RANGE, type HelpLevel, type Settings, type SettingsStore } from "../settings/Settings.ts";
+import { ANISOTROPY_CHOICES, DEFAULT_SETTINGS, HELP_LEVELS, RENDER_SCALE_RANGE, VOLUME_STEP, type HelpLevel, type Settings, type SettingsStore } from "../settings/Settings.ts";
 import { mountScreen, unmountScreen, type Screen } from "./Screen.ts";
 
 /** Names of the help levels, the original's `GAMEPLAYOPTIONS_*HELP` strings. */
@@ -31,6 +31,8 @@ export class OptionsScreen implements Screen {
     const s = this.store.get();
     const scaleSteps: number[] = [];
     for (let v = RENDER_SCALE_RANGE.min; v <= RENDER_SCALE_RANGE.max + 1e-9; v += RENDER_SCALE_RANGE.step) scaleSteps.push(v);
+    const volumeSteps: number[] = [];
+    for (let i = 0; i <= Math.round(1 / VOLUME_STEP); i++) volumeSteps.push(i / Math.round(1 / VOLUME_STEP));
     const option = (value: string | number, label: string, selected: boolean) => `<option value="${value}"${selected ? " selected" : ""}>${label}</option>`;
     el.innerHTML = `
       <h2>Options</h2>
@@ -43,6 +45,11 @@ export class OptionsScreen implements Screen {
           <label class="check"><input type="checkbox" data-key="showFps"${s.showFps ? " checked" : ""}> Show frames per second</label>
           <label class="check"><input type="checkbox" data-fullscreen${document.fullscreenElement ? " checked" : ""}> Full screen</label>
           <p class="hint">Render size below 100 % draws fewer pixels and is faster; above 100 % is sharper. Texture sharpness applies the next time a game loads.</p>
+        </fieldset>
+        <fieldset>
+          <legend>Audio</legend>
+          <label>Music volume <select data-key="musicVolume">${volumeSteps.map((v) => option(v, `${Math.round(v * 100)} %`, v === s.musicVolume)).join("")}</select></label>
+          <label>Sound effects volume <select data-key="soundVolume">${volumeSteps.map((v) => option(v, `${Math.round(v * 100)} %`, v === s.soundVolume)).join("")}</select></label>
         </fieldset>
         <fieldset>
           <legend>Game</legend>

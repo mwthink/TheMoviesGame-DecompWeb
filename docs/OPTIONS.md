@@ -33,7 +33,7 @@ Reached from the main menu and, over the running game, from the pause menu (`Pau
 | Graphics | Full screen | the browser's Fullscreen API (not stored: the browser decides) | `Fullscreen` |
 | Game | Level of help | "no extra assistance" turns tooltips off (`Tooltip.setEnabled`); the other levels are the same for now | level of help |
 
-Not offered, because there is nothing behind them yet: audio (no sound in the app), autosave (no saving), speaker set-up, PA and radio options, colour depth (a browser has one),
+Not offered, because there is nothing behind them yet: speaker set-up, PA and radio options, autosave (no saving), colour depth (a browser has one),
 screen size in pixels (the window is the size).
 
 ## What Babylon.js could add
