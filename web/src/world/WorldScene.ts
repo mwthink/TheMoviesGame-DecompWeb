@@ -64,6 +64,10 @@ function buildTerrain(scene: Scene, t: TerrainData): Mesh {
   mat.setTexture("sidewalk", makeTexture(scene, t.groundTextures[t.sidewalk] ?? white));
   mat.setFloat("tileSize", GROUND_TILE);
   mat.setFloat("pathTileSize", PATH_TILE);
+  // Models have ground patches lying exactly at height 0 (the gatehouse's, the gate's base): the same depth as the terrain, which flickers
+  // as the camera moves. Push the terrain slightly back in depth so anything lying on it always wins.
+  mat.zOffset = 2;
+  mat.zOffsetUnits = 2;
   ground.material = mat;
   ground.isPickable = false;
   return ground;
@@ -165,8 +169,8 @@ export function buildWorld(scene: Scene, canvas: HTMLCanvasElement, world: World
   const focus = count ? new Vector3(fx / count, 2, fz / count) : Vector3.Zero();
 
   const camera = new ArcRotateCamera("camera", -Math.PI / 2, 1.0, 80, focus, scene);
-  camera.minZ = 0.5;
-  camera.maxZ = 2000;
+  camera.minZ = 1; // a larger near plane (and shorter far plane) keeps depth precision for distant surfaces
+  camera.maxZ = 1200;
   camera.lowerRadiusLimit = 5;
   camera.upperRadiusLimit = 400;
   camera.upperBetaLimit = Math.PI / 2 - 0.03; // stay above the ground
