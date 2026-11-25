@@ -8,6 +8,7 @@ has the rules for ported code (`orig:` tags, `verified`, `quirk:`, `Math.fround`
 - Run `python3 tools/audit_firewall.py` before every commit. No game files, extracted assets, decompiler output or game-derived names go into git;
   they live under `data/`, `docs/generated/`, `viewer/data/` (gitignored).
 - Commit only when the user asks.
+- Stay on current branch unless user says otherwise.
 - Machine paths come from `local.env` (`local.env.example`), read by `web/localPaths.ts` and `tools/local_paths.py`. Never write a path from this
   machine, a save's file name or a star's name into code, tests or docs: refer to saves by what they are (`web/localPaths.ts`, `SAVE_ROLES`).
 
