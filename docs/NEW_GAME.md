@@ -60,6 +60,11 @@ The function calls `Game_SetLoadProgress(f)` (`FUN_0041FD60`, draws the loading 
 | 0.94 | **`Lot_LoadStartingLayout(name)`** (only when the name is non-empty) |
 | 0.98 | `autoexec.cfg` and `user.cfg` go to `FUN_005434E0`, an empty stub; flags: `this+0x86 = 1`, `this+0xC7 = 0`, game speed (`+0x38`) = 1.0, `DAT_0104A982 = 1` |
 
+Identified since the table was drawn **[read]**: the timer (`FUN_00566CE0` creates the singleton `DAT_0104CDF4`, `FUN_00566C30` destroys it), `FUN_00422580` picks a random loading
+screen, and the previous game's systems are torn down by `Game_DestroySystems` (`FUN_0041FB80`, about 25 destructors, clearing `DAT_0104A982` and `+0x86`). Most of the remaining `FUN_` calls
+are constructors of singletons (relationships, photographers, awards, reviews, cinema, build-button data, debug data log, graph series, explainers); the names given to them in the
+analysis were read from their `operator_new` size and strings, not from their bodies, so they are not in `renames.csv` unless an address is listed there.
+
 The player's studio (`Studios_Initialize`, 0x512C50, formerly `StudioReputation_Constructor`) creates the `CStudio`, and, when the profile screen has been confirmed (`DAT_0104DCF8`), sets its
 **name, icon and owner name** from the profile screen's data; it then loads the `studio` tuning (reputation inertia and half-life, the prestige factors, the star-rating factors that
 `src/game/studio/StudioRating` uses, `capital0star`...) and calls `AIStudios_LoadRuleCsv` (0x512510) for **`data/rule/aistudios.csv`**.
@@ -115,14 +120,21 @@ So the starter studio grows by about one or two facilities a decade, and 1960's 
 - With the tracer, log `Game_ConstructSystems` and `Lot_LoadStartingLayout` and click New Game; the first should run once per new game and per load, the second only for a new game.
 - Load a new 1960 game, then count the facilities in the studio: 15 are expected, plus the perimeter assets (`facility/facility_gatehouse`).
 
-## 7. Not known
+## 7. Findings on loading, staff and applicants
 
-- **Who is in the studio at the start.** No `hired_staff` section is in any `savedefaults` file, so the starting staff, the cast and crew pool, the stars and extras that exist on day one, and
-  how the applicant stream is seeded (`ApplicantSpawnDispatcher`) were not found. `FUN_004EC0B0` and `FUN_0045EA70` may be relevant; unread.
+- **A load skips the layout** **[read, disassembly]**. `Game_ConstructSystems` calls `Lot_LoadStartingLayout` only when the name string's size field is non-zero. The load path builds the string with
+  length 0, so no layout is read; the load only runs the constructor when `Game+0x86 == 0` (no game is built yet). The objects then come from the save file (SAVE_FORMAT.md).
+- **There is no starting staff** **[data]**. No new-game layout (`<year>.ini`, `tutorial.ini`, any `_clean`) has a `hired_staff` section; only `movielot.ini` does, and no new-game path names it.
+  A new studio starts with buildings and props only.
+- **Applicants** **[read, partly]**. The wannabes (hopeful actors, crew) are an object pool of 10 dormant `CWannabe` objects made at construction. What fills the pool is a virtual on `CSubFacility`
+  (`FUN_0084E5C0`) that scales the applicant supply by the studio star rating (`CStudio_ComputeStarRating`, ported in `src/game/studio/StudioRating`). The earlier `Applicant_*` names in the project
+  (the costume fiddler's window spawner) have nothing to do with this and should not be relied on.
+
+## 8. Not known
+
+- Where each applicant-type sub-facility gets its parameters (`this+0x47/0x48`, supported staff), and the curve of supply against rating.
 - `data/sandbox/moviesdefault.csv` (7,788 bytes): the sandbox's starting film library, probably; its loader was not found.
-- The 25 stages in section 3 that are still `FUN_`, and `Game_SetLoadProgress`'s timing.
+- The remaining singleton constructors in section 3 beyond the ones named; the worker thread procedure at 0x4ADE00 (a wait loop on a handle; not read further).
 - The `.lnd` terrain format, and the lot size tier table.
-- Whether a load really skips the layout: `Game_ConstructSystems` loads it only when `*(int *)(name + 4) != 0`, and the load path passes a freshly built empty string. The test reads a field of the
-  project's own string class, whose layout I did not verify, so "an empty name loads nothing" is the intended reading, not a checked one.
-- How the game clock's start date follows the start year (`GameClock_Constructor`).
-- The one asymmetry worth testing: a sandbox defaults to `_clean` (empty lot), yet the front-end text for the option ("a basic setup") reads as if the built lot were the normal case.
+- How the game clock's start date follows the start year (`GameClock_Constructor`), and which file `Weather_LoadRuleTable` reads.
+- The asymmetry that a sandbox defaults to `_clean` (empty lot), while the front-end text for the option ("a basic setup") reads as if the built lot were the normal case.
