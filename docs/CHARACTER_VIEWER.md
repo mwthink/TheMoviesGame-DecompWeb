@@ -22,7 +22,7 @@ the meshes from `PersonMeshes` (`web/src/world/PersonMeshes.ts`, also used for t
 - **Browsing:** every list has ‹ › buttons and its position (`12 / 400`); a focused list steps with the arrow keys (wrapping), Page Up/Down and Home/End, without opening.
   With no field focused: ↑ ↓ costume, Shift ↑ ↓ head, ← → animation, Shift ← → hair, Space play/pause, `,` `.` one frame, `[` `]` speed, R random person (head and hair
   of the costume's `m_`/`f_` sex, random layer variants and accessories), O auto-orbit, C reset camera, T/W/B textures/wireframe/back faces, `/` the animation filter
-  (whose ↑ ↓ step the animation list), `?` the key list (`KEYS` in the screen). The last person (costume, head, hair, age, weight, variants) and clip are remembered by
+  (whose ↑ ↓ step the animation list), `?` the key list (`KEYS` in the screen). *Reset to defaults* clears what is remembered and puts back the first-visit person, pose and switches. The last person (costume, head, hair, age, weight, variants) and clip are remembered by
   name in the browser's local storage and put back on the next visit.
 - Needs the game archives: from Load Game's chosen folder, the dev server's local files, or a remembered folder (the same lookup as the front-end logo, `findGameArchives`).
 

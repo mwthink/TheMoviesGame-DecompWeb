@@ -97,7 +97,7 @@ export class CharacterViewerScreen implements Screen {
         ${pickHtml("Hair", 'data-f="hair"')}
         <label>Age <input type="range" data-f="age" min="18" max="80" step="1" value="30"><output data-o="age"></output></label>
         <label>Weight <input type="range" data-f="weight" min="50" max="120" step="1" value="70"><output data-o="weight"></output></label>
-        <div class="actions"><button type="button" data-random title="R">Random person</button></div>
+        <div class="actions"><button type="button" data-random title="R">Random person</button> <button type="button" data-reset-defaults>Reset to defaults</button></div>
         <div class="actions"><button type="button" data-copy-to>Copy character to clipboard</button> <button type="button" data-copy-from>Copy character from clipboard</button></div>
         <label>Saved game <input type="file" data-f="save" accept=".jad"></label>
         <div data-people hidden>${pickHtml("Person", 'data-f="person"')}</div>
@@ -189,13 +189,45 @@ export class CharacterViewerScreen implements Screen {
     fill(this.f("cos"), names(pak.list(DIR.costumes), /\.cos$/i));
     fill(this.f("head"), ["(default for the costume)", NO_HEAD, ...names(pak.list(DIR.heads), /\.hd$/i)]);
     fill(this.f("hair"), ["(none)", ...names(pak.list(DIR.meshes), /^hair_.*\.msh$/i)]);
-    this.f<HTMLSelectElement>("cos").value = pak.find("m_50s_2.cos") ? "m_50s_2.cos" : this.f<HTMLSelectElement>("cos").options[0]?.value ?? "";
-    this.f<HTMLSelectElement>("hair").value = pak.find("hair_20s_m1.msh") ? "hair_20s_m1.msh" : "(none)";
+    this.applyDefaultPerson();
     this.restore();
     this.fillClips();
     note.textContent = `${this.f<HTMLSelectElement>("cos").options.length} costumes, ${this.f<HTMLSelectElement>("head").options.length - 2} heads. Drag to orbit, wheel to zoom.`;
     el.querySelector<HTMLElement>(".controls")!.hidden = false;
     this.wire();
+    await this.rebuild();
+  }
+
+  /** The person the viewer opens with: the default costume and hair, the default head, age and weight. */
+  private applyDefaultPerson(): void {
+    const pak = this.pak!;
+    this.f<HTMLSelectElement>("cos").value = pak.find("m_50s_2.cos") ? "m_50s_2.cos" : this.f<HTMLSelectElement>("cos").options[0]?.value ?? "";
+    this.f<HTMLSelectElement>("head").selectedIndex = 0;
+    this.f<HTMLSelectElement>("hair").value = pak.find("hair_20s_m1.msh") ? "hair_20s_m1.msh" : "(none)";
+    this.f<HTMLInputElement>("age").value = "30";
+    this.f<HTMLInputElement>("weight").value = "70";
+  }
+
+  /** Back to how the first visit looks: default person, the standing pose held at frame 0, default switches and camera; the remembered state is cleared. */
+  private async resetToDefaults(): Promise<void> {
+    if (!this.pak) return;
+    try { localStorage.removeItem(STORE_KEY); } catch { /* storage off: nothing to clear */ }
+    this.applyDefaultPerson();
+    this.look = {};
+    this.pending = null;
+    this.randomLook = false;
+    this.optionsFor = ""; // read the costume's options again, with none of its variants or accessories chosen
+    this.clipName = "";
+    this.f<HTMLInputElement>("filter").value = "";
+    this.f<HTMLInputElement>("speed").value = "1";
+    this.speed = 1;
+    for (const [name, on] of [["textured", true], ["wire", false], ["double", false], ["orbit", false]] as const) this.f<HTMLInputElement>(name).checked = on;
+    this.orbit = false;
+    this.playing = true;
+    this.f<HTMLInputElement>("play").checked = true;
+    this.showNumbers();
+    this.resetCamera();
+    this.fillClips(); // with no clip chosen this picks the default one and holds it at frame 0
     await this.rebuild();
   }
 
@@ -217,6 +249,7 @@ export class CharacterViewerScreen implements Screen {
     });
     const look = () => this.meshes?.setLook({ wireframe: this.f<HTMLInputElement>("wire").checked, textured: this.f<HTMLInputElement>("textured").checked, doubleSided: this.f<HTMLInputElement>("double").checked });
     for (const name of ["textured", "wire", "double"]) this.f(name).addEventListener("change", look);
+    this.el!.querySelector("[data-reset-defaults]")!.addEventListener("click", () => void this.resetToDefaults());
     this.el!.querySelector("[data-copy-to]")!.addEventListener("click", () => void this.copyTo());
     this.el!.querySelector("[data-copy-from]")!.addEventListener("click", () => void this.copyFrom());
     this.f<HTMLInputElement>("save").addEventListener("change", () => void this.loadSave());
