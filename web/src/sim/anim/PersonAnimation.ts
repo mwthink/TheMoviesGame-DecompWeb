@@ -63,11 +63,15 @@ export class PersonAnimator {
     if (this.override) this.timeMs = 0;
   }
 
-  /** Advance by `dtMs` and return the skinning transforms of the pose now, or null when the clip is unknown (the person keeps their last pose). */
-  step(dtMs: number): SkinTransform[] | null {
+  /**
+   * Advance by `dtMs` and return the skinning transforms of the pose now, or null when the clip is unknown (the person keeps their last pose). With `pose` false
+   * the clip and playlist still advance but no pose is computed (null): for a person nobody can see.
+   */
+  step(dtMs: number, pose = true): SkinTransform[] | null {
     if (this.override) {
       const walk = this.clips.get(this.override)!;
       this.timeMs = (this.timeMs + Math.max(0, dtMs)) % anmDurationMs(walk);
+      if (!pose) return null;
       return skinTransforms(this.skeleton, poseBones(this.skeleton, walk, anmFramePosition(walk, this.timeMs), "absolute"));
     }
     let clip = this.clips.get(this.current);
@@ -80,6 +84,7 @@ export class PersonAnimator {
       clip = this.clips.get(this.current) ?? clip;
       dur = anmDurationMs(clip);
     }
+    if (!pose) return null;
     return skinTransforms(this.skeleton, poseBones(this.skeleton, clip, anmFramePosition(clip, this.timeMs), "absolute"));
   }
 

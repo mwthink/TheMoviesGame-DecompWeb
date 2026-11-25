@@ -238,11 +238,20 @@ export class GameView implements Screen {
     const scene = this.scene;
     this.ready = new Promise<void>((resolve) => { this.resolveReady = resolve; });
     this.engine.runRenderLoop(() => {
-      this.tickGame();
-      this.tickCamera();
-      this.updateHover();
-      this.faceFloors();
-      this.scene?.render();
+      const perf = this.perf;
+      if (perf) {
+        perf.time("game tick", () => this.tickGame());
+        perf.time("camera", () => this.tickCamera());
+        perf.time("hover", () => this.updateHover());
+        perf.time("floors", () => this.faceFloors());
+        perf.time("scene.render", () => this.scene?.render());
+      } else {
+        this.tickGame();
+        this.tickCamera();
+        this.updateHover();
+        this.faceFloors();
+        this.scene?.render();
+      }
       // Shaders compile in the background: count a frame as ready only once the scene reports ready and has drawn one.
       if (++frames >= 2 && scene.isReady()) this.finishReady();
     });
@@ -417,11 +426,12 @@ export class GameView implements Screen {
     if (!engine) return;
     const dtMs = engine.getDeltaTime();
     if (this.clock.advance(dtMs / 1000) > 0) this.toolbar?.setStatus(this.clock.date, this.world?.header?.cash ?? null);
-    this.stepAutoAnimations?.(dtMs);
+    const timed = <T>(name: string, fn: () => T): T => (this.perf ? this.perf.time(name, fn) : fn());
+    timed("  auto animations", () => this.stepAutoAnimations?.(dtMs));
     this.dragger?.tick(dtMs);
     // people animate in game time: the speed buttons scale it and a pause freezes them [guess, docs/PEOPLE.md]
     const factor = SPEED_FACTOR[this.clock.speed];
-    if (factor > 0) this.stepPeople?.(Math.min(dtMs, 99) * factor * this.clock.timeScale);
+    if (factor > 0) timed("  people", () => this.stepPeople?.(Math.min(dtMs, 99) * factor * this.clock.timeScale));
     if (this.skyMode === "auto") {
       const v = skyVariantForYear(yearOfDate(this.clock.date));
       if (v !== this.skyShown) { this.setSkyVariant?.(v); this.skyShown = v; }

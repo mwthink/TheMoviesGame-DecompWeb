@@ -267,7 +267,10 @@ function buildPeople(scene: Scene, people: PersonInWorld[], nav: NavGrid | null,
       }
       // the gait clip while on the way, the room plan otherwise
       animator.setOverride(walker.moving ? entry.gaits.files[walker.gait] : null);
-      const transforms = animator.step(dtMs);
+      // a person outside the camera's view keeps their clock running but is not re-skinned (the mesh is posed again the first frame it is seen)
+      const planes = scene.frustumPlanes;
+      const seen = !planes || !meshes.meshes[0] || meshes.meshes.some((m) => m.isInFrustum(planes));
+      const transforms = animator.step(dtMs, seen);
       if (transforms) meshes.applyPose(transforms);
     }
   };

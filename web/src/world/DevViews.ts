@@ -12,6 +12,9 @@ import type { LinesMesh } from "@babylonjs/core/Meshes/linesMesh";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import { SceneInstrumentation } from "@babylonjs/core/Instrumentation/sceneInstrumentation";
+import { EngineInstrumentation } from "@babylonjs/core/Instrumentation/engineInstrumentation";
+import "@babylonjs/core/Engines/AbstractEngine/abstractEngine.timeQuery"; // side effect: adds Engine.getGPUFrameTimeCounter
+import "@babylonjs/core/Engines/Extensions/engine.query"; // side effect: adds Engine.captureGPUFrameTime, which the GPU timer in EngineInstrumentation calls
 import type { Scene } from "@babylonjs/core/scene";
 import type { SunShadows } from "./SunShadows.ts";
 
@@ -202,6 +205,9 @@ export class ShadowMapViewer {
 /** Frame and draw statistics for the dev menu (Babylon's scene instrumentation). */
 export class PerfStats {
   private readonly instrumentation: SceneInstrumentation;
+  private readonly engineInstrumentation: EngineInstrumentation;
+  /** Moving average (ms) of the JS time each stage of the render loop takes, by name (`time`). */
+  private readonly stages = new Map<string, number>();
 
   constructor(private readonly scene: Scene, private readonly shadows: () => SunShadows | null) {
     this.instrumentation = new SceneInstrumentation(scene);
@@ -209,6 +215,17 @@ export class PerfStats {
     this.instrumentation.captureRenderTime = true;
     this.instrumentation.captureActiveMeshesEvaluationTime = true;
     this.instrumentation.captureRenderTargetsRenderTime = true;
+    this.engineInstrumentation = new EngineInstrumentation(scene.getEngine());
+    this.engineInstrumentation.captureGPUFrameTime = true; // only where the browser offers the GPU timer query
+  }
+
+  /** Run one stage of the render loop and fold its duration into the stage's average. */
+  time<T>(stage: string, fn: () => T): T {
+    const t = performance.now();
+    try { return fn(); } finally {
+      const d = performance.now() - t;
+      this.stages.set(stage, (this.stages.get(stage) ?? d) * 0.95 + d * 0.05);
+    }
   }
 
   /** Rows for the dev menu's Performance section. */
@@ -216,8 +233,14 @@ export class PerfStats {
     const i = this.instrumentation;
     const ms = (v: number) => `${v.toFixed(2)} ms`;
     const engine = this.scene.getEngine();
+    const stages: Record<string, string> = {};
+    for (const [name, v] of this.stages) stages[`loop: ${name} (js avg)`] = ms(v);
+    const gpu = this.engineInstrumentation.gpuFrameTimeCounter.average;
     return {
       fps: engine.getFps().toFixed(0),
+      "frame interval": ms(engine.getDeltaTime()),
+      "gpu frame time (avg)": gpu > 0 ? ms(gpu / 1e6) : "not available",
+      ...stages,
       "frame time (avg)": ms(i.frameTimeCounter.average),
       "render time (avg)": ms(i.renderTimeCounter.average),
       "mesh selection (avg)": ms(i.activeMeshesEvaluationTimeCounter.average),
@@ -230,5 +253,5 @@ export class PerfStats {
     };
   }
 
-  dispose(): void { this.instrumentation.dispose(); }
+  dispose(): void { this.instrumentation.dispose(); this.engineInstrumentation.dispose(); }
 }
