@@ -9,6 +9,7 @@ import { BlobSource } from "../assets/ByteSource.ts";
 import { decodeDds, type Rgba } from "../formats/Dds.ts";
 import { anmDurationMs, anmFramePosition, parseAnm, type Anm } from "../formats/Anm.ts";
 import { parseSave, type SavedPerson } from "../formats/Jad.ts";
+import { STANDING_POSE_CLIP } from "../sim/character/PersonModel.ts";
 import { clipFits, poseBones, skinTransforms } from "../sim/anim/AutoAnimation.ts";
 import { decodeCharacter, encodeCharacter } from "../sim/character/CharacterCode.ts";
 import { ageYears } from "../sim/character/PersonModel.ts";
@@ -20,7 +21,7 @@ import { mountScreen, unmountScreen, type Screen } from "./Screen.ts";
 
 const DIR = { costumes: "data\\costume\\datas\\", heads: "data\\heads\\", meshes: "data\\meshes\\", clips: "data\\animations\\high\\" };
 /** The clip the viewer starts with (and the fallback idle of people without a room scene). */
-const DEFAULT_CLIP = "idle_male.anm";
+const DEFAULT_CLIP = STANDING_POSE_CLIP;
 /** At most this many clip names are listed at once; the filter narrows them. */
 const MAX_CLIP_CHOICES = 300;
 /** Where the viewer remembers its last person and clip (this browser only; names of game files, nothing from inside them). */
@@ -110,6 +111,7 @@ export class CharacterViewerScreen implements Screen {
         <label class="check"><input type="checkbox" data-f="orbit"> Auto-orbit</label>
         <div class="actions"><button type="button" data-home title="C">Reset camera</button></div>
         <p class="info" data-info></p>
+        <p class="info" data-frame></p>
         <details data-keys><summary>Keys</summary><dl class="keys">${KEYS.map(([k, what]) => `<dt>${k}</dt><dd>${what}</dd>`).join("")}</dl></details>
       </div>
       <div class="actions"><button type="button" data-back>Back</button></div>`;
@@ -407,7 +409,11 @@ export class CharacterViewerScreen implements Screen {
     const sel = this.f<HTMLSelectElement>("clip");
     fill(sel, shown);
     sel.value = this.clipName && shown.includes(this.clipName) ? this.clipName : shown.includes(DEFAULT_CLIP) ? DEFAULT_CLIP : shown[0] ?? "";
-    if (!this.clipName && sel.value) void this.chooseClip(sel.value);
+    if (!this.clipName && sel.value) {
+      // first visit: the pose people are drawn in (frame 0 of the standing clip), held rather than played
+      if (sel.value === STANDING_POSE_CLIP) { this.playing = false; this.f<HTMLInputElement>("play").checked = false; }
+      void this.chooseClip(sel.value);
+    }
     this.showCounts();
   }
 
@@ -543,6 +549,8 @@ export class CharacterViewerScreen implements Screen {
       this.timeMs = (this.timeMs + dtMs * this.speed) % dur;
       this.f<HTMLInputElement>("scrub").value = String(this.timeMs / dur);
     }
+    const frame = this.el?.querySelector<HTMLElement>("[data-frame]");
+    if (frame) frame.textContent = `Frame ${Math.floor(this.timeMs / FRAME_MS + 1e-6) % this.clip.nFrames} of ${this.clip.nFrames}`;
     const sk = this.model.skeleton;
     this.meshes.applyPose(skinTransforms(sk, poseBones(sk, this.clip, anmFramePosition(this.clip, this.timeMs), "absolute")));
   }
