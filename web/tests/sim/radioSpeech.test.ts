@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { GAME_DIR } from "../../localPaths.ts";
-import { djForYear, djMaySpeak, NewsAnnouncer, parseDjSchedule, parseTimelineEvents, SpeechQueue, SPEECH_GAP_MS } from "../../src/sim/audio/RadioSpeech.ts";
+import { clipMatchesEvent, djForYear, djMaySpeak, NewsAnnouncer, parseDjSchedule, parseTimelineEvents, SpeechQueue, SPEECH_GAP_MS } from "../../src/sim/audio/RadioSpeech.ts";
 
 const STING = "Criteria,Start,End,Random\r\nRADIO_DJ_A_INTRO,0,1940,0\r\nRADIO_DJ_A,0,1940,1\r\nRADIO_DJ_B_INTRO,1941,1955,0\r\nRADIO_DJ_B,1941,1955,1\r\nRADIO_DJ_B_OUTRO,1941,1956,0\r\n";
 
@@ -73,4 +73,11 @@ test("clips of a tag come out as a shuffle bag: all of them before any repeats",
   assert.deepEqual([...second].sort(), [0, 1, 2, 3]);
   assert.equal(bag.take("none", 0), -1);
   assert.equal(bag.take("B", 1), 0);
+});
+
+test("a news clip lights its event's icon: the event's tag, or the tag plus _FUTURE", () => {
+  assert.equal(clipMatchesEvent("TIMELINE_BAYOFPIGS", "TIMELINE_BAYOFPIGS"), true);
+  assert.equal(clipMatchesEvent("TIMELINE_BAYOFPIGS_FUTURE", "TIMELINE_BAYOFPIGS"), true);
+  assert.equal(clipMatchesEvent("TIMELINE_BAYOFPIGS", "TIMELINE_MOONLANDING"), false);
+  assert.equal(clipMatchesEvent("TIMELINE_BAYOFPIGS_FUTURE_2", "TIMELINE_BAYOFPIGS"), false);
 });

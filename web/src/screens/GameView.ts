@@ -412,6 +412,11 @@ export class GameView implements Screen {
   }
 
   /** The toolbar's speed buttons: pause, play (1x) or fast. Only the game clock changes; flags and the camera keep running (docs/AUTO_ANIMATION.md). */
+  /** A news clip is playing (its tag) or has ended (null): the timeline lights the icon of the event it is about. */
+  highlightNews(tag: string | null): void {
+    this.toolbar?.highlightNews(tag);
+  }
+
   private setSpeed(speed: GameSpeed): void {
     this.clock.speed = speed;
     this.toolbar?.setSpeed(speed);

@@ -1,6 +1,6 @@
 import { formatDate, type GameSpeed } from "../sim/core/GameClock.ts";
 import { timelineX } from "../sim/ui/TimelineScale.ts";
-import type { TimelineEvent } from "../sim/audio/RadioSpeech.ts";
+import { clipMatchesEvent, type TimelineEvent } from "../sim/audio/RadioSpeech.ts";
 
 const ICONS: Record<GameSpeed, string> = {
   pause: `<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="2" width="3.5" height="12"/><rect x="9.5" y="2" width="3.5" height="12"/></svg>`,
@@ -79,6 +79,14 @@ export class GameToolbar {
       this.trackEl.append(el);
       return { el, tag: e.tag, year: e.year, x: null };
     });
+  }
+
+  /**
+   * Light the icon of the event a news clip is about while the clip plays (the original grows it from 16 to 24 px with a spinning glow until the voice stops,
+   * `FUN_007A3110` and `WTimelineEventIcon_Update`, orig: 0x007A3D60). `null` clears it.
+   */
+  highlightNews(tag: string | null): void {
+    for (const m of this.markers) m.el.classList.toggle("playing", tag !== null && clipMatchesEvent(tag, m.tag));
   }
 
   /** The small card under a hovered event dot: its name, date and what it is. */

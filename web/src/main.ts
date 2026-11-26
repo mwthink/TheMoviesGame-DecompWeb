@@ -86,12 +86,13 @@ audio.game = {
   events: () => gameView.world?.timelineEvents ?? [],
   newGame: () => gameView.startDate < 1920 * 365 + 1,
 };
+audio.onNews = (tag) => gameView.highlightNews(tag);
 /** The (state, owner) pairs each screen holds, in the order the original sets them: a game's radio goes in before the loading music that covers it. */
 const AUDIO_FOR: Record<ScreenId, ReadonlyArray<readonly [number, string]>> = {
-  // Deviation: the original stops the splash music (state 6) when the splash ends and plays the front end's own soundtrack (state 4, a WMA video track a browser
-  // cannot play, docs/AUDIO.md). Here the same pair stays held through the menu screens, so the intro music carries on and loops until a game starts loading.
+  // The splash screen's music stops when the splash ends; the menus hold the front end's state (4), whose player plays the one track flagged "Play in Random Mode",
+  // `Relaxing_By_The_Sea` (docs/AUDIO.md, "Menu music").
   splash: [[6, "intro"]],
-  menu: [[6, "intro"]], load: [[6, "intro"]], link: [[6, "intro"]], profile: [[6, "intro"]], options: [[6, "intro"]], gallery: [[6, "intro"]], viewer: [[6, "intro"]],
+  menu: [[4, "frontend"]], load: [[4, "frontend"]], link: [[4, "frontend"]], profile: [[4, "frontend"]], options: [[4, "frontend"]], gallery: [[4, "frontend"]], viewer: [[4, "frontend"]],
   loading: [[2, "game"], [1, "loading"]],
   game: [[2, "game"]],
 };

@@ -39,29 +39,50 @@ test("the radio plays only tracks that are on the radio and in the year", () => 
   assert.equal(radio.next(1900), undefined);
 });
 
-test("every eligible track plays once before any repeats, and a round never starts with the last track", () => {
+test("every queued track plays once before the queue is filled again", () => {
   let seed = 1;
   const random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  const radio = new RadioPlaylist(parseTrackInfo(CSV), { random });
+  const radio = new RadioPlaylist(parseTrackInfo(CSV), { random, minSeparation: 0 });
   const names: string[] = [];
   for (let i = 0; i < 9; i++) names.push(radio.next(1935)!.name);
   for (const round of [names.slice(0, 3), names.slice(3, 6), names.slice(6, 9)]) assert.deepEqual([...round].sort(), ["Both", "Old_One", "Opener"]);
-  assert.notEqual(names[3], names[2]);
-  assert.notEqual(names[6], names[5]);
+});
+
+test("a track that started fewer than the separation picks ago is skipped, and nothing plays when all are too recent", () => {
+  const radio = new RadioPlaylist(parseTrackInfo(CSV), { random: () => 0, minSeparation: 2 });
+  assert.equal(radio.next(1935)!.name, "Old_One");
+  assert.equal(radio.next(1935)!.name, "Both");
+  assert.equal(radio.next(1935)!.name, "Opener");
+  // the queue is full again: Old_One started 3 picks ago (allowed), Both 2 (allowed), Opener 1 (too recent)
+  assert.equal(radio.next(1935)!.name, "Old_One");
+  assert.equal(radio.next(1935)!.name, "Both");
+  // only Opener is queued and it started 2 picks ago: allowed with separation 2
+  assert.equal(radio.next(1935)!.name, "Opener");
+  const tight = new RadioPlaylist(parseTrackInfo(CSV), { random: () => 0, minSeparation: 7 });
+  for (let i = 0; i < 3; i++) assert.ok(tight.next(1935));
+  assert.equal(tight.next(1935), undefined); // quirk: seven or fewer tracks in a year starve the original's radio
 });
 
 test("a year change drops tracks that no longer fit and brings in new ones", () => {
-  const radio = new RadioPlaylist(parseTrackInfo(CSV), { random: () => 0 });
+  const radio = new RadioPlaylist(parseTrackInfo(CSV), { random: () => 0, minSeparation: 0 });
   assert.equal(radio.next(1925)!.name, "Old_One");
   assert.equal(radio.next(1925)!.name, "Opener");
   assert.equal(radio.next(1990)!.name, "Both"); // Old_One and Opener are over; Both and Late are in
   assert.equal(radio.next(1990)!.name, "Late");
 });
 
-test("a new game starts with the tracks flagged to play first", () => {
-  const radio = new RadioPlaylist(parseTrackInfo(CSV), { preferFirst: true, random: () => 0 });
+test("a new game's first fill takes only the tracks flagged to play first, then the queue fills normally", () => {
+  const radio = new RadioPlaylist(parseTrackInfo(CSV), { preferFirst: true, random: () => 0, minSeparation: 0 });
   assert.equal(radio.next(1925)!.name, "Opener");
   assert.equal(radio.next(1925)!.name, "Old_One");
+  assert.equal(radio.next(1925)!.name, "Opener");
+});
+
+test("the front end's player takes the tracks flagged for random mode, in any year", () => {
+  const menu = parseTrackInfo(HEAD + "Calm,1920,1930,0,0.45,0,0,0,0,0,0,0,0,1,0\r\nOther,1920,1930,1,0.45,0,0,0,0,0,0,0,0,0,0\r\n");
+  const player = new RadioPlaylist(menu, { mode: "frontEnd" });
+  assert.equal(player.next(2005)!.name, "Calm");
+  assert.equal(player.next(1925)!.name, "Calm");
 });
 
 test("the shipped library: 102 tracks, 60 on the radio, one played first", { skip: GAME_DIR && existsSync(join(GAME_DIR, "Data", "Audio", "trackinfo.csv")) ? false : "game audio not found" }, () => {
@@ -72,4 +93,8 @@ test("the shipped library: 102 tracks, 60 on the radio, one played first", { ski
   const radio = new RadioPlaylist(t);
   assert.equal(radio.eligible(1920).length, 8);
   assert.equal(radio.eligible(1990).length, 40);
+  for (let y = 1920; y <= 2030; y++) assert.ok(radio.eligible(y).length >= 8, `${y}: the separation of 7 needs eight tracks`);
+  assert.deepEqual(t.filter((x) => x.randomMode).map((x) => x.name), ["Relaxing_By_The_Sea"]);
+  const menu = new RadioPlaylist(t, { mode: "frontEnd" });
+  assert.equal(menu.next(1960)!.name, "Relaxing_By_The_Sea");
 });

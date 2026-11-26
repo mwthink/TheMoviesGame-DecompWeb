@@ -27,7 +27,7 @@ The audio manager (`Audio_GetInstance`, `DAT_0104B0E4`) is a small state machine
 | 1 | `Tuning_Up.ogg`, looped | loading: `Game_ConstructSystems` sets 2 (owner: the game) and then 1; `SaveLoad_PumpRequests` while loading or saving |
 | 2 | none: the in-game radio | a game in progress; `Game_DestroySystems` removes it |
 | 3 | none | the shot fiddler (`WShotFiddler_Constructor`); the trailer editor removes it |
-| 4 | none: the front end's own player | `WFrontEnd` (tier < 2), `WFrontEnd_Tick` |
+| 4 | none: the front end's own player, which plays `Relaxing_By_The_Sea` (see "Not known", "Menu music") | `WFrontEnd` (tier < 2), `WFrontEnd_Tick` |
 | 5 | `Relaxing_By_The_Sea.ogg`, looped | the release screens and the reviews page |
 | 6 | `Movies_Intro.ogg`, looped | the splash screen (`WSplashScreen_Tick` removes it) |
 
@@ -43,30 +43,50 @@ The audio manager (`Audio_GetInstance`, `DAT_0104B0E4`) is a small state machine
   `004F8AE0`, 2 `AudioState_UpdateFrontEndMusic` `004F5E80`), then the ambience (`Audio_UpdateAmbience`, `004F6960`, see "Ambience") and the clip queues (`RadioChannel_SelectNextClip`).
 - Two playlist players back states 2 and 4: `Audio_GetRadioPlayer` (`0049AB70`, `DAT_0104A718`) and `Audio_GetFrontEndPlayer` (`004465F0`, `DAT_00F87EF4`). The music
   library is read from `data/audio/trackinfo.csv` by `TrackInfo_LoadDefault` / `TrackInfo_LoadCsv` (`00488E70`, `00487EF0`). How a player picks the next track
-  (year range, genre weights, volume, the first-songs flag) is not decoded.
+  is in "The music library and the radio's playlist".
 - Levels: `AudioOptions_LoadMixerLevels` (`004F52E0`) reads the registry values `Volume 0`, `Volume 1`, `Volume 2` (default 1.0) with `Config_GetOrCreateFloat`
   (`00541AE0`) and applies each with `Audio_SetChannelVolume` (`009B1000`); channel 1 is music and 2 is sound effects (`FRONTEND.md`), 0 is not identified. Then `DJLevel`.
 
 The web port: `AUDIO_STATES` and `AudioStateMachine` (pure, tested), `AudioManager` (Web Audio: a music bus and a sound bus at the settings' volumes, a voice per music
-state with a 1.2 s fade). The screens hold the states above (`main.ts`), except that the menu screens hold state 6 instead of 4. The front-end player is not built, so state 4 is silent (the menu's soundtrack is a WMA stream a browser cannot play, see "Not known"); a browser
+state with a 1.2 s fade). The screens hold the states above (`main.ts`); the menu screens hold state 4, whose player (`RadioPlayer` in `frontEnd` mode) plays `Relaxing_By_The_Sea`; a browser
 only allows sound after a click or key press, so the splash music starts on the first click, which also leaves the splash.
 
 ## The music library and the radio's playlist
 
-`trackinfo.csv` (102 rows, 60 with "Put on Radio") is read into 200-byte track records by `TrackInfo_LoadCsv`. **[read]** The radio's playlist is built for a game year:
-`RadioPlayer_SetYear` (`0049AA30`) purges tracks the year has passed (`RadioPlaylist_PurgeOutOfYear`, `00487220`) and fills in the ones that now fit
-(`RadioPlaylist_Fill`, `00487420`: year inside the record's Start..End, "Put on Radio" set, not queued yet; the "play first in new game" flag restricts the fill on a
-new game). `AudioState_UpdateRadioMusic` notices a year change (`Audio_OnYearChanged`, `004F6310`, stored at manager `+0xAD0`) and calls it. How the next
-entry is drawn from the playlist is **[inferred]** from the sibling code that draws DJ-sting indices at random and removes them (`FUN_0043D980`): a random pick
-that is then removed, so a track does not repeat until the others have played. The per-genre weights, the "random mode" flag, and the DJ and news clips that
-play between tracks are not decoded.
+`trackinfo.csv` (102 rows, 60 with "Put on Radio") is read into 200-byte track records by `TrackInfo_LoadCsv`. **[read]** The record: first and last year at `+0x80`/`+0x84`,
+"Put on Radio" at `+0x88`, the eight genre weights at `+0x90..+0xAC`, the track's length in ms at `+0xB0`, the `NEXT_MUSIC_START` fraction at `+0xB4`, the `DJ_STING` fraction
+at `+0xB8`, the volume at `+0xBC`, the play counter of its last start at `+0xC0` (-1 = never), "in the queue" at `+0xC4`, "Play in Random Mode" at `+0xC5` and "Play these songs
+first in new game" at `+0xC6`. All players share one queue of tracks (`DAT_0104A59C`) and one play counter (`DAT_0104A5A8`).
+
+**Filling.** `RadioPlaylist_Fill(mode, year, firstOnly)` (`00487420`) queues every track not queued yet whose years include `year` (any year when it is -1), whose flag for the
+mode is set (mode 0: "Put on Radio"; 1: "Play in Random Mode"; 2: all) and, when `firstOnly`, that has the first-in-new-game flag. `RadioPlayer_SetYear` (`0049AA30`) purges
+the tracks the year has passed (`RadioPlaylist_PurgeOutOfYear`, `00487220`) and fills (mode 0); `AudioState_UpdateRadioMusic` notices a year change (`Audio_OnYearChanged`,
+`004F6310`, stored at manager `+0xAD0`) and calls it. A new game's first fill is the `firstOnly` one (flag at manager `+0xAF0`, cleared after the first use).
+
+**Picking.** `RadioPlayer_PickNextTrack` (`0049AB80`) refills the queue when it is empty, then `RadioPlaylist_PickNext(separation)` (`00487530`) takes **a uniformly random queue
+entry**; if that track's `+0xC0` is not -1 and the play counter minus `+0xC0` is below `separation`, it is dropped from this call's candidates and another is drawn; if no
+candidate is left it returns nothing and no music plays on that frame. The pick leaves the queue, `+0xC0` is set to the counter and the counter goes up. So a track does not
+repeat until the queue has emptied *and* `separation` other tracks have started. The radio's separation is `DAT_00E50E8C`, **7** in the data section and never written by any code; the
+front end's is `DAT_00F87EDC`, 0. **quirk:** a year with seven or fewer radio tracks could starve the original (every queued track too recent: silence until the year changes). The
+shipped library has eight in 1920 to 1929 and more later, so it cannot happen in a game.
+
+**The genre weights are never read [read].** The eight values are parsed into `+0x90..+0xAC` and nothing uses them: the only functions that touch the track vector are
+`TrackInfo_LoadCsv`, the by-name lookup `FUN_00486820` (called by `AudioState_Define` and the loader) and the queue code above; the audio manager reads from a track only its
+length, cue fractions, volume and `+0xC0`/`+0xC4`; and a search of every decompiled function between `0x00430000` and `0x00500000` for reads of `+0x90..+0xAC` floats finds no
+track record. Possibly a leftover of Fable's tooling; the web port ignores them as well.
+
+**Random mode [read].** The front end's player (`FrontEndPlayer_PickNextTrack`, `00446600`, started by `AudioState_Start` for state 4) fills with mode 1 and year -1, so "Play in
+Random Mode" means "a track for the menus". Only `Relaxing_By_The_Sea` has it. See "Menu music".
 
 `music/cues/<track>.cue` (102 files, CRLF text): `//` comments and `"NEXT_MUSIC_START" = <n>` and/or `"DJ_STING" = <n>` lines. **[inferred]** The numbers are
-milliseconds: `NEXT_MUSIC_START` is 2.5 to 5 s before the end of each track checked (adagio: 107369 of 109894 ms) and `DJ_STING` is 5 to 7 s in. The first is when the
-next track starts over the old one; the second is when the DJ's sting can play.
+milliseconds: `NEXT_MUSIC_START` is 2.5 to 5 s before the end of each track checked (adagio: 107369 of 109894 ms) and `DJ_STING` is 5 to 7 s in. **[read]** `TrackInfo_LoadCsv`
+divides each by the track's length in ms (`+0xB0`) to make a fraction, 1.0 for a track without the cue. The next track starts when the playback fraction passes the first
+(`AudioState_UpdateRadioMusic`; without the cue, when the voice ends); the DJ's window is between the second and one half (the float at `0x00D1694C` is 0.5), so a track with
+no `DJ_STING` never gets a DJ.
 
-The web port's radio (`sim/audio/Radio.ts`, `audio/RadioPlayer.ts`): a shuffle bag over the tracks that fit the game's year, a new game opening with the track
-flagged first, each track at its CSV volume, the next one starting at `NEXT_MUSIC_START` with a crossfade. The DJ and news are in the section below; there is no genre weighting.
+The web port's radio (`sim/audio/Radio.ts`, `audio/RadioPlayer.ts`): the same queue, fill, purge, separation of 7 and uniform pick (`RadioPlaylist`), a new game opening with the
+track flagged first, each track at its CSV volume, the next one starting at `NEXT_MUSIC_START` with a crossfade. The DJ and news are in the section below. The front end's
+player is the same class in `frontEnd` mode.
 
 ## `.lug` sound banks
 
@@ -184,12 +204,26 @@ clips per DJ (`TEXT_RADIO_DJ_<NAME>_<n>.wav`), single intro and outro clips.
 **The news.** `WTimelineEventIcon_Update` (`007A3D60`), for each timeline event: once, when the date is within half a year after the event, it queues the event's name
 (`TIMELINE_<NAME>`, from `timeline.csv`'s `timeline_<NAME>` rows) as category 1, priority 1; once, when the date is between two years and one and a half before the
 event, it queues the name plus `_FUTURE`. The announcement is skipped while the timeline window is showing it (`FUN_007942d0`). **[data]** `speech_news.lug` has 95 clips under
-96 tags, 48 events with a clip and its `_FUTURE` twin; 30 of the events are in `timeline.csv`. `Timeline_OnRadioClipFinished` (`007994F0`) lights the event's icon when its clip ends.
+96 tags, 48 events with a clip and its `_FUTURE` twin; 30 of the events are in `timeline.csv`. `Timeline_OnRadioClipFinished` (`007994F0`) lights the event's icon while its clip plays (see "Timeline icons: what they do").
 
 The web port (`sim/audio/RadioSpeech.ts`, `audio/SpeechPlayer.ts`): the same schedule, the same windows, the five-in-six roll, one clip at a time with the 5 s gap, picks a
-random clip of the tag, plays it through the radio filter from `radioeffect.ini` (band-pass 1548 Hz, Q 5, gain 1.6) and lowers the music while it plays [guess: to 0.3].
+random clip of the tag, plays it through the radio filter from `radioeffect.ini` (band-pass 1548 Hz, Q 5, gain 1.6) and does not lower the music (the original's code never does; see "Does the music duck?").
 Each tag's clips come out as a shuffle bag (`RadioSting_LoadCurrentClipList` `0043DBE0` lists the indices, `RadioSting_TakeClipIndex` `0043D980` removes one at random: no repeat until the others have played; the port's `ClipBag`). The DJ schedule is a list of 100-byte entries (`RadioSting_GetEntry` `0043D780`; years at `+0x58`/`+0x5C`, the tag at `+0x38`, the Random flag at `+0x60`). The DJ's sign-off and introduction play when the year passes into a new DJ's term. The speech levels are fixed at 3 (no options yet), the tannoy is not done, and the news
 needs the dev server like the rest.
+
+### Does the music duck?
+
+**[read] No.** Nothing in the original's code lowers the music while a DJ or news clip plays. The voice volumes that code sets are speech voices only: `RadioChannel_SelectNextClip`
+(`004F6ED0`) starts a clip at `min(DAT_0104B0B4, 0.1)` while a higher-priority voice (`Audio_SetOverridingVoice`, `004F30C0`, stored at state `+0x234`) is playing and restores
+the speech level when it stops (`DAT_0104B0B4` is the speech level, the "MaxSpeechLevel" setting, not a music level), and the music channel's volume (`Audio_SetChannelVolume`,
+channel 1) is written only by the options screen, the trailer editor and `FUN_00752270`. The speech bank's own mixing (the "radio" category) was not examined, so a duck done by
+the sound middleware cannot be excluded **[guess]**; the web port sets its duck to 1 (none) and keeps the knob (`DUCK_LEVEL`).
+
+### The `_INTRO` flag
+
+State `+0x24C` is set only by `AudioState_SetIntroPlayedFlag` (`004F3250`), whose single caller is the debug console's radio command (`SITT_DebugConsoleCommandDispatch`), which
+plays `FANFARE4` and `RADIO_DJ_MCDUFF_INTRO` itself. With the flag set, the next DJ roll that would queue a tag containing `_INTRO` queues nothing and clears the flag. In a normal
+game it is never set.
 
 ## Ambience
 
@@ -214,8 +248,9 @@ and are not positional.
 ## Timeline announcements
 
 The timeline UI (`Timeline_Constructor`, `0079f4f0`; `WTimeline_Tick`; the event, movie, award and research-pack icons `WTimeline*Icon_*`) is tied to the radio:
-`Timeline_OnRadioClipFinished` (`007994f0`) compares the finished clip's name with each timeline event's name, and with that name plus `"_FUTURE"`, and on a
-match calls `FUN_007a3110` on the event's icon.
+`Timeline_OnRadioClipFinished` (`007994f0`) compares the clip's name with each timeline event's name, and with that name plus `"_FUTURE"`, and on a
+match calls `WTimelineEventIcon_BeginHighlight` (`007a3110`) on the event's icon. **[read]** Despite the name it runs when a news clip *starts*: `RadioChannel_PlayClip` calls it
+right after `FUN_009b1860` has started the voice, for category 1 (news), passing the voice handle.
 
 `Timeline_InterpolateGenreColumnsAtDate` (`00a1db90`) loads a per-genre `.sm` data file next to the timeline entry and builds display values from it
 (`field[0x2d]*47+18`, `(1-field[5])*0.5*40+60`, and about 20 more fields). What the fields mean is not known.
@@ -242,15 +277,45 @@ So "now" sits 128 px in from the left edge, the bar shows 1 year back and 20 yea
 at 0.25 years, 23.5% at 0.5, 37.5% at 1, 54% at 2, 64% at 3, 89% at 10. The news windows above (1.5 to 2 years ahead) fall at about 47% to 54% of the span.
 **[inferred]** that the constants are years because the function is `Time_ToYears`; they were not logged from the running game.
 
-The web port draws the strip on the game toolbar (`ui/GameToolbar.ts`, the curve in `sim/ui/TimelineScale.ts`): the `timeline.csv` world events only, as dots with the event name as a tooltip. The other icon kinds, the original's bubbles and sparkle, and the news highlight are not done.
+The web port draws the strip on the game toolbar (`ui/GameToolbar.ts`, the curve in `sim/ui/TimelineScale.ts`): the `timeline.csv` world events only, as dots with the event name as a tooltip,
+and a dot grows and glows while its news clip plays (`highlightNews`). The other icon kinds, the sparkle and the title and detail bubbles are not done.
+
+### Timeline icons: what they do
+
+**The kinds and their pictures [read].** `Timeline_CreateNoduleIcons` (`0079dc00`) makes one icon window per nodule that has none, by class; every icon is one row at y = 7
+(`DAT_00E59BB0`, set from the float `DAT_00D50530` by `Timeline_UpdateNoduleIcons`) except the world event at 7 - 16 and the research pack at `_DAT_00E59C20`.
+
+| Nodule | Icon class | Picture | Notes |
+|---|---|---|---|
+| `CNoduleMovie` (with a project, `+0xBC`) | `WTimelineMovieIcon` | `ui/timeline_film.dds`, with `ui/timeline_tail_cult.dds` | enabled while the project's phase is 4 or later (released), or while it is the project the editor has open; a hover shows a bubble |
+| `CNoduleEvent` | `WTimelineEventIcon` | `ui/timeline_world.dds`, glow `ui/lifetimeawards_glow.dds` | the world events (above) |
+| `CNoduleResearchPack` | research icon | `ui/timeline_re_costume.dds` | |
+| `CNodulePress` | press icon | `ui/timeline_newsper.dds` | |
+| `CNoduleQuit` | quit icon | `ui/timeline_quit.dds` | a star leaving |
+| `CNoduleRetire` | retire icon | `ui/timeline_retire.dds` | a star retiring |
+| awards | `WTimelineAwardsIcon` | `ui/timeline_award2.dds` once its date comes | the glow is a pulse near the ceremony date |
+
+**What creates the non-event nodules was not decoded** (they are made by the game as things happen); the rows above are what the icon code shows.
+
+**The world-event icon [read].** `WTimelineEventIcon_Update` (`007a3d60`), each frame while the game tier is 3 or more:
+
+- *Hover:* the icon's window grows from 32 to 64 px and its image from 16 to 32, `HUD_TIMELINE_WORLD_EVENT_HIGHLIGHTED` plays once, and after the pointer has rested a title bubble
+  opens (`<NAME>_TITLE`, 180 px wide); ten frames later a detail bubble adds `<NAME>_SUBTITLE` and `<NAME>_DESCRIPTION` (280 px wide).
+- *News playing* (`WTimelineEventIcon_BeginHighlight`, `007a3110`): the voice handle is kept at `+0x36C`, the window goes to 64, the image to 24 px and the glow is shown. The glow
+  rotates by 0.0002 rad per ms of frame time (each frame clamped to 100 ms) while the flag at `+0x370` is set (`UpdateSparkleAnimation`, `007a2f80`). When the voice is no longer playing
+  (`Audio_IsVoicePlaying`) the flag clears and the sizes return to 64 / 16.
+- *The announcements themselves.* Each icon queues its own clip (`"radio"`, priority 1, category 1), once each. The event's clip when the game date has reached the event's date and is
+  no more than half a year past it (flag `+0x367`; also needs `DAT_0104D8E8` = 0); the `_FUTURE` clip when the date is between two years and one and a half years before the event
+  (flag `+0x369`). Neither is queued while the timeline's flag at `+0x530` is set. This is what `NewsAnnouncer` ports; it is the icons, not the radio, that trigger the news,
+  so a news clip only ever plays for an event that has an icon.
 
 ## Not known
 
-- How the radio picks tracks exactly (genre weights, random mode), what makes the `_INTRO` flag (`+0x24C`) set, and what the front end plays in state 4 (the `frontend_loop.wmv` soundtrack is the likely source).
-- **Menu music does not work in the web app, because of the format:** `frontend_loop.wmv` and `frontend_intro.wmv` hold WMV3 video with WMA (`wmav2`) stereo audio, which
-  browsers cannot decode. The only way in is to transcode the soundtrack (for example `ffmpeg` to Ogg Vorbis) into gitignored storage; that is not done, so state 4 is
-  silent. As a stand-in the web app keeps the splash's music (state 6, looped) playing through the menu, options, load, gallery and viewer screens until a game loads.
-  (The tutorial `.wmv` clips in `Data/Tutorials/` have the same format problem.)
+- **Menu music [read, not yet heard in the original]:** state 4's player (`FrontEndPlayer_PickNextTrack`) plays the tracks flagged "Play in Random Mode", any year, and the only one is
+  `Relaxing_By_The_Sea` (state 5, the release screens, plays the same file). So the menu soundtrack is that Ogg file, not the WMA video audio of `frontend_loop.wmv`, which a browser
+  cannot decode and which is not needed for this. The web port's menu screens hold state 4 and play it. That the original's menu really sounds like this was not checked in the
+  running game; the `frontend_loop.wmv` audio may play as well (its own path was not followed).
+  (The tutorial `.wmv` clips in `Data/Tutorials/` have the WMA problem.)
 - The tannoy's trigger rules (`tannoy.csv` and the callers of `Audio_QueueTannoy`) and the other speech categories.
 - The META Data `.lug` route, the RLM parameters, the rest of the sample record.
 - Which banks the game loads when, and the game-side engine classes (`LHAudioSystem_*`, `CEngine`, event triggers, atmosphere groups, the driver classes

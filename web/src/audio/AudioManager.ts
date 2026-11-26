@@ -7,8 +7,13 @@ import { AUDIO_STATES, AudioStateMachine, type AudioEffect } from "../sim/audio/
 
 /** Fade time when a state is suspended or resumed: the original passes a global (`DAT_00E51CD8`, 1000 ms). */
 const FADE_SECONDS = 1;
-/** How far the music drops while the DJ or the news speaks. [guess] The original lowers the other voice when a speech clip starts (`RadioChannel_SelectNextClip`); the level here is chosen by ear. */
-const DUCK_LEVEL = 0.3;
+/**
+ * How far the music drops while the DJ or the news speaks: not at all. [read] Nothing in the original's code lowers the music for a radio clip: the only voice
+ * volumes `RadioChannel_SelectNextClip` (orig: 0x004F6ED0) and `FUN_004F30C0` set are speech voices (a clip is held to min(speech level, 0.1) while a higher-priority
+ * voice plays), and the music channel's volume (`Audio_SetChannelVolume`, channel 1) is changed only by the options, the trailer editor and `FUN_00752270`. The
+ * speech bank's own mixing was not examined, so a mixer-side duck is not ruled out [guess]; set this below 1 to add one.
+ */
+const DUCK_LEVEL = 1;
 
 /** Where a file under `Data/Audio/` (`music/Tuning_Up.ogg`, `trackinfo.csv`) can be fetched from (a URL the page can load), or null when this build has no way to read the game's audio. */
 export type MusicLocator = (path: string) => string | null;
@@ -39,7 +44,7 @@ interface Voice {
  * voice per state that streams a music file. Which state is current is decided by `AudioStateMachine`; this class carries out its effects.
  *
  * Browsers only allow sound after a click or key press, so the first request waits for one; `unlock` is called from those events.
- * The radio (state 2) is `RadioPlayer`; the front-end player (state 4) is not built, so that state is silent.
+ * The radio (state 2) and the front end's player (state 4, the menus) are both `RadioPlayer`, each with its own playlist.
  */
 export class AudioManager {
   readonly machine = new AudioStateMachine();
@@ -52,6 +57,10 @@ export class AudioManager {
   private sfx: GainNode | null = null;
   private readonly voices = new Map<number, Voice>();
   private readonly radio: RadioPlayer;
+  /** The menus' player (state 4): the tracks flagged "Play in Random Mode", any year (`FUN_00446600`, orig: 0x00446600). */
+  private readonly frontEnd: RadioPlayer;
+  /** Told when a news clip starts (its tag) and ends (null); the game view lights the matching timeline icon. */
+  onNews: ((tag: string | null) => void) | null = null;
   /** Set by the game while one is running. */
   game: GameInfo = { year: () => 1920, date: () => 1920 * 365, focusY: () => 60, events: () => [], newGame: () => false };
   private readonly settings: SettingsStore;
@@ -67,12 +76,20 @@ export class AudioManager {
       year: () => this.game.year(),
       newGame: () => this.game.newGame(),
     });
+    this.frontEnd = new RadioPlayer({
+      graph: () => (this.context && this.duck ? { context: this.context, bus: this.duck } : null),
+      djChatter: () => {},
+      locate: (path) => this.locate(path),
+      year: () => this.game.year(),
+      newGame: () => this.game.newGame(),
+    }, { mode: "frontEnd" });
     this.speech = new SpeechPlayer({
       graph: () => (this.context && this.sfx ? { context: this.context, speechBus: this.sfx } : null),
       locate: (path) => this.locate(path),
       date: () => this.game.date(),
       duck: (on) => this.setDuck(on),
       events: () => this.game.events(),
+      onNews: (tag) => this.onNews?.(tag),
     });
     this.ambience = new AmbiencePlayer({
       graph: () => (this.context && this.sfx ? { context: this.context, bus: this.sfx } : null),
@@ -123,12 +140,18 @@ export class AudioManager {
     }
     void this.context.resume();
     for (const [state, v] of this.voices) if (v.wanted) this.play(state, v);
-    if (this.radio.isWanted) this.radio.play();
+    for (const p of [this.radio, this.frontEnd]) if (p.isWanted) p.play();
   }
 
   /** A game was loaded: the radio starts its talk afresh (the DJ's introduction, the news for the new date). */
   newGameLoaded(): void {
     this.speech.reset();
+  }
+
+  /** The playlist player a state drives (`AudioState_Start`), or null for a state that streams a single file. */
+  private playerFor(state: number): RadioPlayer | null {
+    const kind = AUDIO_STATES[state]?.player;
+    return kind === "radio" ? this.radio : kind === "frontEnd" ? this.frontEnd : null;
   }
 
   private setDuck(on: boolean): void {
@@ -156,7 +179,7 @@ export class AudioManager {
 
   /** `AudioState_Start`: get the state's music ready. */
   private start(state: number): void {
-    if (AUDIO_STATES[state]?.player === "radio") return; // the radio picks its track when it is resumed
+    if (this.playerFor(state)) return; // a playlist player picks its track when it is resumed
     const file = AUDIO_STATES[state]?.file;
     if (!file || this.voices.has(state)) return;
     const url = this.locate(`music/${file}`);
@@ -168,8 +191,9 @@ export class AudioManager {
   }
 
   private resume(state: number): void {
-    if (AUDIO_STATES[state]?.player === "radio") {
-      this.radio.play();
+    const player = this.playerFor(state);
+    if (player) {
+      player.play();
       this.speech.start();
       this.ambience.start();
       return;
@@ -197,8 +221,9 @@ export class AudioManager {
   }
 
   private suspend(state: number): void {
-    if (AUDIO_STATES[state]?.player === "radio") {
-      this.radio.pause();
+    const player = this.playerFor(state);
+    if (player) {
+      player.pause();
       this.speech.stop();
       this.ambience.stop();
       return;
@@ -218,8 +243,9 @@ export class AudioManager {
   }
 
   private stop(state: number): void {
-    if (AUDIO_STATES[state]?.player === "radio") {
-      this.radio.dispose();
+    const player = this.playerFor(state);
+    if (player) {
+      player.dispose();
       this.speech.stop();
       this.ambience.stop();
       return;

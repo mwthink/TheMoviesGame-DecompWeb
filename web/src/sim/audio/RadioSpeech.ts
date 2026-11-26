@@ -48,10 +48,19 @@ export function djForYear(entries: readonly DjEntry[], year: number): DjForYear 
 /**
  * Whether the DJ may speak now, over the track being played. orig: `AudioState_UpdateRadioMusic` (0x004F8AE0): once per track, when the playback position
  * (as a fraction of the track) is past the track's `DJ_STING` cue and before one half, and a roll of 0..5 comes up 0..4: five chances in six.
- * [guess] The position is a fraction: the code compares it with 0.5 and with the cue, and the cue is 5 to 7 s into tracks two minutes long.
+ * [read] The position is a fraction of the track: `TrackInfo_LoadCsv` (0x00487EF0) stores the cue as `DJ_STING` ms over the track's length in ms (1.0 when the
+ * track has no cue, so its window never opens) and the 0.5 is the float at 0x00D1694C. The roll is `Random_IntInRange(0, 6)` and must be below 5.
  */
 export function djMaySpeak(fraction: number, cueFraction: number, roll: number): boolean {
   return fraction > cueFraction && fraction < 0.5 && roll < 5;
+}
+
+/**
+ * Whether a news clip is about a timeline event, so the event's icon lights while the clip plays. orig: `Timeline_OnRadioClipFinished` (0x007994F0, called from
+ * `RadioChannel_PlayClip` as a news clip *starts*, so the name is misleading): the clip's tag equals the event's tag, or the event's tag plus `_FUTURE`.
+ */
+export function clipMatchesEvent(clipTag: string, eventTag: string): boolean {
+  return clipTag === eventTag || clipTag === `${eventTag}_FUTURE`;
 }
 
 /** A historical event on the timeline: `timeline.csv` rows named `timeline_<NAME>` with a decimal year. The news bank has a clip tagged `TIMELINE_<NAME>`. */

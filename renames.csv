@@ -2624,3 +2624,10 @@ address,old_name,new_name,evidence
 00976530,FUN_00976530,Scene_GetChannelValueByIndex,"(string index): the value of the channel of that index, 0 when the index is not one of the first channelCount strings; FSChoiceBox_Execute uses it"
 009732d0,FUN_009732d0,Scene_PickBranchByWeights,"(weights, random number, n, stride): the first i with random <= weight[i], else a random branch; for ChoiceBox selector -1"
 008bc6c0,FUN_008bc6c0,Explainer_GetProp,returns the explainer's prop (+0x1D4); CActivity_Tick reads its vtable slot +0xB8 to decide to send ai_stop
+00487530,FUN_00487530,RadioPlaylist_PickNext,"uniform random queue entry, rejected while (play counter - record +0xC0) < the separation arg (7 radio, 0 front end); the pick leaves the queue and is stamped; called by FUN_0049AB80 and FUN_00446600"
+00485FB0,FUN_00485fb0,RadioPlaylist_IsEmpty,true when the queue (DAT_0104A59C..A0) has no entries; FUN_0049AB80 refills when it is
+0049AB80,FUN_0049ab80,RadioPlayer_PickNextTrack,"clears the iterator, refills the queue if empty (RadioPlaylist_Fill mode 0) and stores RadioPlaylist_PickNext(DAT_00E50E8C=7) as the state track"
+00446600,FUN_00446600,FrontEndPlayer_PickNextTrack,"the front end player equivalent: RadioPlaylist_Fill(1, -1, 0) (random-mode tracks, any year) then RadioPlaylist_PickNext(DAT_00F87EDC=0)"
+004F30C0,FUN_004f30c0,Audio_SetOverridingVoice,"stores the voice at state+0x234 and holds the playing radio clip voice (+0x230 or +0x22C) to min(speech level DAT_0104B0B4, 0.1)"
+004F3250,FUN_004f3250,AudioState_SetIntroPlayedFlag,sets state+0x24C (skips the next DJ tag containing _INTRO); only caller is the debug console radio command
+007A3110,FUN_007a3110,WTimelineEventIcon_BeginHighlight,"stores the news voice handle (+0x36C), sets the playing flag +0x370, grows the icon (64 box, 24 px image) and shows the glow; called by Timeline_OnRadioClipFinished"

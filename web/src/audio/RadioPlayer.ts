@@ -44,8 +44,12 @@ export class RadioPlayer {
   private failures = 0;
   private tracks: TrackInfo[] = [];
 
-  constructor(host: RadioHost) {
+  private readonly mode: "radio" | "frontEnd";
+
+  /** `mode` "frontEnd" is the menus' player: the random-mode tracks of any year, and no DJ (`AudioState_UpdateFrontEndMusic`, orig: 0x004F5E80). */
+  constructor(host: RadioHost, options: { mode?: "radio" | "frontEnd" } = {}) {
     this.host = host;
+    this.mode = options.mode ?? "radio";
   }
 
   get isWanted(): boolean {
@@ -88,7 +92,7 @@ export class RadioPlayer {
         if (!res.ok) return;
         // the file is plain ASCII; decode as Latin-1 like the game's other text files
         this.tracks = parseTrackInfo(new TextDecoder("latin1").decode(await res.arrayBuffer()));
-        this.playlist = new RadioPlaylist(this.tracks, { preferFirst: this.host.newGame() });
+        this.playlist = new RadioPlaylist(this.tracks, { preferFirst: this.mode === "radio" && this.host.newGame(), mode: this.mode });
       } catch { /* no library: the radio stays silent */ }
     })();
     await this.loading;
@@ -120,11 +124,12 @@ export class RadioPlayer {
       if (this.current === now && this.wanted) void this.playNext();
     };
     element.addEventListener("timeupdate", () => {
-      // the DJ's chance to talk: once per track, past its DJ_STING cue and before half way (`djMaySpeak`)
+      // the DJ's chance to talk: once per track, past its DJ_STING cue and before half way (`djMaySpeak`). A track without the cue has its fraction at 1,
+      // so its window never opens (`TrackInfo_LoadCsv`, orig: 0x00487EF0; the window's end is the constant 0.5 at 0x00D1694C)
       const length = element.duration;
-      if (!now.djRolled && Number.isFinite(length) && length > 0) {
+      if (this.mode === "radio" && !now.djRolled && Number.isFinite(length) && length > 0) {
         const fraction = element.currentTime / length;
-        const cueFraction = (cues.djSting ?? 0) / 1000 / length;
+        const cueFraction = cues.djSting === undefined ? 1 : cues.djSting / 1000 / length;
         if (fraction > cueFraction && fraction < 0.5) {
           now.djRolled = true;
           if (djMaySpeak(fraction, cueFraction, Math.floor(Math.random() * 6))) this.host.djChatter();

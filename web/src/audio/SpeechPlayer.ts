@@ -12,6 +12,8 @@ export interface SpeechHost {
   duck(on: boolean): void;
   /** The timeline's events (names and dates), once a game is loaded. */
   events(): readonly TimelineEvent[];
+  /** A news clip started (its tag) or ended (null): the timeline lights the icon of the event it is about. */
+  onNews?(tag: string | null): void;
 }
 
 /** The radio's voice filter, from `Data/Audio/radioeffect.ini` `[radio]`: a band-pass at 1548 Hz, Q 5, with make-up gain 1.6. */
@@ -140,12 +142,14 @@ export class SpeechPlayer {
       gain.gain.value = RADIO_FILTER.gain;
       source.connect(filter).connect(gain).connect(g.speechBus);
       this.host.duck(true);
+      if (clip.category === "news") this.host.onNews?.(clip.tag);
       await new Promise<void>((resolve) => {
         source.onended = () => resolve();
         source.start();
       });
     } catch { /* a clip that cannot be read or decoded is skipped */ } finally {
       this.host.duck(false);
+      if (clip.category === "news") this.host.onNews?.(null);
       this.playing = false;
       this.lastEnd = performance.now();
     }
