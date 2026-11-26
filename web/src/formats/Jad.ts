@@ -82,7 +82,27 @@ export interface SavedPerson {
   roomIndex: number;
 }
 
+/** The awards clock a save holds (`[STATICS]` `PreviousAwardsDate.YearInDays`, `FirstAwardsYear`) and the game type (`CSandbox` option 6); docs/SAVE_FORMAT.md. */
+export interface SavedAwards {
+  /** The last ceremony's date in days (365 to the year); a new studio's is its start date. */
+  previousDate: number;
+  firstYear: number;
+  /** 0 tutorial, 1 new game, 2 sandbox, 3 add-on quick start; -1 when the save has no `CSandbox`. */
+  gameType: number;
+}
+
+/** A `CResearchPack`: its name (`wild_west_3`), whether the player has it and the date it unlocks for the player, in days. */
+export interface SavedResearchPack {
+  name: string;
+  availableToPlayer: boolean;
+  playerUnlockDate: number;
+}
+
 export interface Save {
+  /** The awards clock; null when the save has no `[STATICS]` awards values. */
+  awards: SavedAwards | null;
+  /** Every research pack, with the dates the timeline shows. */
+  research: SavedResearchPack[];
   /** Everyone with a body in the world (staff, stars, wannabes), also those who are not the player's. */
   people: SavedPerson[];
   header: SaveHeader | null;
@@ -150,6 +170,15 @@ export function parseSave(d: Uint8Array): Save {
   const peopleRaw: { id: number; cls: SavedPerson["cls"]; first: Map<string, Uint8Array> }[] = [];
   const tName = tagOf("name"), tEmployer = tagOf("PEmployer"), tSub = tagOf("PSubFacility"), tHired = tagOf("Hired"), tCareer = tagOf("StaffCareer");
 
+  // the awards clock lives in [STATICS], keyed like object fields
+  const staticsAt = find(d, enc("[STATICS]\n"), 0);
+  const statics = new Map<string, Uint8Array>();
+  if (staticsAt >= 0 && staticsAt < objectsAt) for (const f of splitFields(d, staticsAt, objectsAt)) if (!statics.has(f.tag)) statics.set(f.tag, f.value);
+  const tPrev = tagOf("PreviousAwardsDate.YearInDays"), tFirst = tagOf("FirstAwardsYear"), tOption = tagOf("Option[x]");
+  const tAvail = tagOf("IsAvailableToPlayer"), tUnlock = tagOf("PlayerUnlockDate");
+  const research: SavedResearchPack[] = [];
+  let gameType = -1;
+
   const open = enc("[OBJ]\n");
   const close = enc("\n[/OBJ]");
   let p = objectsAt;
@@ -177,6 +206,14 @@ export function parseSave(d: Uint8Array): Save {
     if (cls === "CLot" && !lotCamera) lotCamera = readCamera(first);
     if (cls === "CCostume") costumes.set(id, readCostume(d.subarray(bodyStart + 12 + nameLen, b)));
     if (cls === "CStaff" || cls === "CStar" || cls === "CWannabe") peopleRaw.push({ id, cls, first });
+    if (cls === "CResearchPack") {
+      const avail = first.get(tAvail);
+      research.push({ name: readNarrow(first.get(tName)), availableToPlayer: !!avail && avail[0] !== 0, playerUnlockDate: readF32(first.get(tUnlock)) });
+    }
+    if (cls === "CSandbox") {
+      const options = fields.filter((f) => f.tag === tOption);
+      if (options.length > 6) gameType = Math.round(readF32(options[6]!.value));
+    }
     if (cls === "CStudioPlayer") playerStudio = id;
     else if (cls === "CSubFacility") careers.set(id, readNarrow(first.get(tCareer)));
     else if (cls === "CStaff" || cls === "CStar") {
@@ -221,7 +258,9 @@ export function parseSave(d: Uint8Array): Save {
       room: readNarrow(first.get(tRoom)), roomIndex: readU32(first.get(tRoomIdx)),
     };
   });
-  return { people, header: readHeader(d, v), staff, placed, landscape: landscapeBlob ? parseLandscape(landscapeBlob) : null, lotCamera };
+  const previous = statics.get(tPrev), firstYear = statics.get(tFirst);
+  const awards: SavedAwards | null = previous && firstYear ? { previousDate: readF32(previous), firstYear: readU32(firstYear), gameType } : null;
+  return { awards, research, people, header: readHeader(d, v), staff, placed, landscape: landscapeBlob ? parseLandscape(landscapeBlob) : null, lotCamera };
 }
 
 /** What a save list shows about a saved game, read from its header alone (docs/SAVE_FORMAT.md, "Header"). */

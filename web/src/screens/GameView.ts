@@ -19,6 +19,7 @@ import type { WorldData } from "../world/WorldData.ts";
 import { FAR_PLANE, GameCamera } from "../camera/GameCamera.ts";
 import { CameraInputSource } from "../camera/CameraInput.ts";
 import type { RadioDebug } from "../audio/RadioDebug.ts";
+import { uiPictureUrl } from "./frontEndArt.ts";
 import { DevMenu, type CameraMode } from "../ui/DevMenu.ts";
 import { MenuBar } from "../ui/MenuBar.ts";
 import { GameToolbar } from "../ui/GameToolbar.ts";
@@ -345,6 +346,12 @@ export class GameView implements Screen {
     this.toolbar.mount(this.menuBar.toolbar);
     this.toolbar.setSpeed(this.clock.speed);
     this.toolbar.setTimelineEvents(w?.timelineEvents ?? []);
+    // the world events' own icon and glow (`ui/timeline_world.dds`, `ui/lifetimeawards_glow.dds`); the dots stay until they are read
+    const toolbar = this.toolbar;
+    toolbar.setTimelineExtras(w?.timelineExtras ?? { awards: null, research: [] });
+    void Promise.all(["timeline_world.dds", "lifetimeawards_glow.dds", "timeline_award.dds", "timeline_award2.dds", "timeline_re_costume.dds"].map(uiPictureUrl)).then(([world, glow, award, award2, research]) => {
+      if (this.toolbar === toolbar) toolbar.setIcons({ world, glow, award, award2, research });
+    });
     this.toolbar.setStatus(this.clock.date, w?.header?.cash ?? null);
     this.staffPanel = new StaffPanel(w?.staff ?? []);
     this.staffPanel.mount(this.hud);

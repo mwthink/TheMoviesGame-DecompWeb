@@ -16,11 +16,13 @@ let strings: Promise<Strings | null> | null = null;
 let logo: Promise<Rgba | null> | null = null;
 let pak: Promise<PakIndex | null> | null = null;
 let linkedPaks: ByteSource[] | null = null;
+const uiPictures = new Map<string, Promise<string | null>>();
 onLinkChange(() => {
   const now = currentInstall()?.paks ?? null;
   if (now === linkedPaks) return;
   linkedPaks = now;
   logo = null;
+  uiPictures.clear();
   pak = null;
   strings = null;
 });
@@ -124,6 +126,34 @@ async function loadLogo(): Promise<Rgba | null> {
     console.warn("front-end logo unavailable:", e);
     return null;
   }
+}
+
+/**
+ * One of the game's interface pictures (`data\\textures\\ui\\<file>`, such as `timeline_world.dds`) as a PNG data URL for CSS, or null when the archives or the file are
+ * missing. Decoded once and kept until the link to the install changes.
+ */
+export function uiPictureUrl(file: string): Promise<string | null> {
+  let hit = uiPictures.get(file);
+  if (!hit) {
+    hit = (async () => {
+      try {
+        const pak = await gamePak();
+        const bytes = pak ? await pak.readByName(file, { dir: "data\\textures\\ui\\" }) : null;
+        if (!bytes) return null;
+        const img = decodeDds(bytes);
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        canvas.getContext("2d")!.putImageData(new ImageData(new Uint8ClampedArray(img.data), img.width, img.height), 0, 0);
+        return canvas.toDataURL("image/png");
+      } catch (e) {
+        console.warn(`interface picture ${file} unavailable:`, e);
+        return null;
+      }
+    })();
+    uiPictures.set(file, hit);
+  }
+  return hit;
 }
 
 /** The smallest rectangle holding every pixel with some alpha. */

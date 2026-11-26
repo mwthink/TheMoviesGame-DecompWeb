@@ -351,25 +351,36 @@ So "now" sits 128 px in from the left edge, the bar shows 1 year back and 20 yea
 at 0.25 years, 23.5% at 0.5, 37.5% at 1, 54% at 2, 64% at 3, 89% at 10. The news windows above (1.5 to 2 years ahead) fall at about 47% to 54% of the span.
 **[inferred]** that the constants are years because the function is `Time_ToYears`; they were not logged from the running game.
 
-The web port draws the strip on the game toolbar (`ui/GameToolbar.ts`, the curve in `sim/ui/TimelineScale.ts`): the `timeline.csv` world events only, as dots with the event name as a tooltip,
-and a dot grows and glows while its news clip plays (`highlightNews`). The other icon kinds, the sparkle and the title and detail bubbles are not done.
+**Award icons [read].** The timeline holds three award icons (`Timeline_Constructor` `0079F4F0` and `FUN_00797C50`, each `FUN_007A2790` with a kind in `+0x364`), all `ui/timeline_award.dds`.
+Kind 0 stands at the previous ceremony (`FUN_0085BAE0`: `PreviousAwardsDate.YearInDays`), kind 1 at the next (`FUN_0085C530`: the previous date plus `Time_FromYears(interval)`), kind 2 at that
+date's year, rounded, plus the interval. The interval is `global.ini` `[awards] interval = 5` (`AwardSystem_Init` `0085ED10` reads it into `DAT_00E5D2D8`; the exe's own value is 10 until then
+**[data]**). `FUN_0085BB10` says whether the awards run: only for game types 1 (new game) and 3 (add-on quick start) (`*(DAT_0104A974 + 0x78)` is 1.0 or 3.0; the tutorial, 0, and the sandbox, 2, have
+none). The previous-ceremony icon is made only once `FirstAwardsYear <= round(year)` (`DAT_00E5D2D4`, set to the start year plus the interval when a game starts, `FUN_0085F160`
+`0085F160`: the previous date is set to the start time, so a new studio's first icon is the next ceremony). When a ceremony is held `FUN_00860580` adds the interval to the previous date.
+`WTimelineAwardsIcon_Tick` (`007A2B00`) swaps the picture to `ui/timeline_award2.dds` from 2004 to 2009 (`FUN_0085C570` returns 2005 while the awards run, 9999 otherwise; the swap needs
+`2005 <= year + 1` and `year < 2005 + interval`). **[guess]** why: the original's awards end around 2005, and the second picture marks the last ceremonies; nothing else in the code uses it.
 
-### Timeline icons: what they do
+**Research icons [read].** `Timeline_UpdateNoduleIcons` (`007A14A0`) makes one per `CNoduleResearchPack` that has a pack (`+0x8C`) by `FUN_0079EBB0` (`0079EBB0`), which stands the icon at the nodule's
+date (`FUN_00793F50`, the same curve as the events) and creates it only when `round(date) - round(now) < 15` (0xF). Every research icon is `ui/timeline_re_costume.dds`, whatever the pack is
+(no other `timeline_re_*` picture is named anywhere in the exe's code). `WTimelineResearchPackIcon_Tick` (`007A8700`): the window grows 16 to 32 on hover, `HUD_TIMELINE_RESEARCH_EVENT_HIGHLIGHTED`
+plays once. The hover bubble (`FUN_007A8080`) is a table with the pack's name and either `SITT_RESEARCHPACK_UNLOCKDATE` ("will unlock <date>", from the pack's date, vtable `+0x1C`) or
+`SITT_RESEARCHPACK_UNLOCKED`. **[inferred]** that the date is `PlayerUnlockDate` (the bubble shows it) and that the comparison's operands are days with the date first: the decompile hides the
+arguments of `Math_RoundToInt64_A`. With the date first, an icon appears 14 days before its date and stays until it is off the bar's left edge (a year back); the other order would show every
+future pack. **[not known]** what creates the `CNoduleResearchPack` objects and whether every pack gets one.
 
-**The kinds and their pictures [read].** `Timeline_CreateNoduleIcons` (`0079dc00`) makes one icon window per nodule that has none, by class; every icon is one row at y = 7
-(`DAT_00E59BB0`, set from the float `DAT_00D50530` by `Timeline_UpdateNoduleIcons`) except the world event at 7 - 16 and the research pack at `_DAT_00E59C20`.
+**[measured]** In the saves on hand (a new 1920 game, game type 1; an add-on quick start of 1960, type 3): `FirstAwardsYear` 1925 in both; `PreviousAwardsDate` is 1 January 1920 in the new game and
+1 January 1960 in the quick start (the ceremony the save was made after); the new game's `CSandbox` option 6 is 1 and the quick start's 3; the quick start's 108 `CResearchPack` objects carry
+`PlayerUnlockDate`s from 1900 to 1990, f32 days (`wild_west_3` 1950.03, started 1956).
 
-| Nodule | Icon class | Picture | Notes |
-|---|---|---|---|
-| `CNoduleMovie` (with a project, `+0xBC`) | `WTimelineMovieIcon` | `ui/timeline_film.dds`, with `ui/timeline_tail_cult.dds` | enabled while the project's phase is 4 or later (released), or while it is the project the editor has open; a hover shows a bubble |
-| `CNoduleEvent` | `WTimelineEventIcon` | `ui/timeline_world.dds`, glow `ui/lifetimeawards_glow.dds` | the world events (above) |
-| `CNoduleResearchPack` | research icon | `ui/timeline_re_costume.dds` | |
-| `CNodulePress` | press icon | `ui/timeline_newsper.dds` | |
-| `CNoduleQuit` | quit icon | `ui/timeline_quit.dds` | a star leaving |
-| `CNoduleRetire` | retire icon | `ui/timeline_retire.dds` | a star retiring |
-| awards | `WTimelineAwardsIcon` | `ui/timeline_award2.dds` once its date comes | the glow is a pulse near the ceremony date |
-
-**What creates the non-event nodules was not decoded** (they are made by the game as things happen); the rows above are what the icon code shows.
+The web port draws the strip on the game toolbar (`ui/GameToolbar.ts`, the curve in `sim/ui/TimelineScale.ts`, the award and research rules in `sim/ui/TimelineIcons.ts`):
+- the `timeline.csv` world events, each the game's own picture (`ui/timeline_world.dds`, read from the install by `uiPictureUrl`; 16 px, twice that on hover) with a card on hover, and while its news
+  clip plays (`highlightNews`) it grows to 1.5x with the glow (`ui/lifetimeawards_glow.dds`) turning behind it;
+- the award icons (`awardIcons`): the previous, next and following ceremony from the save's awards clock (`Jad.ts` `Save.awards`; a new game's is built in `NewGame.ts`), the interval from `global.ini`. The game
+  would hold a ceremony and move the clock; the port has none, so the previous date is rolled forward by whole intervals as the date passes **[guess]**;
+- the research icons (`researchIcons`): a pack's `PlayerUnlockDate` from the save, shown from 14 days before it until a year after, with the pack's name (underscores as spaces; the string database's
+  display name was not looked up) and "Becomes available to research." or "Unlocked." on the hover card.
+Where the pictures cannot be read the icons stay plain dots (blue for events, gold for awards, green for research). The sizes are the original's window sizes (16, 32 and 24 px) as CSS scales, not read from
+the images; the glow's blending and speed are guesses. The other icon kinds (movies, press, quit, retire), the sparkle and the title and detail bubbles are not done.
 
 **The world-event icon [read].** `WTimelineEventIcon_Update` (`007a3d60`), each frame while the game tier is 3 or more:
 

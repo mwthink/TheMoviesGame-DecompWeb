@@ -54,10 +54,15 @@ export const LOT_FURNITURE: readonly Omit<PlacedAsset, "id">[] = [
 
 const CLASS_OF_KIND = { facility: "CFacility", set: "CSet", ornament: "COrnament", other: "COrnament" } as const;
 
+/** `global.ini` `[awards] interval`: the years between ceremonies, and the first one after a new game starts. */
+const NEW_GAME_AWARDS_INTERVAL = 5;
+
 /** The world of a new game: the lot furniture and the layout's placements, on the layout's terrain, with the start date and money, and nobody in it. */
 export function newGameSave(layout: StartingLayout, landscape: Landscape | null, start: StartConfig): Save {
   let id = 1000;
   const placed: PlacedAsset[] = LOT_FURNITURE.map((p) => ({ ...p, id: id++ }));
   for (const p of layout.placements) placed.push({ cls: CLASS_OF_KIND[p.kind], id: id++, source: p.name, position: [p.x, p.z, 0], angle: p.angle });
-  return { people: [], header: { date: startDate(start.year), cash: start.funds }, staff: [], placed, landscape, lotCamera: null };
+  // the awards clock of a new studio: the previous ceremony is its start date and the first one is the start year plus the interval (orig: `FUN_0085F160` (0x0085F160) sets the previous date to the start time and `FirstAwardsYear` to the rounded year plus the interval, which `AwardSystem_Init` (0x0085ED10) reads from `global.ini`; docs/AUDIO.md)
+  const awards = { previousDate: startDate(start.year), firstYear: start.year + NEW_GAME_AWARDS_INTERVAL, gameType: GameType.NewGame };
+  return { awards, research: [], people: [], header: { date: startDate(start.year), cash: start.funds }, staff: [], placed, landscape, lotCamera: null };
 }

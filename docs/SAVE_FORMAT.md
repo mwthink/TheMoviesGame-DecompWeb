@@ -81,7 +81,7 @@ sub-facility). One Quick Start save has 30 such people (4 stars); the rival stud
   (147,875.61 / 144,020.83) to the rounding of the f32. Rival studios show e.g. 99,589.04.
 * **Dates** are **f32 days at 365 per year** (1 Jan 1920 = 1920 x 365 = 700,800.0): `PreviousAwardsDate.YearInDays`, `DecayBegin`, `StatusComponentStartDate`,
   the 4-byte word at the start of the header. `Birth`, `Retirement`, `Death`, `ReleaseDate`, `Hired` are the same 4-byte f32 (not decoded per person).
-  Not checked: `GUID` (8 bytes, a counter: 0x94, 0x95, 0xb5 ...), `PlayerUnlockDate` and the other research dates.
+  `CResearchPack.PlayerUnlockDate`, `ResearchStartDate`, `DateCanStartResearch` and `DateAvailableToAll` are the same f32 days **[measured]** (`wild_west_3`: unlock 711,761 = 1950.03, research started 713,940 = 1956.0). Not checked: `GUID` (8 bytes, a counter: 0x94, 0x95, 0xb5 ...).
 * **Vectors**: three f32 (`POSITION`, `SL_CamPos`, `SL_CamFoc`, `LastPosition`). `MyAngle` is a f32 in radians.
   World units are metres-ish, X right, Y up the lot, Z height (0 on the ground).
 * **Booleans**: one byte. **Enum/ints**: 4 bytes. **Floats** (ratings, 0-1 sliders): f32.
@@ -98,11 +98,11 @@ Counts are for the fresh-studio save (the tutorial saves add the tutorial scaffo
   happiness, prestige, star lists, research schedule pointer, `GenrePropensities`, `HassleRate`.
 * `CFinance` (1), `CGraphDataSeries` (2; the HUD graphs), `CLeagueTable`/`CLeagueTableEntry` (3 / 20; star, studio, movie charts,
   with `rank`, `LastRank`, `Metric`), `CAwardsBonusManager`, `CAwardPrizePack` (14), `CReviewGenerator`, `CPhotographerManager`.
-* `CResearchPack` (106): every unlockable research item with `IsAvailableToPlayer`, `IsAvailableToAll`, `PlayerUnlockDate`,
-  `ResearchStartDate`, `DateAvailableToAll`. A fresh studio has 3 available (`startup`, plus two DLC trees).
+* `CResearchPack` (106 in a new 1920 save, 108 in a 1960 quick start): every unlockable research item with `name` (a length-prefixed string such as `wild_west_3`), `IsAvailableToPlayer` and `IsAvailableToAll` (bytes), `PlayerUnlockDate`,
+  `ResearchStartDate`, `DateCanStartResearch`, `DateAvailableToAll` (f32 days; `DateAvailableToAll` is followed by 4 more bytes), `ResearchStarted` and `TannoyAnnounced` (bytes). A fresh studio has 3 available (`startup`, plus two DLC trees). `parseSave` reads them as `Save.research`; the timeline's research icons use `PlayerUnlockDate` (`AUDIO.md`).
 * `CAIResearchSchedule` (4) + `CAIInterpolatedValue` (8, per-era `AverageValue1900/2000`): the AI studios' research pacing.
 * `CSITTSystemState`: UI/tutorial flags (`BIsTutorialSkipped`, `BDrawBankBalance`, `BEnableSellRoom`, `BEnablePostProdRoom`, queue closed map…).
-* `CSandbox` (9 `Option[x]`): the sandbox/new-game options, floats at `+0x60`: start decade, stars-don't-misbehave, buildings-don't-decay, instant movie, an unused slot, instant build, game type (0 tutorial, 1 new game, 2 sandbox, 3 add-on quick start), stunt injuries off, stuntmen off (docs/FRONTEND.md, "The nine start options").
+* `CSandbox` (9 `Option[x]`, the same tag nine times, read in order): the sandbox/new-game options, floats at `+0x60`: start decade, stars-don't-misbehave, buildings-don't-decay, instant movie, an unused slot, instant build, game type (0 tutorial, 1 new game, 2 sandbox, 3 add-on quick start), stunt injuries off, stuntmen off (docs/FRONTEND.md, "The nine start options").
 * `CThresholdPackage` (21, 126 `Values[x]` each) and `CExperience` (21): per-person trait-threshold and experience tables
   (`docs/TRAITS_AND_EXPERIENCE.md`).
 
@@ -227,7 +227,7 @@ textures). No saved cell has texture index 6 (sidewalk) in these saves.
 1. **Static vars** (49 in these saves), each a normal `#X` tag + value. The registration gives each a type 0-6: vec3, u32, byte, f32, string,
    wide string, tracked u32. Names seen: object pointers to the singletons (`PPlayerStudio`, `PGatehouse`, `PBillboard1`, `PTheLandscape`,
    `PFinance`, `PLeagueStar`/`PLeagueMovie`/`PLeagueStudio`, `PReviewGenerator`, `PPhotographerManager`, `PSandbox`, `PBonusManager`, `PDataLog`,
-   `PBuildButtonData`, `PInstance`), the awards clock (`PreviousAwardsDate.YearInDays`, `LastRankCeremony`, `LastStuntRankCeremony`, `FirstAwardsYear` = 1925 in all three saves), build history (`EverBuilt`, `DateFirstBuilt`, `FirstTrainerBuilt`, `FirstStuntMovieReleased`), RNG seeds (`AIWinnerRandom.Germ`,
+   `PBuildButtonData`, `PInstance`), the awards clock (`PreviousAwardsDate.YearInDays` an f32 of days, 1 January of the last ceremony's year, or a new studio's start date; `LastRankCeremony` and `LastStuntRankCeremony` u32; `FirstAwardsYear` u32 = 1925 in all the saves, the start year plus 5 in a new game; read by `parseSave` as `Save.awards`), build history (`EverBuilt`, `DateFirstBuilt`, `FirstTrainerBuilt`, `FirstStuntMovieReleased`), RNG seeds (`AIWinnerRandom.Germ`,
    `StuntSuccessRandom.Germ`), `NextAIStudio`, `LogoNum`, `GameID` (a wide string `<boss> 000000`), `ScriptCreationDisabled`, and the stress/boredom suspend flags.
    The singleton pointers are object ids, so they resolve to the objects in `[OBJECTS]` (`PGatehouse` -> the gatehouse `CFacility`).
 2. **Static lists**, with no tag at all: the 24 global object registries. Each is `u32 count` then `count` x `(u32 object id, u32, u32)`. The two trailing

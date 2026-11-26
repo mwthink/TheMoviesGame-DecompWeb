@@ -1,4 +1,5 @@
 import { parseTimelineEvents, type TimelineEvent } from "../sim/audio/RadioSpeech.ts";
+import { awardsEnabled, type AwardsClock, type ResearchPackDate } from "../sim/ui/TimelineIcons.ts";
 import type { PakIndex } from "../assets/Pak.ts";
 import { decodeDds, type Rgba } from "../formats/Dds.ts";
 import { Ini } from "../formats/Ini.ts";
@@ -516,7 +517,24 @@ export interface WorldData {
   staff: SavedStaff[];
   /** The timeline's historical events (`data\\rule\\timeline.csv`): the radio reads news about them. Empty if the archives lack the file. */
   timelineEvents: TimelineEvent[];
+  /** The timeline's award and research icons: the awards clock (null when the save has none) and the research packs' dates (docs/AUDIO.md, "Timeline icons: what they do"). */
+  timelineExtras: { awards: AwardsClock | null; research: ResearchPackDate[] };
   warnings: string[];
+}
+
+/** The awards clock and research dates for the timeline's icons: from the save, with the ceremony interval from `global.ini` (`[awards] interval`, 5). */
+async function loadTimelineExtras(pak: PakIndex, save: Save): Promise<WorldData["timelineExtras"]> {
+  let interval = 5;
+  try {
+    const ini = await pak.readByName("global.ini");
+    const n = ini ? Number(Ini.parse(new TextDecoder("latin1").decode(ini)).get("awards/interval")) : NaN;
+    if (Number.isFinite(n) && n > 0) interval = n;
+  } catch { /* the default stands */ }
+  const a = save.awards;
+  return {
+    awards: a ? { previous: a.previousDate, firstYear: a.firstYear, interval, enabled: awardsEnabled(a.gameType) } : null,
+    research: save.research.map((r) => ({ name: r.name, unlocked: r.availableToPlayer, unlockDate: r.playerUnlockDate })),
+  };
 }
 
 /**
@@ -750,5 +768,6 @@ export async function loadWorldData(
     const csv = await pak.readByName("timeline.csv");
     if (csv) timelineEvents = parseTimelineEvents(new TextDecoder("latin1").decode(csv));
   } catch { /* the radio just has no news */ }
-  return { nav, props, desires, scenes, sky, floorplanRules, people, camera, lot, terrain, meshes, placements, header: save.header, staff: save.staff, timelineEvents, warnings };
+  const timelineExtras = await loadTimelineExtras(pak, save);
+  return { nav, props, desires, scenes, sky, floorplanRules, people, camera, lot, terrain, meshes, placements, header: save.header, staff: save.staff, timelineEvents, timelineExtras, warnings };
 }

@@ -128,6 +128,20 @@ body[data-screen="game"] .hud { display: block; }
 .gametoolbar .timeline .now { position: absolute; left: 128px; top: 2px; bottom: 2px; width: 1px; background: var(--accent); }
 .gametoolbar .timeline .tlevent { position: absolute; top: 5px; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: #6fa8dc; }
 .gametoolbar .timeline .tlevent:hover { background: var(--accent); }
+/* Award and research icons (TimelineIcons.ts): dots in their own colours until the game's pictures are read. */
+.gametoolbar .timeline .tlicon.award { background: #e0b84c; }
+.gametoolbar .timeline .tlicon.research { background: #7cc47c; }
+.gametoolbar .timeline.award-icons .tlicon.award, .gametoolbar .timeline.research-icons .tlicon.research { top: 3px; width: 16px; height: 16px; margin-left: -8px; border-radius: 0; transition: transform 0.12s; }
+.gametoolbar .timeline.award-icons .tlicon.award { background: var(--tl-award) center / contain no-repeat; }
+.gametoolbar .timeline.award-icons .tlicon.award2 { background: var(--tl-award2) center / contain no-repeat; }
+.gametoolbar .timeline.research-icons .tlicon.research { background: var(--tl-research) center / contain no-repeat; }
+.gametoolbar .timeline.award-icons .tlicon.award:hover, .gametoolbar .timeline.research-icons .tlicon.research:hover { transform: scale(2); z-index: 3; }
+/* With the game's own picture (ui/timeline_world.dds): 16 px, 32 on hover (the original's window sizes), 24 with its news playing and the glow turning behind it. */
+.gametoolbar .timeline.icons .tlevent { top: 3px; width: 16px; height: 16px; margin-left: -8px; border-radius: 0; background: var(--tl-world) center / contain no-repeat; transition: transform 0.12s; }
+.gametoolbar .timeline.icons .tlevent:hover { background: var(--tl-world) center / contain no-repeat; transform: scale(2); z-index: 3; }
+.gametoolbar .timeline.icons .tlevent.playing { top: 3px; width: 16px; height: 16px; margin-left: -8px; background: var(--tl-world) center / contain no-repeat; box-shadow: none; transform: scale(1.5); z-index: 2; }
+.gametoolbar .timeline.icons.glow .tlevent.playing::before { content: ""; position: absolute; inset: -12px; background: var(--tl-glow) center / contain no-repeat; animation: tlspin 3s linear infinite; z-index: -1; }
+@keyframes tlspin { to { transform: rotate(360deg); } }
 .gametoolbar .timeline .tlevent.playing { top: 3px; width: 12px; height: 12px; margin-left: -6px; background: var(--accent); box-shadow: 0 0 8px 2px var(--accent); }
 /* The card under a hovered event dot (GameToolbar.showCard). */
 .gametoolbar .tlcard {

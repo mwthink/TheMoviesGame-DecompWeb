@@ -56,3 +56,28 @@ test("summary: a synthetic header", () => {
   assert.equal(sum.savedAt?.getMonth(), 10);
   assert.throws(() => parseSaveSummary(new Uint8Array(64)), /not a saved game/);
 });
+
+// What the timeline's award and research icons read (docs/AUDIO.md, "Timeline icons: what they do"; docs/SAVE_FORMAT.md).
+test("awards clock: the previous ceremony, the first awards year and the game type", { skip: QUICK ? false : "needs a Quick Start save" }, () => {
+  const a = parseSave(new Uint8Array(readFileSync(QUICK!))).awards;
+  assert.ok(a);
+  assert.equal(a.firstYear, 1925);
+  assert.equal(a.gameType, 3); // an add-on quick start
+  assert.equal(a.previousDate % 365, 0); // a ceremony is on 1 January
+  assert.ok(a.previousDate <= parseSave(new Uint8Array(readFileSync(QUICK!))).header!.date);
+});
+
+test("a fresh studio's awards clock starts at its start date and its first ceremony is five years on", { skip: FRESH ? false : "needs a fresh-studio save" }, () => {
+  const s = parseSave(new Uint8Array(readFileSync(FRESH!)));
+  assert.ok(s.awards);
+  assert.equal(s.awards.previousDate, s.header!.date);
+  assert.equal(s.awards.firstYear, Math.round(s.header!.date / 365) + 5);
+});
+
+test("research packs: names and unlock dates", { skip: QUICK ? false : "needs a Quick Start save" }, () => {
+  const packs = parseSave(new Uint8Array(readFileSync(QUICK!))).research;
+  assert.ok(packs.length > 100, `${packs.length} packs`);
+  const wild = packs.find((p) => p.name === "wild_west_3");
+  assert.ok(wild && wild.playerUnlockDate > 1900 * 365);
+  assert.ok(packs.every((p) => p.name.length > 0));
+});
