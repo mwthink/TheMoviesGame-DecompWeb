@@ -1,6 +1,6 @@
-import { gamePak, gameStrings, randomLoadingPicture } from "./frontEndArt.ts";
-import { buildSceneLayers, type SceneLayers } from "./LoadingSceneLayers.ts";
-import { pickScene } from "./loadingScenes.ts";
+import { gameStrings } from "./frontEndArt.ts";
+import type { SceneLayers } from "./LoadingSceneLayers.ts";
+import { takeLoadingScreen } from "./loadingPreload.ts";
 import { DEFAULT_LOADING_LAYOUT, LoadingView } from "./LoadingView.ts";
 import { pickTip } from "./loadingTips.ts";
 import { mountScreen, unmountScreen, type Screen } from "./Screen.ts";
@@ -69,34 +69,32 @@ export class LoadingScreen<T> implements Screen {
     if (this.el) { void unmountScreen(this.el); this.el = null; }
   }
 
-  /** Put the picture and the tip in when they are ready, and show the dressed view in place of the plain one. */
+  /** Put the picture or scene and the tip in when they are ready (prepared ahead of time when the menus had the chance, `loadingPreload.ts`), and show the dressed view in place of the plain one. */
   private async dress(): Promise<void> {
-    const [strings, scened] = await Promise.all([gameStrings(), this.newScene ? this.dressScene() : Promise.resolve(false)]);
-    const picture = scened ? null : await randomLoadingPicture();
+    const [strings, prepared] = await Promise.all([gameStrings(), takeLoadingScreen(this.newScene ? "scene" : "picture")]);
+    let ready = prepared;
+    // a scene that could not be made falls back to a picture
+    if (!ready && this.newScene) ready = await takeLoadingScreen("picture");
     const el = this.el;
-    if (!el || this.cancelled || (!picture && !scened)) return;
-    if (picture) this.view.setPicture(picture.canvas);
+    if (!el || this.cancelled || !ready) {
+      if (ready?.kind === "scene") ready.layers.dispose();
+      return;
+    }
+    if (ready.kind === "picture") {
+      this.view.setPicture(ready.picture.canvas);
+    } else {
+      ready.layers.moveTo(el, this.view.element);
+      this.layers = ready.layers;
+      this.view.setLayout({ ...DEFAULT_LOADING_LAYOUT, background: "dark" });
+      this.view.setBackdrop("transparent");
+      this.view.setLegacyPanel(true);
+    }
     this.view.setTip(pickTip(strings));
     this.view.setProgress(this.last.fraction, this.last.label);
     this.view.element.hidden = false;
     el.querySelector<HTMLElement>(".plain")!.hidden = true;
     el.classList.add("dressed");
     this.dressed = true;
-  }
-
-  /** Draw the new scene's layers behind the box; false when they cannot be made (no archives, a missing costume), so the picture is used instead. */
-  private async dressScene(): Promise<boolean> {
-    const pak = await gamePak();
-    if (!pak || this.cancelled) return false;
-    const scene = pickScene(Math.random, new URLSearchParams(window.location.search).get("loadingScene")); // ?loadingScene=right shows only the scenes named so
-    const layers = await buildSceneLayers(pak, this.el!, this.view.element, scene);
-    if (!layers) return false;
-    if (this.cancelled) { layers.dispose(); return false; }
-    this.layers = layers;
-    this.view.setLayout({ ...DEFAULT_LOADING_LAYOUT, background: "dark" });
-    this.view.setBackdrop("transparent");
-    this.view.setLegacyPanel(true);
-    return true;
   }
 
   private async run(): Promise<void> {

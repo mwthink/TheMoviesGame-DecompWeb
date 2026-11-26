@@ -325,3 +325,5 @@ body[data-screen="game"] .devmenu { bottom: 70px; }
 .screen.preview .previewclose { right: 12px; }
 .screen.preview .previewtoggle { left: 12px; }
 .screen.preview .previewclose:hover, .screen.preview .previewclose:focus-visible, .screen.preview .previewtoggle:hover, .screen.preview .previewtoggle:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+/* a loading scene built ahead of time (loadingPreload.ts): full window so its canvases have their final size, but unseen and unclickable until the loading screen takes its layers */
+.loadstage { position: fixed; inset: 0; visibility: hidden; pointer-events: none; z-index: -1; }

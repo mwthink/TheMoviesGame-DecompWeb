@@ -86,6 +86,19 @@ nudge, turn, and `frame`) and a flat backdrop colour. The same `LoadingCharacter
 - **Not done:** more scenes and a way to capture one from the character viewer, a real backdrop (picture, gradient, blurred set) in place of the flat colour, the logo, looping scenes' effect on load time (unmeasured), and
   loading the character before the first load (the very first screen of a session can be before the archives are linked).
 
+## Preparing ahead (`loadingPreload.ts`)
+
+Decoding a 1024 x 1024 picture, or building a scene (the character's costume and textures, the set's model and about 40 textures, shader compiles), takes long enough that a loading screen built on demand showed the
+plain page first and then popped the picture or scene in. So it is made earlier:
+
+- **`prepareLoadingScreen(mode)`** (called by `main.ts` whenever the splash, menu, Load Game or New Game screen is shown, when the Options choice changes and when the game files are linked) starts making the next
+  loading screen of the kind the option picks: a picture is chosen and decoded; a scene is picked and built on a **hidden full-window stage** (`.loadstage`, so its canvases already have their final size) with the
+  character's render loop stopped. It is idempotent: one screen is kept ready at a time, a screen of the other kind is thrown away, and it only does something once the game files can be read.
+- **`takeLoadingScreen(mode)`** hands the result over (waiting if it is still being made, making it if nothing was started). `LoadingScreen` moves a scene's layers into itself (`SceneLayers.moveTo`, which re-parents the
+  canvases, restarts the character's loop and re-observes the new size) or sets the picture, then shows the tip; the first screen that has no menu time before it (a `?autoload`) builds on demand as before.
+  After it is taken, the next one is prepared the next time the player is in the menus, not during a game.
+- **Measured** (dev server, a Quick Start save, new scenes on): with the scene prepared in the menu, the loading screen is dressed 185 ms after it appears; built on demand it took seconds.
+
 ## The scene editor (character viewer)
 
 The character viewer has a **Loading scene** section (`LoadingSceneEditor.ts`, wired in `CharacterViewerScreen.ts`). The person on the viewer's screen, their animation and the frame showing now become the scene's

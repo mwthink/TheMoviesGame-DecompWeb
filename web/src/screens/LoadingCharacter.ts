@@ -54,6 +54,13 @@ export class LoadingCharacter {
     this.observer = new ResizeObserver(() => this.resize());
     this.observer.observe(parent);
     this.resize();
+    this.setRunning(true);
+  }
+
+  /** The render loop runs while the character is on a screen; a character prepared ahead of time (`loadingPreload.ts`) waits with it stopped. */
+  setRunning(on: boolean): void {
+    this.engine.stopRenderLoop();
+    if (!on) return;
     let last = performance.now();
     this.engine.runRenderLoop(() => {
       const now = performance.now();
@@ -61,6 +68,14 @@ export class LoadingCharacter {
       last = now;
       this.scene.render();
     });
+  }
+
+  /** Put the canvas in another parent (in front of `before`) and size it to that: the character was built elsewhere, ahead of time. */
+  moveTo(parent: HTMLElement, before: Element | null): void {
+    parent.insertBefore(this.canvas, before);
+    this.observer.disconnect();
+    this.observer.observe(parent);
+    this.resize();
   }
 
   private texture(name: string): Promise<Rgba | null> {

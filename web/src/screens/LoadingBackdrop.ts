@@ -66,6 +66,14 @@ export class LoadingBackdrop {
     });
   }
 
+  /** Put the canvas in another parent (in front of `before`) and size it to that: the set was drawn elsewhere, ahead of time. */
+  moveTo(parent: HTMLElement, before: Element | null): void {
+    parent.insertBefore(this.canvas, before);
+    this.observer.disconnect();
+    this.observer.observe(parent);
+    this.resize();
+  }
+
   /** Build the set and aim the camera; resolves when it is drawn. Throws if the model is not in the archives. */
   async set(b: BackdropSettings): Promise<void> {
     const bytes = await this.pak.readByName(b.mesh);

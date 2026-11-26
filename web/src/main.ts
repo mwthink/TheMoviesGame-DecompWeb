@@ -12,8 +12,9 @@ import { setEngineMultisampling } from "./world/sharedEngine.ts";
 import { ProfileScreen } from "./screens/ProfileScreen.ts";
 import { LoadGameScreen, loadSaveTask } from "./screens/LoadGameScreen.ts";
 import { LinkGameScreen } from "./screens/LinkGameScreen.ts";
-import { currentInstall, pendingLinks, restoreLinks } from "./screens/gameLink.ts";
+import { currentInstall, onLinkChange, pendingLinks, restoreLinks } from "./screens/gameLink.ts";
 import { LoadingScreen, type LoadTask } from "./screens/LoadingScreen.ts";
+import { prepareLoadingScreen } from "./screens/loadingPreload.ts";
 import type { WorldData } from "./world/WorldData.ts";
 import { AudioManager } from "./audio/AudioManager.ts";
 import { calendarDate } from "./sim/core/GameClock.ts";
@@ -31,6 +32,13 @@ function present(id: ScreenId, screen: Screen): void {
   document.body.dataset.screen = id;
   syncAudio(id);
   current.enter();
+  // the front-end screens are where a load starts: have the next loading screen ready (picture decoded, or scene built on a hidden stage) before it is needed
+  if (id === "splash" || id === "menu" || id === "load" || id === "profile") prepareNextLoadingScreen();
+}
+
+/** Start making the next loading screen, of the kind the options choose; a no-op while one is ready or on its way, and without game files (it is tried again when they are linked). */
+function prepareNextLoadingScreen(): void {
+  prepareLoadingScreen(settings.get().newLoadingScreens ? "scene" : "picture");
 }
 
 function show(id: ScreenId): void {
@@ -63,6 +71,9 @@ const settings = new SettingsStore(typeof localStorage === "undefined" ? null : 
 setEngineMultisampling(settings.get().multisampling);
 setPoseSmoothing(settings.get().smoothAnimation);
 settings.subscribe((s) => setPoseSmoothing(s.smoothAnimation));
+// the kind of loading screen follows the option; a link to the game files made later gives the preparation something to read
+settings.subscribe(() => { if (current !== gameView) prepareNextLoadingScreen(); });
+onLinkChange(() => { if (current !== gameView) prepareNextLoadingScreen(); });
 
 // Audio: each screen holds the audio states the original's matching window sets (docs/AUDIO.md, "Audio states"). Music files are read from the dev server's
 // local files; a build without them stays silent.
