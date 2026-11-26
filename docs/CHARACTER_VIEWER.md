@@ -44,4 +44,8 @@ sex, age 30, 70 kg, the costume's own variants) in headless Chrome against the r
 - **Run:** start the dev server with the game found (`OTM_GAME_DIR=<install> npm run dev` in `web/`), then `tools/costume_sheets.sh` (about 20 seconds for all of them). An argument is the page's query: `'match=^f_'`
   (a regular expression on the file name), `cols`, `rows`, `cellw`, `cellh`, `turn` (degrees; 0 is a profile looking right, 90, the default, faces the camera), `save=0`. `DEV_URL`, `CHROME` and `TIMEOUT` are environment variables.
   The page can also be opened in a browser (`/costumesheet.html`), where the sheets are shown on the page.
-- **Four costumes do not build** and are left blank (the cause is not looked into): `f_white`, `m_white`, `m_robot_tz2` and `m_war_fighter_1`. `m_bodyless` draws only a head.
+- **Four costumes have no model in the install** and are marked "(no model in the game files)" in their cells. Each `.cos` names a body mesh (`cos_<name>.msh`) that is in no archive: `f_white` and `m_white`
+  (164-byte placeholders: a body name and nothing else, no textures); `m_robot_tz2` (byte-for-byte the same costume as `m_fut_robot_tz2`, whose body `cos_m_fut_robot_tz2.msh` exists: the file names `cos_m_robot_tz2.msh`,
+  so it looks like a name from before a rename; the working copy is `m_fut_robot_tz2`); and `m_war_fighter_1` (a full costume with textures, but there is no `cos_m_war_fighter_1.msh`, nor any "fighter" mesh or texture
+  file in the install: cut content, or a mesh that was never shipped). No other costume refers to any of the four. `PersonModelBuilder.build` throws `no body mesh <name>` for them, which the viewer shows in its info line.
+  `m_bodyless` draws only a head.

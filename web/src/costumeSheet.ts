@@ -104,6 +104,8 @@ async function main(): Promise<void> {
     g.drawImage(gl, 0, 0);
     g.font = "12px system-ui, sans-serif"; g.textAlign = "center"; g.fillStyle = "#e8e6dc";
     names.forEach((cos, i) => g.fillText(cos.replace(/\.cos$/i, ""), (i % COLS) * CELL_W + CELL_W / 2, (Math.floor(i / COLS) + 1) * CELL_H - 8, CELL_W - 6));
+    g.fillStyle = "#a88"; // a costume whose body mesh is not in the archives (docs/CHARACTER_VIEWER.md): say so in its cell instead of leaving it blank
+    names.forEach((cos, i) => { if (failed.includes(cos)) g.fillText("(no model in the game files)", (i % COLS) * CELL_W + CELL_W / 2, (Math.floor(i / COLS) + 0.5) * CELL_H, CELL_W - 10); });
     const blob = await new Promise<Blob>((resolve, reject) => out.toBlob((b) => (b ? resolve(b) : reject(new Error("no image"))), "image/png"));
     await post(`costumes_${label}.png`, blob);
     await post(`costumes_${label}.txt`, names.map((n, i) => `${Math.floor(i / COLS) + 1},${(i % COLS) + 1}\t${n}`).join("\n") + "\n");
