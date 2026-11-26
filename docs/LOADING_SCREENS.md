@@ -106,8 +106,13 @@ character, so a scene is made by posing someone in the viewer as usual. The sect
 
 - **Name**, **Start from** (fills the fields from a scene already in `LOADING_SCENES`), **Side**, **Size**, **Nudge across / up**, **Turn**, **Hold the frame shown now** (off: the clip loops), **Backdrop colour**.
 - **A film set behind:** the set (every `set_*.msh` in the archives), the camera (`eye` and `look`, x y z in the game's coordinates) and the field of view, blur and brightness.
-- **Preview** shows the real loading layers (`buildSceneLayers`, the same code as the loading screen) in the window beside the editor panel, with a sample tip and a moving bar. The panel stays up and any change in it (this section, or the person and pose above) redraws the preview about 0.7 s after the last edit; **Hide editor** on the preview folds the panel away to see the whole window, and Escape or Close preview ends it. The camera is
-  set by typing numbers; there is no dragging it round the set yet.
+- **Preview** shows the real loading layers (`buildSceneLayers`, the same code as the loading screen) in the window beside the editor panel, with a sample tip and a moving bar. The panel stays up and any change in it (this section, or the person and pose above) redraws the preview about 0.7 s after the last edit; **Hide editor** on the preview folds the panel away to see the whole window, and Escape or Close preview ends it. **Placing the camera in the set** (moving, rotating and zooming the set behind the character; the maths is
+  `loadingCameraMath.ts`, test `web/tests/loadingCameraMath.test.ts`): with a film set on, the preview takes the mouse and keys. **Drag** looks around (turns the camera on the spot), **right-drag or Shift-drag**
+  moves it sideways and up, the **wheel** moves it forward and back (Shift: faster), **Ctrl + wheel** changes the field of view (zoom), **W A S D** fly and **Q E** go down and up (Shift: faster; the viewer's own
+  shortcuts on those letters are off while the preview is open). The camera fields in the panel follow every move, and typing in them (or the field of view, blur and brightness) redraws the set at once without
+  rebuilding the preview. Steps scale with the set's size (a 600th of its longest side per pixel). **Overview from above** puts the camera just under the set's roof, over its middle, looking steeply down (a camera
+  above a roof sees only the roof); **Stand in the middle** puts it at eye height in the middle looking along +y; the panel states the set's extent. **Show it sharp in the preview** (on by default) draws the set
+  without blur while placing it; the exported blur is the slider's.
 - **Copy scene as code** puts the TypeScript for the scene on the clipboard (`sceneToCode`, `loadingSceneCode.ts`, test `web/tests/loadingSceneCode.test.ts`): paste it into `LOADING_SCENES` in `loadingScenes.ts`. A
   whole look is written as `lookFromCode("OTMCHAR1:...")`, the same string the viewer's Copy character button makes. Nothing else is saved: the repository holds the scenes.
 

@@ -12,6 +12,7 @@ import { decodeDds, type Rgba } from "../formats/Dds.ts";
 import { parseMsh } from "../formats/Msh.ts";
 import { findTexture } from "../world/WorldData.ts";
 import { makeTexture, WHITE } from "../world/textures.ts";
+import type { Bounds } from "./loadingCameraMath.ts";
 import type { BackdropSettings } from "./loadingScenes.ts";
 
 /** Textures a set piece uses that are not colour (reflection and lightmap layers) or would look wrong opaque (glass), as a prefix of the file name. */
@@ -30,6 +31,8 @@ export class LoadingBackdrop {
   private readonly observer: ResizeObserver;
   private disposed = false;
   private drawn = false;
+  /** The box the set's geometry fills (game coordinates), once it is built: a scale for moving the camera and a place to centre it. */
+  bounds: Bounds | null = null;
 
   /** `before` is the element the canvas goes in front of, so the backdrop is behind the character. */
   constructor(private readonly pak: PakIndex, parent: HTMLElement, before: Element | null = null) {
@@ -88,6 +91,13 @@ export class LoadingBackdrop {
     }
     if (this.disposed) return;
     const materials = new Map<string, StandardMaterial>();
+    const min: [number, number, number] = [Infinity, Infinity, Infinity], max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
+    for (const p of msh.primitives) {
+      for (let v = 0; v < p.positions.length; v += 3) {
+        for (let k = 0; k < 3; k++) { min[k] = Math.min(min[k]!, p.positions[v + k]!); max[k] = Math.max(max[k]!, p.positions[v + k]!); }
+      }
+    }
+    if (Number.isFinite(min[0])) this.bounds = { min, max };
     msh.primitives.forEach((p, i) => {
       const mat = msh.materials[p.material];
       const name = mat ? msh.textures[mat.tex[0]]?.toLowerCase() : undefined;
@@ -129,6 +139,14 @@ export class LoadingBackdrop {
     this.canvas.style.filter = `blur(${b.blurPx}px) brightness(${b.brightness})`;
     this.drawn = true;
     await this.draw();
+  }
+
+  /** Change the camera, blur and brightness of a set already drawn, and draw it again at once (the editor's mouse and keys move the camera this way, without rebuilding the set). */
+  update(b: BackdropSettings): void {
+    if (this.disposed || !this.drawn) return;
+    this.aim(b);
+    this.canvas.style.filter = `blur(${b.blurPx}px) brightness(${b.brightness})`;
+    this.scene.render();
   }
 
   /** Put the camera at `eye` looking at `look` (game coordinates, z up) with the given field of view (vertical, degrees). */

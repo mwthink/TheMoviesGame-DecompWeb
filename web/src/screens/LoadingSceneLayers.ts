@@ -1,12 +1,17 @@
 import type { PakIndex } from "../assets/Pak.ts";
 import { LoadingBackdrop } from "./LoadingBackdrop.ts";
 import { LoadingCharacter } from "./LoadingCharacter.ts";
-import type { LoadingScene } from "./loadingScenes.ts";
+import type { Bounds } from "./loadingCameraMath.ts";
+import type { BackdropSettings, LoadingScene } from "./loadingScenes.ts";
 
 /** The drawn layers of a loading scene (docs/LOADING_SCREENS.md, "New loading scenes"). */
 export interface SceneLayers {
   /** Move the layers to another host (behind `before`) and start the character running: they were built ahead of time on a hidden stage (`loadingPreload.ts`). */
   moveTo(host: HTMLElement, before: Element): void;
+  /** Change the set's camera, blur and brightness without rebuilding it (no-op without a set). */
+  updateBackdrop(b: BackdropSettings): void;
+  /** The box the set fills, in game coordinates; null without a set. */
+  backdropBounds(): Bounds | null;
   dispose(): void;
 }
 
@@ -53,6 +58,8 @@ export async function buildSceneLayers(pak: PakIndex, host: HTMLElement, before:
       backdrop?.moveTo(newHost, character.canvas);
       character.setRunning(true);
     },
+    updateBackdrop(b) { backdrop?.update(b); },
+    backdropBounds() { return backdrop?.bounds ?? null; },
     dispose() {
       character.dispose();
       backdrop?.dispose();

@@ -5,6 +5,7 @@ import { buildSceneLayers, type SceneLayers } from "./LoadingSceneLayers.ts";
 import { sceneToCode } from "./loadingSceneCode.ts";
 import { LOADING_SCENES, type BackdropSettings, type LoadingScene } from "./loadingScenes.ts";
 import { DEFAULT_LOADING_LAYOUT, LoadingView } from "./LoadingView.ts";
+import { centreView, extent, move, overview, turn, type Cam, type Vec3 } from "./loadingCameraMath.ts";
 import { mountScreen, unmountScreen } from "./Screen.ts";
 import { gameStrings } from "./frontEndArt.ts";
 import { pickTip } from "./loadingTips.ts";
@@ -23,6 +24,10 @@ const BACKDROP_DEFAULT: BackdropSettings = { mesh: "", eye: [0, 0, 1.8], look: [
 const NUMBERS: [string, string, number, number, number][] = [
   ["Size", "size", 0.3, 1.2, 0.01], ["Nudge across", "nudgeX", -0.3, 0.3, 0.005], ["Nudge up", "nudgeY", -0.2, 0.3, 0.005], ["Turn", "turn", -180, 180, 1],
 ];
+/** The fields that change the set's camera, blur or brightness: edits to these redraw the set at once instead of rebuilding the preview. */
+const LIVE = new Set(["ex", "ey", "ez", "lx", "ly", "lz", "fov", "blur", "bright", "sharp"]);
+/** What the preview's mouse and keys do, shown on it. */
+const HINT = "Drag: look around · Right-drag or Shift-drag: move sideways and up · Wheel: forward / back · Ctrl + wheel: zoom (field of view) · W A S D: fly, Q E: down / up (Shift: faster)";
 const POINTS: [string, string][] = [["Camera x", "ex"], ["y", "ey"], ["z", "ez"], ["Looks at x", "lx"], ["y", "ly"], ["z", "lz"]];
 
 /**
@@ -36,8 +41,25 @@ export class LoadingSceneEditor {
   /** The viewer's side panel, which stays up beside the preview and can be folded away. */
   private panel: HTMLElement | null = null;
   private refreshTimer = 0;
-  private readonly onEdit = () => this.scheduleRefresh();
-  private readonly onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && this.preview) { e.stopPropagation(); void this.closePreview(); } };
+  private liveFrame = 0;
+  private readonly onEdit = (e: Event) => {
+    const key = (e.target as HTMLElement | null)?.dataset?.s;
+    if (key && LIVE.has(key)) this.liveBackdrop();
+    else this.scheduleRefresh();
+  };
+  private readonly onKey = (e: KeyboardEvent) => {
+    if (!this.preview) return;
+    if (e.key === "Escape") { e.stopPropagation(); void this.closePreview(); return; }
+    const t = e.target as HTMLElement | null;
+    if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
+    const k = e.key.toLowerCase();
+    if (!"wasdqe".includes(k) || k.length !== 1 || e.ctrlKey || e.metaKey || e.altKey) return;
+    // the preview owns these letters while it is open (the viewer's own W, B, ... shortcuts would otherwise fire)
+    e.preventDefault();
+    e.stopPropagation();
+    const step = this.step() * 3 * (e.shiftKey ? 4 : 1);
+    this.flyBy(k === "w" ? step : k === "s" ? -step : 0, k === "d" ? step : k === "a" ? -step : 0, k === "e" ? step : k === "q" ? -step : 0);
+  };
 
   constructor(
     private readonly container: HTMLElement,
@@ -64,7 +86,10 @@ export class LoadingSceneEditor {
         <div class="points">${POINTS.map(point).join("")}</div>
         <label>Field of view <input type="range" data-s="fov" min="20" max="120" step="1" value="70"><output data-so="fov"></output></label>
         <label>Blur <input type="range" data-s="blur" min="0" max="40" step="1" value="14"><output data-so="blur"></output></label>
+        <label class="check"><input type="checkbox" data-s="sharp" checked> Show it sharp in the preview (the blur above is what is exported)</label>
         <label>Brightness <input type="range" data-s="bright" min="0.2" max="2" step="0.05" value="1"><output data-so="bright"></output></label>
+        <div class="actions"><button type="button" data-s-overview>Overview from above</button> <button type="button" data-s-centre>Stand in the middle</button></div>
+        <p class="info" data-s-bounds>Open the preview, then drag in it to look and move (keys: W A S D Q E).</p>
       </div>
       <div class="actions"><button type="button" data-s-preview>Preview</button> <button type="button" data-s-copy>Copy scene as code</button></div>`;
   }
@@ -85,6 +110,8 @@ export class LoadingSceneEditor {
     this.field<HTMLSelectElement>("from").addEventListener("change", () => this.startFrom());
     root.querySelector("[data-s-preview]")!.addEventListener("click", () => void this.openPreview());
     root.querySelector("[data-s-copy]")!.addEventListener("click", () => void this.copy());
+    root.querySelector("[data-s-overview]")!.addEventListener("click", () => this.jump("overview"));
+    root.querySelector("[data-s-centre]")!.addEventListener("click", () => this.jump("centre"));
     window.addEventListener("keydown", this.onKey, true);
     this.showSet();
     this.showNumbers();
@@ -192,6 +219,10 @@ export class LoadingSceneEditor {
       screen.append(b);
       return b;
     };
+    this.addPad(screen);
+    const hint = document.createElement("p");
+    hint.className = "previewhint"; hint.textContent = HINT;
+    screen.append(hint);
     button("Close preview", "previewclose", () => void this.closePreview());
     const toggle = button("Hide editor", "previewtoggle", () => {
       const hidden = !this.panel!.classList.contains("collapsed");
@@ -210,7 +241,7 @@ export class LoadingSceneEditor {
 
   /** (Re)draw the preview's layers from the panel as it is now. */
   private async draw(): Promise<void> {
-    const p = this.preview, pak = this.pak(), scene = this.scene();
+    const p = this.preview, pak = this.pak(), scene = this.previewScene();
     if (!p || !pak || !scene) return;
     const token = ++p.token;
     p.layers?.dispose();
@@ -219,6 +250,101 @@ export class LoadingSceneEditor {
     if (this.preview !== p || p.token !== token) { layers?.dispose(); return; } // closed, or a newer drawing took over
     if (!layers) { this.say("The scene could not be drawn (check the costume and animation exist)."); return; }
     p.layers = layers;
+    this.showBounds();
+  }
+
+  /** The camera as the fields hold it. */
+  private cam(): Cam {
+    const v = (a: string, b: string, c: string): Vec3 => [this.val(a), this.val(b), this.val(c)];
+    return { eye: v("ex", "ey", "ez"), look: v("lx", "ly", "lz") };
+  }
+
+  /** Write a camera (and optionally the field of view) into the fields and redraw the set. */
+  private setCam(c: Cam, fovDeg?: number): void {
+    const put = (k: string, n: number) => { this.field<HTMLInputElement>(k).value = String(Math.round(n * 100) / 100); };
+    put("ex", c.eye[0]); put("ey", c.eye[1]); put("ez", c.eye[2]);
+    put("lx", c.look[0]); put("ly", c.look[1]); put("lz", c.look[2]);
+    if (fovDeg !== undefined) { this.field<HTMLInputElement>("fov").value = String(Math.round(fovDeg)); this.showNumbers(); }
+    this.liveBackdrop();
+  }
+
+  /** Redraw the open preview's set from the fields, at most once a frame (a drag fires many events). */
+  private liveBackdrop(): void {
+    if (this.liveFrame || !this.preview?.layers) return;
+    this.liveFrame = requestAnimationFrame(() => {
+      this.liveFrame = 0;
+      const s = this.previewScene();
+      if (s?.backdrop) this.preview?.layers?.updateBackdrop(s.backdrop);
+    });
+  }
+
+  /** The scene as the preview draws it: the same, except the set has no blur when "Show it sharp" is on (it is hard to find a place through the blur). */
+  private previewScene(): LoadingScene | null {
+    const s = this.scene();
+    if (s?.backdrop && this.field<HTMLInputElement>("sharp").checked) return { ...s, backdrop: { ...s.backdrop, blurPx: 0 } };
+    return s;
+  }
+
+  /** How far one step of the mouse or keys moves the camera: a fraction of the set's size (1 unit without a set). */
+  private step(): number {
+    const b = this.preview?.layers?.backdropBounds();
+    return (b ? extent(b) : 10) / 600;
+  }
+
+  private flyBy(fwd: number, side: number, up: number): void {
+    this.setCam(move(this.cam(), fwd, side, up));
+  }
+
+  /** Mouse, wheel and touch on the preview move the set's camera (see `HINT`). */
+  private addPad(screen: HTMLElement): void {
+    const pad = document.createElement("div");
+    pad.className = "previewpad";
+    screen.append(pad);
+    let drag: { x: number; y: number; mode: "look" | "move" } | null = null;
+    pad.addEventListener("contextmenu", (e) => e.preventDefault());
+    pad.addEventListener("pointerdown", (e) => {
+      if (!this.field<HTMLInputElement>("useSet").checked) return;
+      drag = { x: e.clientX, y: e.clientY, mode: e.button === 2 || e.shiftKey ? "move" : "look" };
+      pad.setPointerCapture(e.pointerId);
+      pad.classList.add("dragging");
+    });
+    pad.addEventListener("pointermove", (e) => {
+      if (!drag) return;
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      drag.x = e.clientX; drag.y = e.clientY;
+      if (drag.mode === "look") this.setCam(turn(this.cam(), dx * 0.005, -dy * 0.005));
+      else this.flyBy(0, -dx * this.step(), dy * this.step());
+    });
+    const end = () => { drag = null; pad.classList.remove("dragging"); };
+    pad.addEventListener("pointerup", end);
+    pad.addEventListener("pointercancel", end);
+    pad.addEventListener("wheel", (e) => {
+      if (!this.field<HTMLInputElement>("useSet").checked) return;
+      e.preventDefault();
+      if (e.ctrlKey || e.altKey || e.metaKey) {
+        this.field<HTMLInputElement>("fov").value = String(Math.min(120, Math.max(20, this.val("fov") + e.deltaY * 0.05)));
+        this.showNumbers();
+        this.liveBackdrop();
+      } else {
+        this.flyBy(-e.deltaY * this.step() * 0.25 * (e.shiftKey ? 4 : 1), 0, 0);
+      }
+    }, { passive: false });
+  }
+
+  /** "Overview from above" and "Stand in the middle": a camera placed from the set's size, to start from. */
+  private jump(kind: "overview" | "centre"): void {
+    const b = this.preview?.layers?.backdropBounds();
+    if (!b) { this.say("Open the preview with a film set first; the set's size is read when it is drawn."); return; }
+    const v = kind === "overview" ? overview(b) : centreView(b);
+    this.setCam(v, v.fovDeg);
+  }
+
+  private showBounds(): void {
+    const b = this.preview?.layers?.backdropBounds();
+    const o = this.root?.querySelector<HTMLElement>("[data-s-bounds]");
+    if (!o || !b) return;
+    const r = (a: number, c: number) => `${Math.round(a)} to ${Math.round(c)}`;
+    o.textContent = `This set spans x ${r(b.min[0], b.max[0])}, y ${r(b.min[1], b.max[1])}, z ${r(b.min[2], b.max[2])}. Drag in the preview to look, right-drag to move, wheel to go forward.`;
   }
 
   /** An edit redraws the open preview shortly after the last one (a drag fires many). */
