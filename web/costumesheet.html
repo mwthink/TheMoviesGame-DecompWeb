@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Costume contact sheets (dev)</title>
+    <style>
+      body { margin: 0; padding: 12px; background: #15161b; color: #d8d6cc; font: 14px system-ui, sans-serif; }
+      #status { position: sticky; top: 0; background: #15161b; padding: 4px 0 8px; }
+      figure { margin: 0 0 16px; }
+      figure img { max-width: 100%; display: block; }
+      canvas#gl { position: absolute; left: -99999px; }
+    </style>
+  </head>
+  <body>
+    <div id="status">Starting</div>
+    <canvas id="gl"></canvas>
+    <div id="sheets"></div>
+    <script type="module" src="/src/costumeSheet.ts"></script>
+  </body>
+</html>

@@ -1,5 +1,6 @@
-import { createReadStream, existsSync, readdirSync, statSync } from "node:fs";
+import { createReadStream, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 import { defaultSave, PAK_DIR, SAVE_DIR } from "./localPaths.ts";
 
@@ -31,6 +32,21 @@ function localGameFiles(): Plugin {
   return {
     name: "otm-local-game-files",
     configureServer(server) {
+      // The costume contact-sheet page (costumesheet.html) saves its pictures here: docs/generated/costume_sheets/ (game-derived, gitignored). Only plain .png / .txt names.
+      const sheetDir = join(dirname(fileURLToPath(import.meta.url)), "..", "docs", "generated", "costume_sheets");
+      server.middlewares.use("/__sheet", (req, res) => {
+        const name = new URL(req.url ?? "/", "http://localhost").searchParams.get("name") ?? "";
+        if (req.method !== "POST" || !/^[\w.-]+\.(png|txt)$/.test(name)) { res.statusCode = 400; res.end("bad request"); return; }
+        const chunks: Buffer[] = [];
+        let size = 0;
+        req.on("data", (c: Buffer) => { size += c.length; if (size <= 64 << 20) chunks.push(c); });
+        req.on("end", () => {
+          if (size > 64 << 20) { res.statusCode = 413; res.end("too large"); return; }
+          mkdirSync(sheetDir, { recursive: true });
+          writeFileSync(join(sheetDir, name), Buffer.concat(chunks));
+          res.end("ok");
+        });
+      });
       server.middlewares.use("/__local", (req, res) => {
         const url = new URL(req.url ?? "/", "http://localhost");
         let file: string | null = null;

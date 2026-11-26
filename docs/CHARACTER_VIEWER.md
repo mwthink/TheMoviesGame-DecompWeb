@@ -33,3 +33,15 @@ the meshes from `PersonMeshes` (`web/src/world/PersonMeshes.ts`, also used for t
   exported `character.json`; `tools/export_person.py` and `tools/export_character.py` are no longer needed to look at a character and the old viewer is kept only for its tools.
 - Not done: makeup layers, hair colour tint, alpha maps, the skin overlays and the saved variants of a person's costume (`PEOPLE.md`), and the StarMaker editor's face sliders (`STARMAKER.md`; the slider and
   expression maths is ported in `web/src/sim/character/FaceRig.ts` but has no screen). Those are the next step for the editor.
+
+## Costume contact sheets (dev)
+
+`tools/costume_sheets.sh` draws every costume the install has (464 `.cos` files) standing, facing the camera, with its file name under it, 96 to a sheet (12 x 8), as PNGs in
+`docs/generated/costume_sheets/` (`costumes_01.png` .. `costumes_05.png`, game-derived, so gitignored), each with a `costumes_NN.txt` naming every cell (`row,column<TAB>costume`).
+It runs the dev page `web/costumesheet.html` (`web/src/costumeSheet.ts`: the same `PersonModelBuilder`, `PersonMeshes` and standing-pose clip as the viewer, a plain hair by the costume's
+sex, age 30, 70 kg, the costume's own variants) in headless Chrome against the running dev server, which saves the pictures through its `/__sheet` endpoint (`vite.config.ts`, dev only).
+
+- **Run:** start the dev server with the game found (`OTM_GAME_DIR=<install> npm run dev` in `web/`), then `tools/costume_sheets.sh` (about 20 seconds for all of them). An argument is the page's query: `'match=^f_'`
+  (a regular expression on the file name), `cols`, `rows`, `cellw`, `cellh`, `turn` (degrees; 0 is a profile looking right, 90, the default, faces the camera), `save=0`. `DEV_URL`, `CHROME` and `TIMEOUT` are environment variables.
+  The page can also be opened in a browser (`/costumesheet.html`), where the sheets are shown on the page.
+- **Four costumes do not build** and are left blank (the cause is not looked into): `f_white`, `m_white`, `m_robot_tz2` and `m_war_fighter_1`. `m_bodyless` draws only a head.
