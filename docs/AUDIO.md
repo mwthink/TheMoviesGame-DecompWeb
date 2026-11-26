@@ -233,28 +233,36 @@ The studio's PA: spoken notices that something needs attention or has happened. 
 mood and need notices such as `_BADMOOD`, `_BORED`, `_STRESSED`, `_DRINK_ADDICTION`, rating warnings such as `_SANITATION_RATINGLOW`, tutorial unlocks, league tables, and so on) and
 `Speech_TANNOY_addon.lug` the six stunt ones (`TANNOY_STUNT_*`). **[read]** The audio manager looks a tag up in both banks.
 
-**The effect [config].** `radioeffect.ini` `[tannoy]`: `delay = 151`, `wet = 0.45`, `dry = 1.0`, band-pass `frequency = 1587`, `q = 1.8`. Which stages come in which order is not known.
+**The effect [config, read].** `radioeffect.ini` `[tannoy]`: `delay = 151`, `wet = 0.45`, `dry = 1.0`, band-pass `frequency = 1587`, `q = 1.8`. The audio start-up (`SoundSoakTest_Constructor`, `004FA7E0`: despite its name it is the audio manager's initialiser; it also registers the `snd_startsoaktest` and `snd_stopsoaktest` console commands) reads the file and hands the numbers to the sound engine as two command objects (`FUN_009B0DA0`, radio: frequency, Q, make-up gain; `FUN_009B0DF0`, tannoy: delay, wet, dry, frequency, Q), only when `DAT_0105BE08` is above 1 (a machine detail level that rendering code also reads) and the section exists. The filtering itself is done inside the engine's command executor, which was not followed, so **the order of the stages is not known**; the port echoes the band-passed voice [guess].
 
-**Queuing [read].** `Audio_QueueTannoy(state, tag, priority, delay)` (`004F8A00`) is `Audio_QueueSpeech` with category `"tannoy"`, index 2, volume 0.5. A clip is refused while the game is
-under 30 s old, when the PA level (Options, default 3) is below its priority, or when the tag already waits. The priorities the callers use: **2** for the star notices and stunt injury,
-**3** for the casting nags and research pack, **4** (with a 5.0 delay) for `TANNOY_NEW_PACKRESEARCHED_<PACK>`, which therefore needs the PA level at its maximum.
+**Queuing [read].** `Audio_QueueTannoy(state, tag, priority, delay)` (`004F8A00`) is `Audio_QueueSpeech` with category `"tannoy"`, index 2, volume 0.5. A clip is refused while the
+game is under 30 s old, when the PA level (Options, default 3) is below its priority, when the state has no speech, when the category is switched off (`tannoy.off` in the tutorials), or
+when the tag already waits in any queue. **Every one of the 26 call sites passes its priority** (read from the pushes before each call; the earlier "default" was a decompiler
+artefact): `TANNOY_CODE_PRIORITY` in `sim/audio/RadioSpeech.ts` has them (1: `CEREMONY_ABOUTTOSTART`; 2: the star, stunt, awards-coming and building-disrepair notices and the battery
+warning; 3: the casting nags and `CASTING_COMPLETE`, the facility and set disrepair warnings, income, research pack and new studio; **4** for `NEW_PACKRESEARCHED_<PACK>`, which only
+plays when the PA level is raised above the default 3). The fourth argument, a delay (5.0 for a researched pack, 10.0 for a new studio, 0 otherwise), is stored in the clip record as
+a time stamp (`now - delay`); `RadioChannel_SelectNextClip` never reads it, so it has no effect **[read]**. `FUN_004F6E10` takes a waiting clip back out of the queues by its tag; the
+casting code uses it to withdraw a nag once the role is filled **[read]**.
 
-**What triggers it.** 23 tags are queued by code (the callers of `Audio_QueueTannoy`, 13 functions):
+**What triggers it.** 26 call sites in 17 functions queue these tags (four of the sites are in code Ghidra never made into functions; they were found in the disassembly):
 
 | Source | Tags | When |
 |---|---|---|
-| `CPhasePreProduction_UpdateCastingAnnouncements` (`005ABD10`) | `CASTING_ACTORSNEEDED` (`_01` to `_03` by how many actors are missing), `_DIRECTORNEEDED`, `_EXTRASNEEDED`, `_NOEXTRAS`, `_CREWNEEDED`, `_NOCREW`, `STUNT_DOUBLE_NEEDEDINCASTING` | a nag per missing role, re-armed every 60 (`DAT_00E54454`) and 90 (`DAT_00E54458`) clock units; when the problem is fixed the pending clip is cancelled by `FUN_004F6E10` **[inferred]** |
+| `CPhasePreProduction_UpdateCastingAnnouncements` (`005ABD10`) | `CASTING_ACTORSNEEDED` (`_01` to `_03` by how many actors are missing), `_DIRECTORNEEDED`, `_EXTRASNEEDED`, `_NOEXTRAS`, `_CREWNEEDED`, `_NOCREW`, `STUNT_DOUBLE_NEEDEDINCASTING` | a nag per missing role, re-armed every 60 (`DAT_00E54454`) and 90 (`DAT_00E54458`) clock units; withdrawn by `FUN_004F6E10` when fixed |
 | `CPhasePreProduction_Update` | `CASTING_COMPLETE` | 30 days after the cast is complete, then every 60 (`MOVIE_QUALITY.md`) |
 | `CProjectIncome_DailyTick` | `RELEASED_TIMETOARCHIVE` | the income pool is empty (`MOVIE_SUCCESS.md`) |
 | `CAsset_UpdateConditionAndDisrepair` | `BUILDINGS_IN_DISREPAIR` | a building's condition drops below 0.05 |
 | `CFacility_UpdateVisualsAndRunningCosts` | `DISREPAIR_WARNING_FACILITY` | not read in detail |
-| `FUN_004753a0` | `STARLEFTSTUDIO` | a star leaves the studio |
-| `FUN_00514a10` | `STAR_JOINEDQUEUE` | a star joins the casting queue (needs the tick counter over 300) |
-| `FUN_0057cd50` | `STUNT_PERSON_INJURED` | health below a threshold (`DAT_00E53304`), at most once per `0x4B0` ticks |
+| code at `004CDBCA` (after `FUN_004CDA20`) | `DISREPAIR_WARNING_SET` | the same warning for a set; not read in detail |
+| `FUN_004753A0` | `STARLEFTSTUDIO` | a star leaves the studio |
+| `FUN_00514A10` | `STAR_JOINEDQUEUE` | a star joins the casting queue (needs the tick counter over 300) |
+| `FUN_0057CD50` | `STUNT_PERSON_INJURED` | health below a threshold (`DAT_00E53304`), at most once per `0x4B0` ticks |
 | `ShootController_ApplyStuntConsequences` | `STUNT_SCENE_SUCCESS` / `_FAILURE` | after a stunt scene (`STUNT_SYSTEM.md`) |
+| code at `005B035A` (after `FUN_005AFEE0`) | `STUNT_SCENE_SHOOTING` | not read in detail |
 | `FUN_0049DA60`, `FUN_004A2190` | `RESEARCH_PACK`, `NEW_PACKRESEARCHED_<PACK>` | research |
 | `CStudioAI_CreateFromTemplateWithAnnouncement` | `NEW_STUDIOOPENED` | a rival studio opens |
-| (caller not identified) | `CEREMONY_ABOUTTOSTART` | an awards ceremony is about to start; the tag is in the code but I did not match it to one of the 13 callers |
+| code at `0086058x` to `0086079E` (two sites) | `AWARDS_COMINGSOON` (2), `CEREMONY_ABOUTTOSTART` (1) | the awards ceremony is near / about to start |
+| code at `0063A729` (after `FUN_0063A590`) | `INTEL_TANNOY_BATTERY_WARNING` | a laptop battery warning, with its own bank `INTEL_TANNOY_BATTERY_WARNING.lug` |
 
 **The rule-driven tannoys [read, data].** `data\rule\tannoy.csv` (in `MISC0000.pak` and the add-on) has four rules, each firing an action when `movie_lifespan` is a multiple of 90 days; the
 actions are in `data\sitt.ini` under `# TANNOY` as `[actions/a_tannoy_*]` with a `tannoy=<TAG>` and a `tannoy_priority`. The action loader (`FUN_008D2430`) reads `tannoy_priority` with a default of **3**.
@@ -368,7 +376,7 @@ and a dot grows and glows while its news clip plays (`highlightNews`). The other
   cannot decode and which is not needed for this. The web port's menu screens hold state 4 and play it. That the original's menu really sounds like this was not checked in the
   running game; the `frontend_loop.wmv` audio may play as well (its own path was not followed).
   (The tutorial `.wmv` clips in `Data/Tutorials/` have the WMA problem.)
-- The default priority of the code callers that pass none and the order of the tannoy effect's stages; and the other speech categories (director, tutorial).
+- The order of the tannoy effect's stages (inside the sound engine's command executor); and the other speech categories (director, tutorial).
 - The META Data `.lug` route, the RLM parameters, the rest of the sample record.
 - Which banks the game loads when, and the game-side engine classes (`LHAudioSystem_*`, `CEngine`, event triggers, atmosphere groups, the driver classes
   in `0x00bf3000`-`0x00c02000` and `0x00bc0000`-`0x00bc9000`): mostly unnamed (`LIBRARIES.md`).

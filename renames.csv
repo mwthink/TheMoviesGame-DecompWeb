@@ -2631,3 +2631,5 @@ address,old_name,new_name,evidence
 004F30C0,FUN_004f30c0,Audio_SetOverridingVoice,"stores the voice at state+0x234 and holds the playing radio clip voice (+0x230 or +0x22C) to min(speech level DAT_0104B0B4, 0.1)"
 004F3250,FUN_004f3250,AudioState_SetIntroPlayedFlag,sets state+0x24C (skips the next DJ tag containing _INTRO); only caller is the debug console radio command
 007A3110,FUN_007a3110,WTimelineEventIcon_BeginHighlight,"stores the news voice handle (+0x36C), sets the playing flag +0x370, grows the icon (64 box, 24 px image) and shows the glow; called by Timeline_OnRadioClipFinished"
+004F6E10,FUN_004f6e10,SpeechQueue_RemoveByTag,compares the tag with every queued clip in the five queues of a state and removes the first match; casting code calls it when a missing role is filled
+008D2430,FUN_008d2430,SittAction_LoadFromIni,"reads an [actions/...] entry: tannoy, tannoy_priority (default 3), force_display, emergency, information, ..."

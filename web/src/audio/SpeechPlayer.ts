@@ -77,10 +77,15 @@ export class SpeechPlayer {
 
   /**
    * A studio announcement (`Audio_QueueTannoy`, orig: 0x004F8A00): `TANNOY_CASTING_COMPLETE` and the like, queued by whatever happens in the studio. Refused like any
-   * clip when the PA level is below `priority` or the game is under 30 s old. Default priority 2 [guess: the callers that pass none leave it to the caller's stack].
+   * clip when the PA level is below `priority` or the game is under 30 s old. Take the priority from `TANNOY_CODE_PRIORITY` or `TANNOY_RULE_ACTIONS`; the default (2) is only a fallback.
    */
   tannoy(tag: string, priority = 2): boolean {
     return this.queue.queue({ tag, category: "tannoy", priority }, this.runningMs / 100);
+  }
+
+  /** Withdraw a waiting tannoy clip (`SpeechQueue.remove`): the casting nags go when the missing role is filled. */
+  cancelTannoy(tag: string): boolean {
+    return this.queue.remove(tag);
   }
 
   private enqueue(clip: SpeechClip): void {

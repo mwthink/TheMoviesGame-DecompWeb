@@ -130,6 +130,41 @@ export const TANNOY_RULE_ACTIONS: Readonly<Record<string, { tag: string; priorit
   a_tannoy_ready_for_release: { tag: "TANNOY_SHOOTING_COMPLETE_READYFORRELEASE", priority: 3 },
 };
 
+/**
+ * The priority each tannoy tag is queued with by the game's code (the arguments at the 26 call sites of `Audio_QueueTannoy`, orig: 0x004F8A00). Every call passes one;
+ * the rule actions (`TANNOY_RULE_ACTIONS`) carry their own. `INTEL_TANNOY_BATTERY_WARNING` is a clip of its own bank file.
+ */
+export const TANNOY_CODE_PRIORITY: Readonly<Record<string, number>> = {
+  TANNOY_CEREMONY_ABOUTTOSTART: 1,
+  TANNOY_AWARDS_COMINGSOON: 2,
+  TANNOY_STARLEFTSTUDIO: 2,
+  TANNOY_STAR_JOINEDQUEUE: 2,
+  TANNOY_BUILDINGS_IN_DISREPAIR: 2,
+  TANNOY_STUNT_PERSON_INJURED: 2,
+  TANNOY_STUNT_SCENE_SUCCESS: 2,
+  TANNOY_STUNT_SCENE_FAILURE: 2,
+  TANNOY_STUNT_SCENE_SHOOTING: 2,
+  INTEL_TANNOY_BATTERY_WARNING: 2,
+  TANNOY_CASTING_ACTORSNEEDED: 3,
+  TANNOY_CASTING_ACTORSNEEDED_01: 3,
+  TANNOY_CASTING_ACTORSNEEDED_02: 3,
+  TANNOY_CASTING_ACTORSNEEDED_03: 3,
+  TANNOY_CASTING_DIRECTORNEEDED: 3,
+  TANNOY_CASTING_EXTRASNEEDED: 3,
+  TANNOY_CASTING_NOEXTRAS: 3,
+  TANNOY_CASTING_CREWNEEDED: 3,
+  TANNOY_CASTING_NOCREW: 3,
+  TANNOY_STUNT_DOUBLE_NEEDEDINCASTING: 3,
+  TANNOY_CASTING_COMPLETE: 3,
+  TANNOY_RELEASED_TIMETOARCHIVE: 3,
+  TANNOY_DISREPAIR_WARNING_FACILITY: 3,
+  TANNOY_DISREPAIR_WARNING_SET: 3,
+  TANNOY_RESEARCH_PACK: 3,
+  TANNOY_NEW_STUDIOOPENED: 3,
+  /** `TANNOY_NEW_PACKRESEARCHED_<PACK>`: above the default PA level of 3, so it plays only when the level is raised. */
+  TANNOY_NEW_PACKRESEARCHED_: 4,
+};
+
 export type SpeechCategory = "dj" | "news" | "tannoy" | "speech";
 /** The category numbers the original uses (clip `+0x44`): the index into the speech levels. */
 export const SPEECH_CATEGORY_INDEX: Record<SpeechCategory, number> = { dj: 0, news: 1, tannoy: 2, speech: 3 };
@@ -177,6 +212,15 @@ export class SpeechQueue {
     if (this.queues.some((q) => q.some((c) => c.tag === clip.tag))) return false;
     this.queues[clip.priority]!.push(clip);
     return true;
+  }
+
+  /** Take a waiting clip back out by its tag (`FUN_004F6E10`, orig: 0x004F6E10: the casting nags are withdrawn when the problem is fixed). Returns whether one was waiting. */
+  remove(tag: string): boolean {
+    for (const q of this.queues) {
+      const i = q.findIndex((c) => c.tag === tag);
+      if (i >= 0) { q.splice(i, 1); return true; }
+    }
+    return false;
   }
 
   /** The next clip to play, if the gap since the last clip ended has passed (`sinceLastEndMs`). It is removed from its queue. */

@@ -148,6 +148,11 @@ export class AudioManager {
     return this.speech.tannoy(tag, priority);
   }
 
+  /** Withdraw a queued tannoy clip by its tag. */
+  cancelTannoy(tag: string): boolean {
+    return this.speech.cancelTannoy(tag);
+  }
+
   /** A game was loaded: the radio starts its talk afresh (the DJ's introduction, the news for the new date). */
   newGameLoaded(): void {
     this.speech.reset();

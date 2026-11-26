@@ -93,3 +93,11 @@ test("tannoy clips wait for 30 s of game time and for a PA level at or above the
   q.levels.tannoy = -1; // PA off: nothing waiting plays
   assert.equal(q.next(6000), undefined);
 });
+
+test("a waiting clip can be taken back by its tag", () => {
+  const q = new SpeechQueue();
+  q.queue({ tag: "TANNOY_CASTING_NOCREW", category: "tannoy", priority: 3 }, 300);
+  assert.equal(q.remove("TANNOY_CASTING_NOCREW"), true);
+  assert.equal(q.remove("TANNOY_CASTING_NOCREW"), false);
+  assert.equal(q.next(6000), undefined);
+});
