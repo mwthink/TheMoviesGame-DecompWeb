@@ -18,6 +18,7 @@ import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh";
 import type { WorldData } from "../world/WorldData.ts";
 import { FAR_PLANE, GameCamera } from "../camera/GameCamera.ts";
 import { CameraInputSource } from "../camera/CameraInput.ts";
+import type { RadioDebug } from "../audio/RadioDebug.ts";
 import { DevMenu, type CameraMode } from "../ui/DevMenu.ts";
 import { MenuBar } from "../ui/MenuBar.ts";
 import { GameToolbar } from "../ui/GameToolbar.ts";
@@ -54,6 +55,8 @@ export class GameView implements Screen {
   // Overlays and the cameras (see docs/CAMERA.md). The orbit camera is the default; the game camera is ported from the original's code.
   private hud: HTMLElement | null = null;
   private devMenu: DevMenu | null = null;
+  /** The dev menu's handle on the radio, set by `main.ts` (the game view has no audio code of its own). */
+  radioDebug: RadioDebug | null = null;
   private menuBar: MenuBar | null = null;
   private toolbar: GameToolbar | null = null;
   private staffPanel: StaffPanel | null = null;
@@ -348,6 +351,7 @@ export class GameView implements Screen {
     this.tooltip = new Tooltip();
     this.tooltip.attach(this.hud);
     this.devMenu = new DevMenu((m) => this.selectCamera(m), this.gameCamera !== null, (on) => { this.revealAlways = on; }, (s) => { this.sun = s; if (this.scene && this.sunLights) applySun(this.scene, this.sunLights, s); this.shadows?.update(this.sun, this.shadowSettings); this.frustum?.update(this.frustumOn); }, (s) => { this.shadowSettings = s; this.shadows?.update(this.sun, s); this.frustum?.update(this.frustumOn); }, {
+      radio: this.radioDebug ?? undefined,
       onTimeScale: (v) => { this.clock.timeScale = v; },
       onStep: () => this.stepOnce(),
       onWander: (on) => this.people?.setWander(on),
@@ -664,6 +668,7 @@ export class GameView implements Screen {
       state["People"] = { animating: String(clips.length), "from room scenes": String(clips.filter((c) => !c.source.startsWith("fallback")).length), "fallback idle": String(clips.filter((c) => c.source.startsWith("fallback")).length) };
     }
     if (this.perf) state["Performance"] = this.perf.rows();
+    if (this.radioDebug) state["Radio"] = this.radioDebug.rows();
     state["Last click"] = this.lastClick;
     state["Hover"] = this.hovered ? { building: this.hovered.source, rooms: this.hovered.rooms.map((r) => r.name.replace(/^room_/, "")).join(", ") } : { building: "none" };
     const gc = this.gameCamera;

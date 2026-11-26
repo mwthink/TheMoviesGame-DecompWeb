@@ -115,6 +115,7 @@ function showOptionsOverGame(done: () => void): void {
   screen.enter();
 }
 const gameView = new GameView(canvas, () => { overlayOptions?.exit(); overlayOptions = null; show("menu"); }, settings, showOptionsOverGame);
+gameView.radioDebug = audio.radioDebug;
 /** Load Game is kept while a load runs, so a failed load's Back returns to it with the same save chosen and the error shown. */
 let loadScreen: LoadGameScreen | null = null;
 function makeLoadGame(): LoadGameScreen {

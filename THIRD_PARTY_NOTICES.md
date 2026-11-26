@@ -37,3 +37,9 @@ SOFTWARE.
 
 `viewer/vendor/three.core.js` and `viewer/vendor/three.module.js` are three.js (MIT, Copyright 2010-2026 Three.js Authors); the license header is kept
 in each file.
+
+## mpg123-decoder
+
+- **Source:** the `mpg123-decoder` npm package (https://github.com/eshaz/wasm-audio-decoders), a WebAssembly build of mpg123, with its dependency `@wasm-audio-decoders/common`.
+- **Use:** a runtime dependency of `web/` (installed from npm, not copied into this repository), used to decode the MPEG Layer II speech clips (`web/src/formats/WavMpeg.ts`).
+- **License:** the packages are MIT; the decoder inside is mpg123 (LGPL-2.1), used unmodified.

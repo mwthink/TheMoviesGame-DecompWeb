@@ -1,6 +1,7 @@
 import { RadioPlayer } from "./RadioPlayer.ts";
 import { AmbiencePlayer } from "./AmbiencePlayer.ts";
 import { SpeechPlayer } from "./SpeechPlayer.ts";
+import type { RadioDebug } from "./RadioDebug.ts";
 import type { TimelineEvent } from "../sim/audio/RadioSpeech.ts";
 import type { SettingsStore } from "../settings/Settings.ts";
 import { AUDIO_STATES, AudioStateMachine, type AudioEffect } from "../sim/audio/AudioStates.ts";
@@ -109,6 +110,18 @@ export class AudioManager {
     }
   }
 
+  /** The dev menu's handle on the radio, the DJ and the speech queue. */
+  readonly radioDebug: RadioDebug = {
+    rows: () => ({ ...this.radio.debugRows(), ...this.speech.debugRows() }),
+    nextTrack: () => this.radio.skip(),
+    djNow: () => this.speech.djChatter(),
+    setForceDj: (on) => { this.radio.forceDj = on; },
+    setIgnoreLimits: (on) => { this.speech.ignoreLimits = on; },
+    setLevel: (kind, level) => this.speech.setLevel(kind, level),
+    tags: (kind) => this.speech.tagsOf(kind),
+    play: (kind, tag) => this.speech.playTag(kind, tag),
+  };
+
   /** The sound-effects bus, for effects added later; null until the browser has allowed sound. */
   get effectsBus(): GainNode | null {
     return this.sfx;
@@ -204,8 +217,8 @@ export class AudioManager {
     const player = this.playerFor(state);
     if (player) {
       player.play();
-      this.speech.start();
-      this.ambience.start();
+      // the DJ, the news, the tannoy and the ambience belong to the in-game radio (state 2), not the menus' player (state 4)
+      if (player === this.radio) { this.speech.start(); this.ambience.start(); }
       return;
     }
     const v = this.voices.get(state);
@@ -234,8 +247,7 @@ export class AudioManager {
     const player = this.playerFor(state);
     if (player) {
       player.pause();
-      this.speech.stop();
-      this.ambience.stop();
+      if (player === this.radio) { this.speech.stop(); this.ambience.stop(); }
       return;
     }
     const v = this.voices.get(state);
@@ -256,8 +268,7 @@ export class AudioManager {
     const player = this.playerFor(state);
     if (player) {
       player.dispose();
-      this.speech.stop();
-      this.ambience.stop();
+      if (player === this.radio) { this.speech.stop(); this.ambience.stop(); }
       return;
     }
     const v = this.voices.get(state);

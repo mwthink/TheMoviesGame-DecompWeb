@@ -28,6 +28,8 @@ interface Playing {
   advanced: boolean;
   /** The DJ roll for this track has been made. */
   djRolled: boolean;
+  /** What became of the DJ's chance on this track, for the dev menu. */
+  djNote: string;
 }
 
 /**
@@ -45,6 +47,8 @@ export class RadioPlayer {
   private tracks: TrackInfo[] = [];
 
   private readonly mode: "radio" | "frontEnd";
+  /** Dev menu: the DJ roll always comes up "speak" (the window still applies). */
+  forceDj = false;
 
   /** `mode` "frontEnd" is the menus' player: the random-mode tracks of any year, and no DJ (`AudioState_UpdateFrontEndMusic`, orig: 0x004F5E80). */
   constructor(host: RadioHost, options: { mode?: "radio" | "frontEnd" } = {}) {
@@ -63,6 +67,29 @@ export class RadioPlayer {
     if (!g) return;
     if (this.current) this.fadeIn(this.current, g);
     else void this.playNext();
+  }
+
+  /** Dev menu: what is playing and what the DJ's chance on it is. */
+  debugRows(): Record<string, string> {
+    const c = this.current;
+    if (!c) return { track: this.wanted ? "none yet" : "radio not running" };
+    const len = c.element.duration;
+    const known = Number.isFinite(len) && len > 0;
+    const cue = c.cues.djSting === undefined ? "none (no DJ on this track)" : known ? `${(c.cues.djSting / 1000 / len).toFixed(3)} (${(c.cues.djSting / 1000).toFixed(1)} s)` : `${(c.cues.djSting / 1000).toFixed(1)} s`;
+    return {
+      track: c.track.name,
+      position: known ? `${c.element.currentTime.toFixed(1)} / ${len.toFixed(1)} s (${(c.element.currentTime / len).toFixed(3)})` : "loading",
+      "DJ_STING (fraction)": cue,
+      "DJ window": "past the cue and before 0.5",
+      "DJ on this track": c.djNote,
+    };
+  }
+
+  /** Dev menu: move on to the next track now (the old one fades out under it). */
+  skip(): void {
+    if (!this.current || !this.wanted) return;
+    this.current.advanced = true;
+    void this.playNext();
   }
 
   /** Fade out and pause; `play` resumes the same track. */
@@ -115,7 +142,7 @@ export class RadioPlayer {
     gain.gain.value = 0;
     g.context.createMediaElementSource(element).connect(gain);
     gain.connect(g.bus);
-    const now: Playing = { track, element, gain, cues, advanced: false, djRolled: false };
+    const now: Playing = { track, element, gain, cues, advanced: false, djRolled: false, djNote: cues.djSting === undefined ? "no cue: never" : "waiting for the window" };
     const previous = this.current;
     this.current = now;
     const advance = () => {
@@ -132,7 +159,13 @@ export class RadioPlayer {
         const cueFraction = cues.djSting === undefined ? 1 : cues.djSting / 1000 / length;
         if (fraction > cueFraction && fraction < 0.5) {
           now.djRolled = true;
-          if (djMaySpeak(fraction, cueFraction, Math.floor(Math.random() * 6))) this.host.djChatter();
+          const roll = this.forceDj ? 0 : Math.floor(Math.random() * 6);
+          const speak = djMaySpeak(fraction, cueFraction, roll);
+          now.djNote = speak ? `rolled ${roll}: queued the DJ${this.forceDj ? " (forced)" : ""}` : `rolled ${roll} (5 is silent): no DJ`;
+          if (speak) this.host.djChatter();
+        } else if (fraction >= 0.5 && !now.djRolled && cues.djSting !== undefined) {
+          now.djRolled = true;
+          now.djNote = "window missed (first check came past one half)";
         }
       }
       if (cues.nextMusicStart !== undefined && element.currentTime * 1000 >= cues.nextMusicStart) advance();

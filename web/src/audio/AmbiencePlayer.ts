@@ -1,4 +1,5 @@
 import { HttpSource } from "../assets/ByteSource.ts";
+import { decodeClip } from "./ClipDecoder.ts";
 import { openLug, readLugClip, type LugBank, type LugSample } from "../formats/Lug.ts";
 import { AMBIENCE_LAYERS, AmbienceEmitter, ambienceEra, ambienceGroup, ambienceLevels, type AmbienceLayer } from "../sim/audio/Ambience.ts";
 
@@ -119,7 +120,7 @@ export class AmbiencePlayer {
     if (!sample) return;
     try {
       const wav = await readLugClip(bank, sample);
-      const buffer = await g.context.decodeAudioData(wav.slice().buffer);
+      const buffer = await decodeClip(g.context, wav);
       if (!this.running || !this.layers.includes(l)) return;
       const source = g.context.createBufferSource();
       source.buffer = buffer;

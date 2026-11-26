@@ -140,8 +140,11 @@ writes. The write side is `LH_BuildLUGAsset` (`00bd34d0`) with matching `LH_Save
 | 0x140 | group / category name, 256 bytes |
 | 0x240-0x27c | the parameter block, below |
 
-The clips are RIFF/WAVE files packed back to back in the wave-data segment. **[data]** In the six shipped banks every clip is mono 16-bit PCM (22,050 or 44,100 Hz);
-the RIFF size inside each clip plus 8 equals the record's size. Aliases (`world.lug`: one 1.8 MB bell clip under several era groups) share their target's data offset.
+The clips are RIFF/WAVE files packed back to back in the wave-data segment. **[data]** The record's format fields (`0x124`) describe the clip, but the speech banks'
+clips (`EN-UK/speech_dj.lug` and the others: DJ, news, tannoy) are **MPEG-1 Layer II**, wave format tag `0x50`, mono 44.1 kHz (**[measured]** on a DJ clip: tag 0x50, no
+bits per sample); browsers cannot decode that, so the port unwraps the frames (`formats/WavMpeg.ts`) and decodes them with `mpg123-decoder` (`audio/ClipDecoder.ts`). The
+record's size is the RIFF size plus 8. The ambience bank was not measured; `ClipDecoder` sends PCM clips (tag 1) to the browser's decoder and Layer II to the WebAssembly one.
+Aliases (`world.lug`: one 1.8 MB bell clip under several era groups) share their target's data offset.
 Most banks also hold a `LHAudioBankMetaData` segment (the newer form, not decoded) and a `LHAudioBankRandomModulator` segment (8 bytes) next to the classic ones.
 
 ### Parameter block (`LH_BuildDriverTable`)

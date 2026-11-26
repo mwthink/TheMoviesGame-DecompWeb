@@ -1,4 +1,5 @@
 import { HttpSource } from "../assets/ByteSource.ts";
+import { decodeClip } from "./ClipDecoder.ts";
 import { indexCriteria, openLug, readLugClip, type LugBank } from "../formats/Lug.ts";
 import { ClipBag, djForYear, NewsAnnouncer, parseDjSchedule, parseTimelineEvents, SpeechQueue, type DjEntry, type DjForYear, type SpeechClip, type TimelineEvent } from "../sim/audio/RadioSpeech.ts";
 
@@ -23,6 +24,14 @@ const RADIO_FILTER = { frequency: 1548, q: 5, gain: 1.6 };
 const TANNOY_FILTER = { delayMs: 151, wet: 0.45, dry: 1.0, frequency: 1587, q: 1.8 };
 /** A tannoy clip's volume: `Audio_QueueTannoy` (orig: 0x004F8A00) passes 0.5. */
 const TANNOY_VOLUME = 0.5;
+
+/** The header of a clip's bytes, for the dev menu when the browser cannot decode it: the length, the first four bytes and the WAVE format fields. */
+function describeWav(b: Uint8Array): string {
+  const ascii = (o: number) => String.fromCharCode(...b.subarray(o, o + 4));
+  if (b.byteLength < 36) return `${b.byteLength} bytes`;
+  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  return `${b.byteLength} bytes, "${ascii(0)}" riff size ${dv.getUint32(4, true)}, "${ascii(8)}", format tag 0x${dv.getUint16(20, true).toString(16)}, ${dv.getUint16(22, true)} ch, ${dv.getUint32(24, true)} Hz, ${dv.getUint16(34, true)} bit`;
+}
 
 interface Banks {
   dj: LugBank | null;
@@ -50,6 +59,10 @@ export class SpeechPlayer {
   private lastTick = 0;
   private currentDj: DjForYear | null = null;
   private readonly clips = new ClipBag();
+  /** Dev menu: let clips through without the 30 s game-age rule and the 5 s gap. */
+  ignoreLimits = false;
+  private loadedBanks: Banks | null = null;
+  private note = "none yet";
 
   constructor(host: SpeechHost) {
     this.host = host;
@@ -59,7 +72,50 @@ export class SpeechPlayer {
   start(): void {
     if (this.timer) return;
     this.lastTick = performance.now();
+    // the 5 s gap counts from here: the radio has just started or come back (after the loading screen), so the first clip waits as if one had just ended
+    this.lastEnd = this.lastTick;
     this.timer = window.setInterval(() => void this.tick(), 1000);
+  }
+
+  /** Dev menu: the speech state, one row per fact. */
+  debugRows(): Record<string, string> {
+    const dj = this.currentDj;
+    const count = dj?.talk && this.loadedBanks?.dj ? indexCriteria(this.loadedBanks.dj).get(dj.talk)?.length ?? 0 : 0;
+    return {
+      "speech timer": this.timer ? "running" : "stopped (radio not running)",
+      banks: this.loadedBanks ? `dj ${this.loadedBanks.dj ? "yes" : "NO"}, news ${this.loadedBanks.news ? "yes" : "NO"}, tannoy ${this.loadedBanks.tannoy.length}, schedule ${this.loadedBanks.schedule.length} rows` : "not loaded yet",
+      "DJ tag": dj?.talk ? `${dj.talk} (${count} clips)` : "none for this year",
+      queued: String(this.queue.length),
+      "clip playing": this.playing ? "yes" : "no",
+      "since last clip": this.lastEnd === -Infinity ? "never" : `${((performance.now() - this.lastEnd) / 1000).toFixed(1)} s`,
+      "game age": `${(this.runningMs / 1000).toFixed(0)} s`,
+      "last event": this.note,
+    };
+  }
+
+  /** Dev menu: the clip tags of a category, sorted. */
+  async tagsOf(category: "dj" | "news" | "tannoy"): Promise<string[]> {
+    const b = await this.banks_();
+    const banks = category === "news" ? [b.news] : category === "tannoy" ? b.tannoy : [b.dj];
+    const tags = new Set<string>();
+    for (const bank of banks) if (bank) for (const t of indexCriteria(bank).keys()) tags.add(t);
+    return [...tags].sort();
+  }
+
+  /** Dev menu: queue a clip now. Returns whether the queue accepted it. */
+  playTag(category: "dj" | "news" | "tannoy", tag: string): boolean {
+    const ok = this.queue.queue({ tag, category, priority: 1 }, this.ticks());
+    this.note = ok ? `queued ${tag}` : `refused ${tag} (level, age or already waiting)`;
+    return ok;
+  }
+
+  /** Dev menu: set a category's speech level (-1 off, 1..4). */
+  setLevel(category: "dj" | "news" | "tannoy", level: number): void {
+    this.queue.levels[category] = level;
+  }
+
+  private ticks(): number {
+    return this.ignoreLimits ? Number.MAX_SAFE_INTEGER : this.runningMs / 100;
   }
 
   stop(): void {
@@ -71,7 +127,8 @@ export class SpeechPlayer {
   djChatter(): void {
     void this.banks_().then((b) => {
       const dj = djForYear(b.schedule, Math.floor(this.host.date() / 365));
-      if (dj.talk) this.enqueue({ tag: dj.talk, category: "dj", priority: 1 });
+      if (!dj.talk) this.note = "DJ asked, but the schedule has no DJ for this year";
+      else this.enqueue({ tag: dj.talk, category: "dj", priority: 1 });
     });
   }
 
@@ -80,7 +137,7 @@ export class SpeechPlayer {
    * clip when the PA level is below `priority` or the game is under 30 s old. Take the priority from `TANNOY_CODE_PRIORITY` or `TANNOY_RULE_ACTIONS`; the default (2) is only a fallback.
    */
   tannoy(tag: string, priority = 2): boolean {
-    return this.queue.queue({ tag, category: "tannoy", priority }, this.runningMs / 100);
+    return this.queue.queue({ tag, category: "tannoy", priority }, this.ticks());
   }
 
   /** Withdraw a waiting tannoy clip (`SpeechQueue.remove`): the casting nags go when the missing role is filled. */
@@ -89,7 +146,8 @@ export class SpeechPlayer {
   }
 
   private enqueue(clip: SpeechClip): void {
-    this.queue.queue(clip, this.runningMs / 100); // ticks at the original's 10 Hz
+    const ok = this.queue.queue(clip, this.ticks()); // ticks at the original's 10 Hz
+    this.note = ok ? `queued ${clip.tag}` : `refused ${clip.tag} (level, age or already waiting)`;
   }
 
   private banks_(): Promise<Banks> {
@@ -105,7 +163,9 @@ export class SpeechPlayer {
         try { schedule = parseDjSchedule(await (await fetch(csv)).text()); } catch { /* no DJ schedule: no chatter */ }
       }
       const [dj, news, ...tannoy] = await Promise.all([open("speech_dj.lug"), open("speech_news.lug"), open("speech_tannoy.lug"), open("Speech_TANNOY_addon.lug")]);
-      return { dj, news, tannoy: tannoy.filter((b): b is LugBank => b !== null), schedule };
+      const loaded = { dj, news, tannoy: tannoy.filter((b): b is LugBank => b !== null), schedule };
+      this.loadedBanks = loaded;
+      return loaded;
     })();
     return this.banks;
   }
@@ -115,6 +175,7 @@ export class SpeechPlayer {
     this.runningMs += now - this.lastTick;
     this.lastTick = now;
     const banks = await this.banks_();
+    if (!this.timer) return; // the radio was stopped while the banks loaded
     const year = this.host.date() / 365;
 
     // a new DJ: the old one's sign-off, then the new one's introduction
@@ -134,24 +195,26 @@ export class SpeechPlayer {
     }
     for (const tag of this.announcer?.due(year) ?? []) this.enqueue({ tag, category: "news", priority: 1 });
 
-    if (this.playing) return;
-    const clip = this.queue.next(now - this.lastEnd);
+    if (this.playing || !this.timer) return;
+    const clip = this.queue.next(this.ignoreLimits ? Infinity : now - this.lastEnd);
     if (clip) await this.play(clip, banks);
   }
 
   private async play(clip: SpeechClip, banks: Banks): Promise<void> {
     const g = this.host.graph();
     const bank = clip.category === "news" ? banks.news : clip.category === "tannoy" ? banks.tannoy.find((b) => indexCriteria(b).has(clip.tag)) ?? null : banks.dj;
-    if (!bank || !g) return;
+    if (!bank || !g) { this.note = `dropped ${clip.tag}: ${!bank ? "its speech bank did not open" : "audio not unlocked yet"}`; return; }
     const ids = indexCriteria(bank).get(clip.tag);
-    if (!ids?.length) return;
+    if (!ids?.length) { this.note = `dropped ${clip.tag}: the bank has no clip with that tag`; return; }
+    this.note = `playing ${clip.tag}`;
     // a shuffle bag over the tag's samples, as the original's clip list (`ClipBag`)
     const sample = bank.byId.get(ids[this.clips.take(clip.tag, ids.length)]!);
     if (!sample) return;
     this.playing = true;
+    let wav: Uint8Array | null = null;
     try {
-      const wav = await readLugClip(bank, sample);
-      const buffer = await g.context.decodeAudioData(wav.slice().buffer);
+      wav = await readLugClip(bank, sample);
+      const buffer = await decodeClip(g.context, wav);
       const source = g.context.createBufferSource();
       source.buffer = buffer;
       const tannoy = clip.category === "tannoy";
@@ -183,10 +246,14 @@ export class SpeechPlayer {
         source.onended = () => resolve();
         source.start();
       });
-    } catch { /* a clip that cannot be read or decoded is skipped */ } finally {
+    } catch (e) {
+      this.note = `dropped ${clip.tag}: ${e instanceof Error ? e.message : "could not be read or decoded"}${wav ? ` [${describeWav(wav)}; sample ${sample.id}, record size ${sample.size}]` : ""}`;
+      console.warn("speech clip dropped", clip.tag, this.note, e);
+    } finally {
       this.host.duck(false);
       if (clip.category === "news") this.host.onNews?.(null);
       this.playing = false;
+      if (this.note.startsWith("playing ")) this.note = `played ${this.note.slice(8)}`;
       this.lastEnd = performance.now();
     }
   }

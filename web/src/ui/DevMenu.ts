@@ -2,6 +2,7 @@
  * The developer menu: a panel fixed to the bottom-right of the game view for testing controls and read-only state. It is plain DOM, outside the
  * engine. Rows are added once and their text is refreshed a few times a second.
  */
+import type { RadioDebug, SpeechKind } from "../audio/RadioDebug.ts";
 import { DEBUG_MODES } from "../world/SunLight.ts";
 import { DEFAULT_SHADOWS, DEFAULT_SUN, normalizeShadows, normalizeSun, type ShadowSettings, type SunSettings } from "../world/Sun.ts";
 
@@ -19,6 +20,8 @@ export interface DevTools {
   onDesires?: (on: boolean) => void;
   onGait?: (gait: 0 | 1 | 2) => void;
   /** The canvas the shadow map viewer draws into (the game view fills it). */
+  /** The radio, the DJ and the speech queue (docs/AUDIO.md); absent when the game has no audio. */
+  radio?: RadioDebug;
   shadowViewCanvas?: (canvas: HTMLCanvasElement | null) => void;
 }
 
@@ -218,6 +221,59 @@ export class DevMenu {
     hint.textContent = "Click a person, then right-click the ground.";
     moveSec.append(wanderLabel, desireLabel, gaitLabel, hint);
     this.body.append(moveSec);
+
+    // The radio: skip tracks, make the DJ, the news and the tannoy speak, and lift the original's limits (docs/AUDIO.md). Its read-only rows are the "Radio" section of `show`.
+    const radio = tools.radio;
+    if (radio) {
+      const radioSec = document.createElement("section");
+      radioSec.innerHTML = `<h4>Radio controls</h4>`;
+      const button = (text: string, onClick: () => void) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = text;
+        b.addEventListener("click", onClick);
+        return b;
+      };
+      const check = (text: string, onChange: (on: boolean) => void) => {
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.addEventListener("change", () => onChange(box.checked));
+        const l = document.createElement("label");
+        l.append(box, ` ${text}`);
+        return l;
+      };
+      radioSec.append(
+        button("Next track", () => radio.nextTrack()),
+        button("DJ now", () => radio.djNow()),
+        check("Every DJ roll speaks (the window still applies)", (on) => radio.setForceDj(on)),
+        check("Skip the 5 s gap and the 30 s news lockout", (on) => radio.setIgnoreLimits(on)),
+      );
+      const picker = (kind: "news" | "tannoy", title: string) => {
+        const sel = document.createElement("select");
+        sel.append(new Option("(loading)", ""));
+        void radio.tags(kind).then((tags) => {
+          sel.replaceChildren(...tags.map((t) => new Option(t, t)));
+          if (!tags.length) sel.append(new Option("(none: bank not loaded)", ""));
+        });
+        const l = document.createElement("label");
+        l.append(`${title} `, sel, button("Play", () => { if (sel.value) radio.play(kind, sel.value); }));
+        radioSec.append(l);
+      };
+      picker("news", "News");
+      picker("tannoy", "Tannoy");
+      const levelRow = (kind: SpeechKind, title: string) => {
+        const sel = document.createElement("select");
+        [["3", "all (3)"], ["2", "2"], ["1", "1"], ["-1", "off"]].forEach(([v, name]) => sel.append(new Option(name, v)));
+        sel.addEventListener("change", () => radio.setLevel(kind, Number(sel.value)));
+        const l = document.createElement("label");
+        l.append(`${title} level `, sel);
+        radioSec.append(l);
+      };
+      levelRow("dj", "DJ");
+      levelRow("news", "News");
+      levelRow("tannoy", "Tannoy");
+      this.body.append(radioSec);
+    }
 
     // Time: a scale on the game speed and single steps (for watching motion).
     const timeSec = document.createElement("section");
