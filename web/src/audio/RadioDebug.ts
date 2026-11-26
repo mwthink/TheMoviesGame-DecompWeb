@@ -14,6 +14,9 @@ export interface RadioDebug {
   setIgnoreLimits(on: boolean): void;
   /** A category's speech level: -1 off, 1 to 4 (the original's default is 3). */
   setLevel(kind: SpeechKind, level: number): void;
+  /** The ambience's level against the other sound effects (0 to 1), and a way to change it. */
+  ambienceLevel(): number;
+  setAmbienceLevel(v: number): void;
   /** The clip tags a bank holds (news: `TIMELINE_..`, tannoy: `TANNOY_..`). */
   tags(kind: "news" | "tannoy"): Promise<string[]>;
   /** Queue one clip; false when the queue refused it. */

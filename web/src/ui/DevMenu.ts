@@ -272,6 +272,19 @@ export class DevMenu {
       levelRow("dj", "DJ");
       levelRow("news", "News");
       levelRow("tannoy", "Tannoy");
+      // the ambience (birds, bells, planes) has no level of its own in the original; this stage is the port's, to keep it from covering the news
+      const ambLabel = document.createElement("label");
+      ambLabel.className = "slider";
+      const ambOut = document.createElement("output");
+      const amb = document.createElement("input");
+      amb.type = "range";
+      amb.min = "0"; amb.max = "1"; amb.step = "0.05";
+      amb.value = String(radio.ambienceLevel());
+      const showAmb = () => { ambOut.textContent = Number(amb.value).toFixed(2); };
+      showAmb();
+      amb.addEventListener("input", () => { showAmb(); radio.setAmbienceLevel(Number(amb.value)); });
+      ambLabel.append("Ambience level ", ambOut, amb);
+      radioSec.append(ambLabel);
       this.body.append(radioSec);
     }
 

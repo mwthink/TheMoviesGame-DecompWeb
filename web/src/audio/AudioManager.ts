@@ -9,12 +9,16 @@ import { AUDIO_STATES, AudioStateMachine, type AudioEffect } from "../sim/audio/
 /** Fade time when a state is suspended or resumed: the original passes a global (`DAT_00E51CD8`, 1000 ms). */
 const FADE_SECONDS = 1;
 /**
- * How far the music drops while the DJ or the news speaks: not at all. [read] Nothing in the original's code lowers the music for a radio clip: the only voice
- * volumes `RadioChannel_SelectNextClip` (orig: 0x004F6ED0) and `FUN_004F30C0` set are speech voices (a clip is held to min(speech level, 0.1) while a higher-priority
- * voice plays), and the music channel's volume (`Audio_SetChannelVolume`, channel 1) is changed only by the options, the trailer editor and `FUN_00752270`. The
- * speech bank's own mixing was not examined, so a mixer-side duck is not ruled out [guess]; set this below 1 to add one.
+ * How far the music drops while the DJ, the news or the tannoy speaks: not at all, as the original. [read] Nothing in the original's code lowers the music for a radio
+ * clip (docs/AUDIO.md, "Does the music duck?"): speech voices sit at the sound-effects channel's volume against music at its track volume (about 0.45), so the voice is
+ * already the louder. Set this below 1 to add a duck (2/3 is speech 3 over music 2).
  */
 const DUCK_LEVEL = 1;
+/**
+ * The ambience (birds, bells, planes) against the other sound effects. [guess] The original has no level of its own for it: its layers are the sound-effects volume times a
+ * fade by camera height, the same as speech. At that level the birds drown the news here, so the port has this one extra stage, set to 0.1 by ear (the dev menu's slider changes it).
+ */
+export const DEFAULT_AMBIENCE_LEVEL = 0.1;
 
 /** Where a file under `Data/Audio/` (`music/Tuning_Up.ogg`, `trackinfo.csv`) can be fetched from (a URL the page can load), or null when this build has no way to read the game's audio. */
 export type MusicLocator = (path: string) => string | null;
@@ -56,6 +60,9 @@ export class AudioManager {
   private readonly speech: SpeechPlayer;
   private readonly ambience: AmbiencePlayer;
   private sfx: GainNode | null = null;
+  /** Between the ambience layers and the sound-effects bus (`DEFAULT_AMBIENCE_LEVEL`). */
+  private ambienceBus: GainNode | null = null;
+  private ambienceLevel = DEFAULT_AMBIENCE_LEVEL;
   private readonly voices = new Map<number, Voice>();
   private readonly radio: RadioPlayer;
   /** The menus' player (state 4): the tracks flagged "Play in Random Mode", any year (`FUN_00446600`, orig: 0x00446600). */
@@ -93,7 +100,7 @@ export class AudioManager {
       onNews: (tag) => this.onNews?.(tag),
     });
     this.ambience = new AmbiencePlayer({
-      graph: () => (this.context && this.sfx ? { context: this.context, bus: this.sfx } : null),
+      graph: () => (this.context && this.ambienceBus ? { context: this.context, bus: this.ambienceBus } : null),
       locate: (path) => this.locate(path),
       year: () => this.game.year(),
       focusY: () => this.game.focusY(),
@@ -118,6 +125,8 @@ export class AudioManager {
     setForceDj: (on) => { this.radio.forceDj = on; },
     setIgnoreLimits: (on) => { this.speech.ignoreLimits = on; },
     setLevel: (kind, level) => this.speech.setLevel(kind, level),
+    ambienceLevel: () => this.ambienceLevel,
+    setAmbienceLevel: (v) => { this.ambienceLevel = v; if (this.ambienceBus) this.ambienceBus.gain.value = v; },
     tags: (kind) => this.speech.tagsOf(kind),
     play: (kind, tag) => this.speech.playTag(kind, tag),
   };
@@ -149,6 +158,9 @@ export class AudioManager {
       this.duck.connect(this.music);
       this.music.connect(this.context.destination);
       this.sfx.connect(this.context.destination);
+      this.ambienceBus = this.context.createGain();
+      this.ambienceBus.gain.value = this.ambienceLevel;
+      this.ambienceBus.connect(this.sfx);
       this.applyVolumes();
     }
     void this.context.resume();

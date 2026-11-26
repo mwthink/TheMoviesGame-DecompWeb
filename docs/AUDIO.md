@@ -194,7 +194,7 @@ from state `+0x1D4`, 0x14 apart; each a ring buffer of pointers to 0x4C-byte cli
 
 What comes out (`RadioChannel_SelectNextClip` `004F6ED0`, `RadioChannel_PlayClip` `004F4860`): once the gap since the last clip ended has passed
 (`DAT_00E51CD4` = **5000 ms** **[data]**, read from the exe) and no clip is playing, the first clip of the lowest-numbered queue whose category level allows it goes to
-the current voice (`+0x22C`). A clip in the forced voice (`+0x230`) has the current clip dropped to `min(0.1, DAT_0104B0B4)`. The global `DAT_00E51CD8` = 1000 ms is the
+the current voice (`+0x22C`). A clip in the forced voice (`+0x230`) has the current clip dropped to `min(0.1, DAT_0104B0B4)` (`DAT_0104B0B4` is the sound-effects channel's volume, see "Does the music duck?"). The global `DAT_00E51CD8` = 1000 ms is the
 fade time of the state changes.
 
 **The DJ.** `AudioState_UpdateRadioMusic` (`004F8AE0`): when a track's playback position is past its `DJ_STING` cue (as a fraction of the track [inferred]) and before one half,
@@ -218,9 +218,16 @@ needs the dev server like the rest.
 
 **[read] No.** Nothing in the original's code lowers the music while a DJ or news clip plays. The voice volumes that code sets are speech voices only: `RadioChannel_SelectNextClip`
 (`004F6ED0`) starts a clip at `min(DAT_0104B0B4, 0.1)` while a higher-priority voice (`Audio_SetOverridingVoice`, `004F30C0`, stored at state `+0x234`) is playing and restores
-the speech level when it stops (`DAT_0104B0B4` is the speech level, the "MaxSpeechLevel" setting, not a music level), and the music channel's volume (`Audio_SetChannelVolume`,
+the speech level when it stops (`DAT_0104B0B4` is the sound-effects channel's volume, not a speech level or a music level: see below), and the music channel's volume (`Audio_SetChannelVolume`,
 channel 1) is written only by the options screen, the trailer editor and `FUN_00752270`. The speech bank's own mixing (the "radio" category) was not examined, so a duck done by
-the sound middleware cannot be excluded **[guess]**; the web port sets its duck to 1 (none) and keeps the knob (`DUCK_LEVEL`).
+the sound middleware cannot be excluded **[guess]**; the web port does the same: no duck (`DUCK_LEVEL` is 1; below 1 it would lower the music while a clip plays, 2/3 being speech 3 over music 2).
+
+**How the original balances them [read].** `DAT_0104B0AC` is an array of three floats, the channel volumes `Volume 0..2` (`AudioOptions_LoadMixerLevels`, `Audio_SetChannelVolume`
+writes `(&DAT_0104B0AC)[channel]`), so `DAT_0104B0B4` is `[2]`, the **sound-effects channel**. It is what scales the speech voices (`RadioChannel_SelectNextClip` sets a new clip's
+voice to it, or to `min(0.1, it)` while a forced clip plays) and the ambience voices (`Audio_UpdateAmbienceVolumes`, each is this volume times a 0 to 1 fade by camera height). Music is channel 1 and is separate. So with
+the options at their default of 1.0 a clip's voice is at full level while a track plays at its CSV volume (about 0.45): the voice is already about twice the music, with no duck, and
+the options' sound slider moves voices and effects together against the music slider. The web port's speech goes through the sound bus, so it follows the same split. Its ambience has one extra stage, `DEFAULT_AMBIENCE_LEVEL` (0.1, set by ear, **[guess]**, the dev menu's "Ambience level" slider): the original has no level of its own for it, but at the sound-effects volume the birds covered the news. What the sound engine
+does with the voice volume besides (the clip's own record volume, 1.0 for the DJ and 0.5 for the tannoy; `FUN_009B1860` starts the voice) was not followed [guess].
 
 ### The `_INTRO` flag
 
