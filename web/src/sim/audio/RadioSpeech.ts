@@ -118,6 +118,18 @@ export class NewsAnnouncer {
   }
 }
 
+/**
+ * The tannoys the rules fire (`data/rule/tannoy.csv` rows and the `[actions/a_tannoy_*]` entries of `data/sitt.ini`): the clip tag and the priority
+ * (`tannoy_priority`, default 3). Only the four with a rule are ever fired.
+ */
+export const TANNOY_RULE_ACTIONS: Readonly<Record<string, { tag: string; priority: number }>> = {
+  a_tannoy_script_complete: { tag: "TANNOY_SCRIPT_COMPLETE", priority: 2 },
+  a_tannoy_actors_missing_from_shoot: { tag: "TANNOY_SHOOTING_ACTORSNEEDEDONSET", priority: 3 },
+  a_tannoy_director_missing_from_shoot: { tag: "TANNOY_SHOOTING_DIRECTORNEEDEDONSET", priority: 3 },
+  a_tannoy_crew_missing_from_shoot: { tag: "TANNOY_SHOOTING_CREWNEEDEDONSET", priority: 3 },
+  a_tannoy_ready_for_release: { tag: "TANNOY_SHOOTING_COMPLETE_READYFORRELEASE", priority: 3 },
+};
+
 export type SpeechCategory = "dj" | "news" | "tannoy" | "speech";
 /** The category numbers the original uses (clip `+0x44`): the index into the speech levels. */
 export const SPEECH_CATEGORY_INDEX: Record<SpeechCategory, number> = { dj: 0, news: 1, tannoy: 2, speech: 3 };

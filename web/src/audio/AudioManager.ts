@@ -143,6 +143,11 @@ export class AudioManager {
     for (const p of [this.radio, this.frontEnd]) if (p.isWanted) p.play();
   }
 
+  /** A studio announcement for the PA (`TANNOY_CASTING_COMPLETE`, ...; docs/AUDIO.md, "The tannoy"). Returns whether it was accepted. */
+  tannoy(tag: string, priority?: number): boolean {
+    return this.speech.tannoy(tag, priority);
+  }
+
   /** A game was loaded: the radio starts its talk afresh (the DJ's introduction, the news for the new date). */
   newGameLoaded(): void {
     this.speech.reset();

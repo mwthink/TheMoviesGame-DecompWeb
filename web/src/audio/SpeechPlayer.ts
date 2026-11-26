@@ -19,9 +19,16 @@ export interface SpeechHost {
 /** The radio's voice filter, from `Data/Audio/radioeffect.ini` `[radio]`: a band-pass at 1548 Hz, Q 5, with make-up gain 1.6. */
 const RADIO_FILTER = { frequency: 1548, q: 5, gain: 1.6 };
 
+/** The tannoy's PA effect, from `radioeffect.ini` `[tannoy]`: a 151 ms echo mixed in at 0.45 over the dry voice (1.0), through a band-pass at 1587 Hz, Q 1.8. [guess] The order of the stages and a single echo without feedback. */
+const TANNOY_FILTER = { delayMs: 151, wet: 0.45, dry: 1.0, frequency: 1587, q: 1.8 };
+/** A tannoy clip's volume: `Audio_QueueTannoy` (orig: 0x004F8A00) passes 0.5. */
+const TANNOY_VOLUME = 0.5;
+
 interface Banks {
   dj: LugBank | null;
   news: LugBank | null;
+  /** `speech_tannoy.lug` and its add-on bank: a tag is looked up in each. */
+  tannoy: LugBank[];
   schedule: DjEntry[];
 }
 
@@ -68,6 +75,14 @@ export class SpeechPlayer {
     });
   }
 
+  /**
+   * A studio announcement (`Audio_QueueTannoy`, orig: 0x004F8A00): `TANNOY_CASTING_COMPLETE` and the like, queued by whatever happens in the studio. Refused like any
+   * clip when the PA level is below `priority` or the game is under 30 s old. Default priority 2 [guess: the callers that pass none leave it to the caller's stack].
+   */
+  tannoy(tag: string, priority = 2): boolean {
+    return this.queue.queue({ tag, category: "tannoy", priority }, this.runningMs / 100);
+  }
+
   private enqueue(clip: SpeechClip): void {
     this.queue.queue(clip, this.runningMs / 100); // ticks at the original's 10 Hz
   }
@@ -84,8 +99,8 @@ export class SpeechPlayer {
       if (csv) {
         try { schedule = parseDjSchedule(await (await fetch(csv)).text()); } catch { /* no DJ schedule: no chatter */ }
       }
-      const [dj, news] = await Promise.all([open("speech_dj.lug"), open("speech_news.lug")]);
-      return { dj, news, schedule };
+      const [dj, news, ...tannoy] = await Promise.all([open("speech_dj.lug"), open("speech_news.lug"), open("speech_tannoy.lug"), open("Speech_TANNOY_addon.lug")]);
+      return { dj, news, tannoy: tannoy.filter((b): b is LugBank => b !== null), schedule };
     })();
     return this.banks;
   }
@@ -120,8 +135,8 @@ export class SpeechPlayer {
   }
 
   private async play(clip: SpeechClip, banks: Banks): Promise<void> {
-    const bank = clip.category === "news" ? banks.news : banks.dj;
     const g = this.host.graph();
+    const bank = clip.category === "news" ? banks.news : clip.category === "tannoy" ? banks.tannoy.find((b) => indexCriteria(b).has(clip.tag)) ?? null : banks.dj;
     if (!bank || !g) return;
     const ids = indexCriteria(bank).get(clip.tag);
     if (!ids?.length) return;
@@ -134,13 +149,29 @@ export class SpeechPlayer {
       const buffer = await g.context.decodeAudioData(wav.slice().buffer);
       const source = g.context.createBufferSource();
       source.buffer = buffer;
+      const tannoy = clip.category === "tannoy";
+      const fx = tannoy ? TANNOY_FILTER : RADIO_FILTER;
       const filter = g.context.createBiquadFilter();
       filter.type = "bandpass";
-      filter.frequency.value = RADIO_FILTER.frequency;
-      filter.Q.value = RADIO_FILTER.q;
+      filter.frequency.value = fx.frequency;
+      filter.Q.value = fx.q;
       const gain = g.context.createGain();
-      gain.gain.value = RADIO_FILTER.gain;
-      source.connect(filter).connect(gain).connect(g.speechBus);
+      gain.gain.value = tannoy ? TANNOY_VOLUME : RADIO_FILTER.gain;
+      source.connect(filter);
+      if (tannoy) {
+        // the dry voice plus one echo
+        const dry = g.context.createGain();
+        dry.gain.value = TANNOY_FILTER.dry;
+        const echo = g.context.createDelay(1);
+        echo.delayTime.value = TANNOY_FILTER.delayMs / 1000;
+        const wet = g.context.createGain();
+        wet.gain.value = TANNOY_FILTER.wet;
+        filter.connect(dry).connect(gain);
+        filter.connect(echo).connect(wet).connect(gain);
+      } else {
+        filter.connect(gain);
+      }
+      gain.connect(g.speechBus);
       this.host.duck(true);
       if (clip.category === "news") this.host.onNews?.(clip.tag);
       await new Promise<void>((resolve) => {

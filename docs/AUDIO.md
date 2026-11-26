@@ -225,6 +225,58 @@ State `+0x24C` is set only by `AudioState_SetIntroPlayedFlag` (`004F3250`), whos
 plays `FANFARE4` and `RADIO_DJ_MCDUFF_INTRO` itself. With the flag set, the next DJ roll that would queue a tag containing `_INTRO` queues nothing and clears the flag. In a normal
 game it is never set.
 
+### The tannoy
+
+The studio's PA: spoken notices that something needs attention or has happened. It is speech category 2 (volume 0.5), through the same queues, gap and levels as the DJ and news.
+
+**Clips [data].** `EN-UK/speech_tannoy.lug` holds 70 tags (`TANNOY_CASTING_*`, `_SHOOTING_*`, `_MOVIE_ON_HOLD_*`, `_NON_ATTENDED_CEREMONY_*`, `_FIRST_TIMEMOVIEINTOPTEN_YOURS_<GENRE>`,
+mood and need notices such as `_BADMOOD`, `_BORED`, `_STRESSED`, `_DRINK_ADDICTION`, rating warnings such as `_SANITATION_RATINGLOW`, tutorial unlocks, league tables, and so on) and
+`Speech_TANNOY_addon.lug` the six stunt ones (`TANNOY_STUNT_*`). **[read]** The audio manager looks a tag up in both banks.
+
+**The effect [config].** `radioeffect.ini` `[tannoy]`: `delay = 151`, `wet = 0.45`, `dry = 1.0`, band-pass `frequency = 1587`, `q = 1.8`. Which stages come in which order is not known.
+
+**Queuing [read].** `Audio_QueueTannoy(state, tag, priority, delay)` (`004F8A00`) is `Audio_QueueSpeech` with category `"tannoy"`, index 2, volume 0.5. A clip is refused while the game is
+under 30 s old, when the PA level (Options, default 3) is below its priority, or when the tag already waits. The priorities the callers use: **2** for the star notices and stunt injury,
+**3** for the casting nags and research pack, **4** (with a 5.0 delay) for `TANNOY_NEW_PACKRESEARCHED_<PACK>`, which therefore needs the PA level at its maximum.
+
+**What triggers it.** 23 tags are queued by code (the callers of `Audio_QueueTannoy`, 13 functions):
+
+| Source | Tags | When |
+|---|---|---|
+| `CPhasePreProduction_UpdateCastingAnnouncements` (`005ABD10`) | `CASTING_ACTORSNEEDED` (`_01` to `_03` by how many actors are missing), `_DIRECTORNEEDED`, `_EXTRASNEEDED`, `_NOEXTRAS`, `_CREWNEEDED`, `_NOCREW`, `STUNT_DOUBLE_NEEDEDINCASTING` | a nag per missing role, re-armed every 60 (`DAT_00E54454`) and 90 (`DAT_00E54458`) clock units; when the problem is fixed the pending clip is cancelled by `FUN_004F6E10` **[inferred]** |
+| `CPhasePreProduction_Update` | `CASTING_COMPLETE` | 30 days after the cast is complete, then every 60 (`MOVIE_QUALITY.md`) |
+| `CProjectIncome_DailyTick` | `RELEASED_TIMETOARCHIVE` | the income pool is empty (`MOVIE_SUCCESS.md`) |
+| `CAsset_UpdateConditionAndDisrepair` | `BUILDINGS_IN_DISREPAIR` | a building's condition drops below 0.05 |
+| `CFacility_UpdateVisualsAndRunningCosts` | `DISREPAIR_WARNING_FACILITY` | not read in detail |
+| `FUN_004753a0` | `STARLEFTSTUDIO` | a star leaves the studio |
+| `FUN_00514a10` | `STAR_JOINEDQUEUE` | a star joins the casting queue (needs the tick counter over 300) |
+| `FUN_0057cd50` | `STUNT_PERSON_INJURED` | health below a threshold (`DAT_00E53304`), at most once per `0x4B0` ticks |
+| `ShootController_ApplyStuntConsequences` | `STUNT_SCENE_SUCCESS` / `_FAILURE` | after a stunt scene (`STUNT_SYSTEM.md`) |
+| `FUN_0049DA60`, `FUN_004A2190` | `RESEARCH_PACK`, `NEW_PACKRESEARCHED_<PACK>` | research |
+| `CStudioAI_CreateFromTemplateWithAnnouncement` | `NEW_STUDIOOPENED` | a rival studio opens |
+| (caller not identified) | `CEREMONY_ABOUTTOSTART` | an awards ceremony is about to start; the tag is in the code but I did not match it to one of the 13 callers |
+
+**The rule-driven tannoys [read, data].** `data\rule\tannoy.csv` (in `MISC0000.pak` and the add-on) has four rules, each firing an action when `movie_lifespan` is a multiple of 90 days; the
+actions are in `data\sitt.ini` under `# TANNOY` as `[actions/a_tannoy_*]` with a `tannoy=<TAG>` and a `tannoy_priority`. The action loader (`FUN_008D2430`) reads `tannoy_priority` with a default of **3**.
+
+| Rule (`tannoy.csv`) | Fires when | Tag | Priority |
+|---|---|---|---|
+| `tannoy_script_complete` | design phase, `movie_lifespan >= 90` | `TANNOY_SCRIPT_COMPLETE` | 2 |
+| `tannoy_actors_missing_from_shoot` | shoot phase, `movie_lifespan >= 180`, actors missing | `TANNOY_SHOOTING_ACTORSNEEDEDONSET` | 3 |
+| `tannoy_director_missing_from_shoot` | shoot phase, `>= 90`, director missing | `TANNOY_SHOOTING_DIRECTORNEEDEDONSET` | 3 |
+| `tannoy_crew_missing_from_shoot` | shoot phase, `>= 90`, crew missing | `TANNOY_SHOOTING_CREWNEEDEDONSET` | 3 |
+| (no rule) | `a_tannoy_ready_for_release` is defined but nothing fires it | `TANNOY_SHOOTING_COMPLETE_READYFORRELEASE` | 3 |
+
+The tutorial scripts switch the category on and off with the commands `tannoy.on` / `tannoy.off` (`sitt.ini`), alongside `dj.on` and `news.on`.
+
+**Unused tags [read, negative].** The bank's other tags (the moods `_BADMOOD`, `_BORED`, `_STRESSED`, the addictions, `_*_RATINGLOW`, `_MOVIE_ON_HOLD_*`, `_NON_ATTENDED_CEREMONY_*`,
+`_FIRST_TIMEMOVIEINTOPTEN_YOURS_*`, the league-table, tutorial-unlock and `_STARRETIRED_*` ones) appear in no `.ini`, `.txt` or `.csv` in the archives and in no string of the executable,
+and the 23 tags the code queues are the only `TANNOY_` strings in it. So they look like recorded but cut content, never played by the shipped game. (Other file types in the archives
+were not searched; a prefix built at run time would also escape this test, and only `TANNOY_NEW_PACKRESEARCHED_<PACK>` does that.)
+
+**The web port.** `SpeechPlayer.tannoy(tag, priority)` (and `AudioManager.tannoy`) queue a clip through the existing queue and play it with the echo and band-pass; nothing in the
+game calls it yet, because the systems above (casting, shoots, buildings, research) are not running in the web app.
+
 ## Ambience
 
 **[read]** `Audio_StartAmbienceLoops` (`004F5F90`) starts three looping voices for a running game (only while the current state is 2): the **lot**, the **street** and the
@@ -316,7 +368,7 @@ and a dot grows and glows while its news clip plays (`highlightNews`). The other
   cannot decode and which is not needed for this. The web port's menu screens hold state 4 and play it. That the original's menu really sounds like this was not checked in the
   running game; the `frontend_loop.wmv` audio may play as well (its own path was not followed).
   (The tutorial `.wmv` clips in `Data/Tutorials/` have the WMA problem.)
-- The tannoy's trigger rules (`tannoy.csv` and the callers of `Audio_QueueTannoy`) and the other speech categories.
+- The default priority of the code callers that pass none and the order of the tannoy effect's stages; and the other speech categories (director, tutorial).
 - The META Data `.lug` route, the RLM parameters, the rest of the sample record.
 - Which banks the game loads when, and the game-side engine classes (`LHAudioSystem_*`, `CEngine`, event triggers, atmosphere groups, the driver classes
   in `0x00bf3000`-`0x00c02000` and `0x00bc0000`-`0x00bc9000`): mostly unnamed (`LIBRARIES.md`).

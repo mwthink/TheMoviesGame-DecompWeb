@@ -81,3 +81,15 @@ test("a news clip lights its event's icon: the event's tag, or the tag plus _FUT
   assert.equal(clipMatchesEvent("TIMELINE_BAYOFPIGS", "TIMELINE_MOONLANDING"), false);
   assert.equal(clipMatchesEvent("TIMELINE_BAYOFPIGS_FUTURE_2", "TIMELINE_BAYOFPIGS"), false);
 });
+
+test("tannoy clips wait for 30 s of game time and for a PA level at or above their priority", () => {
+  const q = new SpeechQueue();
+  assert.equal(q.queue({ tag: "TANNOY_CASTING_COMPLETE", category: "tannoy", priority: 3 }, 299), false);
+  assert.equal(q.queue({ tag: "TANNOY_CASTING_COMPLETE", category: "tannoy", priority: 3 }, 300), true);
+  assert.equal(q.queue({ tag: "TANNOY_CASTING_COMPLETE", category: "tannoy", priority: 3 }, 300), false); // already waiting
+  assert.equal(q.queue({ tag: "TANNOY_NEW_PACKRESEARCHED_X", category: "tannoy", priority: 4 }, 300), false); // the default level 3 is below priority 4
+  q.levels.tannoy = 4;
+  assert.equal(q.queue({ tag: "TANNOY_NEW_PACKRESEARCHED_X", category: "tannoy", priority: 4 }, 300), true);
+  q.levels.tannoy = -1; // PA off: nothing waiting plays
+  assert.equal(q.next(6000), undefined);
+});
