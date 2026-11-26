@@ -52,3 +52,11 @@ test("volumes are clamped to 0..1 and snapped to tenths", () => {
   assert.equal(normalizeSettings({ soundVolume: 7 }).soundVolume, 1);
   assert.equal(normalizeSettings({ musicVolume: "loud" }).musicVolume, 1);
 });
+
+test("the mix stages are clamped to their ranges and snapped to their steps; the defaults are the original's mix plus the port's ambience", () => {
+  assert.deepEqual([DEFAULT_SETTINGS.speechVolume, DEFAULT_SETTINGS.tannoyVolume, DEFAULT_SETTINGS.ambienceVolume, DEFAULT_SETTINGS.musicDuck], [1.6, 0.5, 0.1, 1]);
+  assert.equal(normalizeSettings({ speechVolume: 9 }).speechVolume, 4);
+  assert.equal(normalizeSettings({ ambienceVolume: 0.12 }).ambienceVolume, 0.1);
+  assert.equal(normalizeSettings({ musicDuck: -1 }).musicDuck, 0);
+  assert.equal(normalizeSettings({ tannoyVolume: "loud" }).tannoyVolume, 0.5);
+});

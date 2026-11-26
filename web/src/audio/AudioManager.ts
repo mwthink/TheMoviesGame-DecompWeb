@@ -1,24 +1,25 @@
 import { RadioPlayer } from "./RadioPlayer.ts";
 import { AmbiencePlayer } from "./AmbiencePlayer.ts";
 import { SpeechPlayer } from "./SpeechPlayer.ts";
-import type { RadioDebug } from "./RadioDebug.ts";
+import type { MixStage, RadioDebug } from "./RadioDebug.ts";
 import type { TimelineEvent } from "../sim/audio/RadioSpeech.ts";
-import type { SettingsStore } from "../settings/Settings.ts";
+import { MIX_RANGES, type SettingsStore } from "../settings/Settings.ts";
 import { AUDIO_STATES, AudioStateMachine, type AudioEffect } from "../sim/audio/AudioStates.ts";
 
 /** Fade time when a state is suspended or resumed: the original passes a global (`DAT_00E51CD8`, 1000 ms). */
 const FADE_SECONDS = 1;
 /**
- * How far the music drops while the DJ, the news or the tannoy speaks: not at all, as the original. [read] Nothing in the original's code lowers the music for a radio
- * clip (docs/AUDIO.md, "Does the music duck?"): speech voices sit at the sound-effects channel's volume against music at its track volume (about 0.45), so the voice is
- * already the louder. Set this below 1 to add a duck (2/3 is speech 3 over music 2).
+ * The mix stages the dev menu changes, and the setting each one is (`Settings.ts` has their meaning, defaults and ranges; docs/AUDIO.md, "Does the music duck?": the original
+ * has only the music and sound-effects volumes, speech and ambience voices sit at the sound-effects volume, and nothing ducks the music).
  */
-const DUCK_LEVEL = 1;
-/**
- * The ambience (birds, bells, planes) against the other sound effects. [guess] The original has no level of its own for it: its layers are the sound-effects volume times a
- * fade by camera height, the same as speech. At that level the birds drown the news here, so the port has this one extra stage, set to 0.1 by ear (the dev menu's slider changes it).
- */
-export const DEFAULT_AMBIENCE_LEVEL = 0.1;
+const MIX_STAGES: readonly (Omit<MixStage, "value"> & { key: "musicVolume" | "soundVolume" | "speechVolume" | "tannoyVolume" | "ambienceVolume" | "musicDuck" })[] = [
+  { id: "music", key: "musicVolume", label: "Music (Options music volume)", min: 0, max: 1, step: 0.1 },
+  { id: "sound", key: "soundVolume", label: "Sound effects (Options sound volume; speech and ambience go through it)", min: 0, max: 1, step: 0.1 },
+  { id: "speech", key: "speechVolume", label: "DJ and news clips", ...MIX_RANGES.speechVolume },
+  { id: "tannoy", key: "tannoyVolume", label: "Tannoy clips", ...MIX_RANGES.tannoyVolume },
+  { id: "ambience", key: "ambienceVolume", label: "Ambience (birds, bells, planes)", ...MIX_RANGES.ambienceVolume },
+  { id: "duck", key: "musicDuck", label: "Music while a clip plays (1 = no duck)", ...MIX_RANGES.musicDuck },
+];
 
 /** Where a file under `Data/Audio/` (`music/Tuning_Up.ogg`, `trackinfo.csv`) can be fetched from (a URL the page can load), or null when this build has no way to read the game's audio. */
 export type MusicLocator = (path: string) => string | null;
@@ -60,9 +61,8 @@ export class AudioManager {
   private readonly speech: SpeechPlayer;
   private readonly ambience: AmbiencePlayer;
   private sfx: GainNode | null = null;
-  /** Between the ambience layers and the sound-effects bus (`DEFAULT_AMBIENCE_LEVEL`). */
+  /** Between the ambience layers and the sound-effects bus (the `ambienceVolume` setting). */
   private ambienceBus: GainNode | null = null;
-  private ambienceLevel = DEFAULT_AMBIENCE_LEVEL;
   private readonly voices = new Map<number, Voice>();
   private readonly radio: RadioPlayer;
   /** The menus' player (state 4): the tracks flagged "Play in Random Mode", any year (`FUN_00446600`, orig: 0x00446600). */
@@ -98,6 +98,7 @@ export class AudioManager {
       duck: (on) => this.setDuck(on),
       events: () => this.game.events(),
       onNews: (tag) => this.onNews?.(tag),
+      gain: (tannoy) => (tannoy ? this.settings.get().tannoyVolume : this.settings.get().speechVolume),
     });
     this.ambience = new AmbiencePlayer({
       graph: () => (this.context && this.ambienceBus ? { context: this.context, bus: this.ambienceBus } : null),
@@ -119,14 +120,14 @@ export class AudioManager {
 
   /** The dev menu's handle on the radio, the DJ and the speech queue. */
   readonly radioDebug: RadioDebug = {
-    rows: () => ({ ...this.radio.debugRows(), ...this.speech.debugRows() }),
+    rows: () => ({ ...this.radio.debugRows(), ...this.speech.debugRows(), mix: MIX_STAGES.map((m) => `${m.key} ${this.settings.get()[m.key].toFixed(2)}`).join(", ") }),
     nextTrack: () => this.radio.skip(),
     djNow: () => this.speech.djChatter(),
     setForceDj: (on) => { this.radio.forceDj = on; },
     setIgnoreLimits: (on) => { this.speech.ignoreLimits = on; },
     setLevel: (kind, level) => this.speech.setLevel(kind, level),
-    ambienceLevel: () => this.ambienceLevel,
-    setAmbienceLevel: (v) => { this.ambienceLevel = v; if (this.ambienceBus) this.ambienceBus.gain.value = v; },
+    mixer: () => MIX_STAGES.map(({ key, ...m }): MixStage => ({ ...m, value: this.settings.get()[key] })),
+    setMix: (id, v) => { const stage = MIX_STAGES.find((m) => m.id === id); if (stage) this.settings.set({ [stage.key]: v }); },
     tags: (kind) => this.speech.tagsOf(kind),
     play: (kind, tag) => this.speech.playTag(kind, tag),
   };
@@ -159,7 +160,7 @@ export class AudioManager {
       this.music.connect(this.context.destination);
       this.sfx.connect(this.context.destination);
       this.ambienceBus = this.context.createGain();
-      this.ambienceBus.gain.value = this.ambienceLevel;
+      this.ambienceBus.gain.value = this.settings.get().ambienceVolume;
       this.ambienceBus.connect(this.sfx);
       this.applyVolumes();
     }
@@ -194,13 +195,14 @@ export class AudioManager {
     const t = this.context.currentTime;
     this.duck.gain.cancelScheduledValues(t);
     this.duck.gain.setValueAtTime(this.duck.gain.value, t);
-    this.duck.gain.linearRampToValueAtTime(on ? DUCK_LEVEL : 1, t + 0.4);
+    this.duck.gain.linearRampToValueAtTime(on ? this.settings.get().musicDuck : 1, t + 0.4);
   }
 
   private applyVolumes(): void {
     const s = this.settings.get();
     if (this.music) this.music.gain.value = s.musicVolume;
     if (this.sfx) this.sfx.gain.value = s.soundVolume;
+    if (this.ambienceBus) this.ambienceBus.gain.value = s.ambienceVolume;
   }
 
   private apply(effects: readonly AudioEffect[]): void {

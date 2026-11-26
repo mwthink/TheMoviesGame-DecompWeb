@@ -234,6 +234,9 @@ body[data-screen="game"] .devmenu { bottom: 70px; }
 .loadpic .loadbox .actions { margin: 0.8cqw 0 0; text-align: center; }
 .loadpic .loadbox .actions button { color: #17223a; border-color: #5d6f93; font-size: 2cqw; }
 
+/* Options: the mix sliders. */
+.options label.slider { display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 8px; }
+.options label.slider input[type=range] { grid-column: 1 / -1; width: 100%; }
 /* Dev menu: collapsible sections and sliders. */
 .devmenu h4[data-collapsible] { cursor: pointer; user-select: none; }
 .devmenu h4[data-collapsible]::before { content: "\25BE\00a0"; }

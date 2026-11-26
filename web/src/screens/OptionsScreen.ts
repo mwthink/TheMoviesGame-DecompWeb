@@ -1,4 +1,4 @@
-import { ANISOTROPY_CHOICES, DEFAULT_SETTINGS, HELP_LEVELS, RENDER_SCALE_RANGE, VOLUME_STEP, type HelpLevel, type Settings, type SettingsStore } from "../settings/Settings.ts";
+import { ANISOTROPY_CHOICES, DEFAULT_SETTINGS, HELP_LEVELS, MIX_RANGES, RENDER_SCALE_RANGE, VOLUME_STEP, type HelpLevel, type Settings, type SettingsStore } from "../settings/Settings.ts";
 import { mountScreen, unmountScreen, type Screen } from "./Screen.ts";
 
 /** Names of the help levels, the original's `GAMEPLAYOPTIONS_*HELP` strings. */
@@ -34,6 +34,10 @@ export class OptionsScreen implements Screen {
     const volumeSteps: number[] = [];
     for (let i = 0; i <= Math.round(1 / VOLUME_STEP); i++) volumeSteps.push(i / Math.round(1 / VOLUME_STEP));
     const option = (value: string | number, label: string, selected: boolean) => `<option value="${value}"${selected ? " selected" : ""}>${label}</option>`;
+    const mixSlider = (key: keyof typeof MIX_RANGES, label: string) => {
+      const r = MIX_RANGES[key];
+      return `<label class="slider">${label} <output>${Math.round(s[key] * 100)} %</output><input type="range" data-mix="${key}" min="${r.min}" max="${r.max}" step="${r.step}" value="${s[key]}"></label>`;
+    };
     el.innerHTML = `
       <h2>Options</h2>
       <div class="optionsbox">
@@ -52,6 +56,11 @@ export class OptionsScreen implements Screen {
           <legend>Audio</legend>
           <label>Music volume <select data-key="musicVolume">${volumeSteps.map((v) => option(v, `${Math.round(v * 100)} %`, v === s.musicVolume)).join("")}</select></label>
           <label>Sound effects volume <select data-key="soundVolume">${volumeSteps.map((v) => option(v, `${Math.round(v * 100)} %`, v === s.soundVolume)).join("")}</select></label>
+          ${mixSlider("speechVolume", "DJ and news volume")}
+          ${mixSlider("tannoyVolume", "Tannoy volume")}
+          ${mixSlider("ambienceVolume", "Background ambience volume")}
+          ${mixSlider("musicDuck", "Music level while the DJ or news speaks")}
+          <p class="hint">The original has only the music and sound-effects volumes; the four sliders below them are this version's own (100 % on the last one is no lowering, as the original).</p>
         </fieldset>
         <fieldset>
           <legend>Game</legend>
@@ -62,6 +71,10 @@ export class OptionsScreen implements Screen {
       </div>
       <div class="actions"><button type="button" data-reset>Defaults</button><button type="button" data-back>Back</button></div>`;
     el.querySelectorAll<HTMLSelectElement>("select[data-key]").forEach((sel) => sel.addEventListener("change", () => this.change(sel.dataset.key as keyof Settings, sel.value)));
+    el.querySelectorAll<HTMLInputElement>("input[data-mix]").forEach((slider) => slider.addEventListener("input", () => {
+      slider.previousElementSibling!.textContent = `${Math.round(Number(slider.value) * 100)} %`;
+      this.store.set({ [slider.dataset.mix as string]: Number(slider.value) } as Partial<Settings>);
+    }));
     el.querySelectorAll<HTMLInputElement>("input[data-key]").forEach((box) => box.addEventListener("change", () => this.change(box.dataset.key as keyof Settings, box.checked)));
     el.querySelector<HTMLInputElement>("input[data-fullscreen]")!.addEventListener("change", (e) => {
       const on = (e.target as HTMLInputElement).checked;

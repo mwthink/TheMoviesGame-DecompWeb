@@ -30,11 +30,23 @@ export interface Settings {
   musicVolume: number;
   /** Sound-effects level, same steps: mixer channel 2 (`Volume 2`, default 1). */
   soundVolume: number;
+  /**
+   * The rest of the mix (docs/AUDIO.md, "Does the music duck?"). The original has only the two volumes above: speech and ambience voices sit at the sound-effects volume and
+   * the music is its own channel, so these four are the port's own stages, set by ear and all changeable here and in the dev menu.
+   */
+  /** DJ and news clips' gain: 1.6 is the radio effect's make-up gain (`radioeffect.ini`), 0 to 4. */
+  speechVolume: number;
+  /** Tannoy clips' gain: 0.5 is the volume `Audio_QueueTannoy` passes, 0 to 4. */
+  tannoyVolume: number;
+  /** The ambience (birds, bells, planes) against the other sound effects, 0 to 1. [guess] 0.1: at the sound-effects volume the birds covered the news. */
+  ambienceVolume: number;
+  /** How far the music drops while a DJ, news or tannoy clip plays, 0 to 1; 1 is none, as the original. */
+  musicDuck: number;
   /** Loading screens built from a 3D character in front of a plain colour (`loadingScenes.ts`) instead of the original's pictures. Not what the original does. */
   newLoadingScreens: boolean;
 }
 
-export const DEFAULT_SETTINGS: Readonly<Settings> = { renderScale: 1, anisotropy: 4, smoothEdges: true, multisampling: false, smoothAnimation: false, showFps: false, helpLevel: "max", musicVolume: 1, soundVolume: 1, newLoadingScreens: false };
+export const DEFAULT_SETTINGS: Readonly<Settings> = { renderScale: 1, anisotropy: 4, smoothEdges: true, multisampling: false, smoothAnimation: false, showFps: false, helpLevel: "max", musicVolume: 1, soundVolume: 1, speechVolume: 1.6, tannoyVolume: 0.5, ambienceVolume: 0.1, musicDuck: 1, newLoadingScreens: false };
 
 export const ANISOTROPY_CHOICES = [1, 2, 4, 8, 16] as const;
 /** The volume steps the original's buttons make (`ExternMusicVolUp` and friends: +-0.1). */
@@ -44,6 +56,19 @@ export const RENDER_SCALE_RANGE = { min: 0.5, max: 1.5, step: 0.25 } as const;
 /** A volume clamped to 0..1 and snapped to the tenths the original's buttons give. */
 function volume(v: number): number {
   return Math.round(Math.min(1, Math.max(0, v)) / VOLUME_STEP) / Math.round(1 / VOLUME_STEP);
+}
+
+/** The mix stages that are not the original's volumes: their range and step (the options screen and the dev menu's sliders). */
+export const MIX_RANGES = {
+  speechVolume: { min: 0, max: 4, step: 0.05 },
+  tannoyVolume: { min: 0, max: 4, step: 0.05 },
+  ambienceVolume: { min: 0, max: 1, step: 0.05 },
+  musicDuck: { min: 0, max: 1, step: 0.05 },
+} as const;
+
+function level(v: number, key: keyof typeof MIX_RANGES): number {
+  const { min, max, step } = MIX_RANGES[key];
+  return Math.round(Math.min(max, Math.max(min, v)) / step) * step;
 }
 
 /** Read settings from untrusted stored data: unknown or out-of-range values fall back to the defaults, numbers are clamped and snapped to what the screen offers. */
@@ -64,6 +89,10 @@ export function normalizeSettings(raw: unknown): Settings {
     helpLevel: HELP_LEVELS.includes(o.helpLevel as HelpLevel) ? (o.helpLevel as HelpLevel) : d.helpLevel,
     musicVolume: volume(num(o.musicVolume, d.musicVolume)),
     soundVolume: volume(num(o.soundVolume, d.soundVolume)),
+    speechVolume: level(num(o.speechVolume, d.speechVolume), "speechVolume"),
+    tannoyVolume: level(num(o.tannoyVolume, d.tannoyVolume), "tannoyVolume"),
+    ambienceVolume: level(num(o.ambienceVolume, d.ambienceVolume), "ambienceVolume"),
+    musicDuck: level(num(o.musicDuck, d.musicDuck), "musicDuck"),
     newLoadingScreens: typeof o.newLoadingScreens === "boolean" ? o.newLoadingScreens : d.newLoadingScreens,
   };
 }

@@ -32,10 +32,14 @@ Reached from the main menu and, over the running game, from the pause menu (`Pau
 | Graphics | Smooth jagged edges | an FXAA post-process on each camera, a cheap full-screen pass; on by default | - |
 | Graphics | Show frames per second | a small counter below the menu bar | - |
 | Graphics | Full screen | the browser's Fullscreen API (not stored: the browser decides) | `Fullscreen` |
+| Audio | Music volume, Sound effects volume (0 to 100 % in steps of 10) | the music bus and the sound bus (speech and ambience go through it) | music and sound-effects volume (channels 1 and 2) |
+| Audio | DJ and news volume (0 to 400 %), Tannoy volume (0 to 400 %) | the gain of the speech clips; 160 % and 50 % are the radio effect's make-up gain and the tannoy's clip volume | - (the original has no setting for them) |
+| Audio | Background ambience volume (0 to 100 %) | the birds, bells and planes against the other sound effects; 10 % | - |
+| Audio | Music level while the DJ or news speaks (0 to 100 %) | how far the music drops under a clip; 100 % is none, as the original | - |
 | Game | Level of help | "no extra assistance" turns tooltips off (`Tooltip.setEnabled`); the other levels are the same for now | level of help |
 | Game | New loading screens | a 3D character on a flat colour behind the tip box instead of the original's picture (`LOADING_SCREENS.md`, "New loading scenes"); not the original's | new loading screens |
 
-Not offered, because there is nothing behind them yet: speaker set-up, PA and radio options, autosave (no saving), colour depth (a browser has one),
+Not offered, because there is nothing behind them yet: speaker set-up, the PA and radio options (which categories speak: the speech levels are fixed at 3), autosave (no saving), colour depth (a browser has one),
 screen size in pixels (the window is the size).
 
 ## What Babylon.js could add

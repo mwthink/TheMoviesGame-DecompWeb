@@ -15,6 +15,8 @@ export interface SpeechHost {
   events(): readonly TimelineEvent[];
   /** A news clip started (its tag) or ended (null): the timeline lights the icon of the event it is about. */
   onNews?(tag: string | null): void;
+  /** The clips' gain (dev menu); the radio effect's make-up gain and the tannoy's volume when absent. */
+  gain?(tannoy: boolean): number;
 }
 
 /** The radio's voice filter, from `Data/Audio/radioeffect.ini` `[radio]`: a band-pass at 1548 Hz, Q 5, with make-up gain 1.6. */
@@ -224,7 +226,7 @@ export class SpeechPlayer {
       filter.frequency.value = fx.frequency;
       filter.Q.value = fx.q;
       const gain = g.context.createGain();
-      gain.gain.value = tannoy ? TANNOY_VOLUME : RADIO_FILTER.gain;
+      gain.gain.value = this.host.gain?.(tannoy) ?? (tannoy ? TANNOY_VOLUME : RADIO_FILTER.gain);
       source.connect(filter);
       if (tannoy) {
         // the dry voice plus one echo

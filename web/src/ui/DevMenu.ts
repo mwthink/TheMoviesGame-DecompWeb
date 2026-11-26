@@ -272,19 +272,24 @@ export class DevMenu {
       levelRow("dj", "DJ");
       levelRow("news", "News");
       levelRow("tannoy", "Tannoy");
-      // the ambience (birds, bells, planes) has no level of its own in the original; this stage is the port's, to keep it from covering the news
-      const ambLabel = document.createElement("label");
-      ambLabel.className = "slider";
-      const ambOut = document.createElement("output");
-      const amb = document.createElement("input");
-      amb.type = "range";
-      amb.min = "0"; amb.max = "1"; amb.step = "0.05";
-      amb.value = String(radio.ambienceLevel());
-      const showAmb = () => { ambOut.textContent = Number(amb.value).toFixed(2); };
-      showAmb();
-      amb.addEventListener("input", () => { showAmb(); radio.setAmbienceLevel(Number(amb.value)); });
-      ambLabel.append("Ambience level ", ambOut, amb);
-      radioSec.append(ambLabel);
+      // the mix: one slider per stage; the port's values are locked in from what these show (the "mix" row of the Radio section lists them)
+      const mixHead = document.createElement("h4");
+      mixHead.textContent = "Mix";
+      radioSec.append(mixHead);
+      for (const stage of radio.mixer()) {
+        const l = document.createElement("label");
+        l.className = "slider";
+        const out = document.createElement("output");
+        const input = document.createElement("input");
+        input.type = "range";
+        input.min = String(stage.min); input.max = String(stage.max); input.step = String(stage.step);
+        input.value = String(stage.value);
+        const show = () => { out.textContent = Number(input.value).toFixed(2); };
+        show();
+        input.addEventListener("input", () => { show(); radio.setMix(stage.id, Number(input.value)); });
+        l.append(`${stage.label} `, out, input);
+        radioSec.append(l);
+      }
       this.body.append(radioSec);
     }
 

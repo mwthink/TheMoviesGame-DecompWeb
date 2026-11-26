@@ -220,14 +220,18 @@ needs the dev server like the rest.
 (`004F6ED0`) starts a clip at `min(DAT_0104B0B4, 0.1)` while a higher-priority voice (`Audio_SetOverridingVoice`, `004F30C0`, stored at state `+0x234`) is playing and restores
 the speech level when it stops (`DAT_0104B0B4` is the sound-effects channel's volume, not a speech level or a music level: see below), and the music channel's volume (`Audio_SetChannelVolume`,
 channel 1) is written only by the options screen, the trailer editor and `FUN_00752270`. The speech bank's own mixing (the "radio" category) was not examined, so a duck done by
-the sound middleware cannot be excluded **[guess]**; the web port does the same: no duck (`DUCK_LEVEL` is 1; below 1 it would lower the music while a clip plays, 2/3 being speech 3 over music 2).
+the sound middleware cannot be excluded **[guess]**; the web port does the same: no duck (the `musicDuck` setting is 1; below 1 it lowers the music while a clip plays, 2/3 being speech 3 over music 2).
 
 **How the original balances them [read].** `DAT_0104B0AC` is an array of three floats, the channel volumes `Volume 0..2` (`AudioOptions_LoadMixerLevels`, `Audio_SetChannelVolume`
 writes `(&DAT_0104B0AC)[channel]`), so `DAT_0104B0B4` is `[2]`, the **sound-effects channel**. It is what scales the speech voices (`RadioChannel_SelectNextClip` sets a new clip's
 voice to it, or to `min(0.1, it)` while a forced clip plays) and the ambience voices (`Audio_UpdateAmbienceVolumes`, each is this volume times a 0 to 1 fade by camera height). Music is channel 1 and is separate. So with
 the options at their default of 1.0 a clip's voice is at full level while a track plays at its CSV volume (about 0.45): the voice is already about twice the music, with no duck, and
-the options' sound slider moves voices and effects together against the music slider. The web port's speech goes through the sound bus, so it follows the same split. Its ambience has one extra stage, `DEFAULT_AMBIENCE_LEVEL` (0.1, set by ear, **[guess]**, the dev menu's "Ambience level" slider): the original has no level of its own for it, but at the sound-effects volume the birds covered the news. What the sound engine
+the options' sound slider moves voices and effects together against the music slider. The web port's speech goes through the sound bus, so it follows the same split. Its ambience has one extra stage, the `ambienceVolume` setting (0.1, set by ear, **[guess]**): the original has no level of its own for it, but at the sound-effects volume the birds covered the news. What the sound engine
 does with the voice volume besides (the clip's own record volume, 1.0 for the DJ and 0.5 for the tannoy; `FUN_009B1860` starts the voice) was not followed [guess].
+
+The port's mix is six settings (`Settings.ts`), each a slider in the Options screen's Audio group and in the dev menu: `musicVolume` and `soundVolume` (the original's two),
+`speechVolume` (DJ and news clips, 1.6 = the radio effect's make-up gain), `tannoyVolume` (0.5, the tannoy's clip volume), `ambienceVolume` (0.1) and `musicDuck` (1: none).
+The last four are the port's own stages, stored with the other settings.
 
 ### The `_INTRO` flag
 
